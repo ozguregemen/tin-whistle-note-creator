@@ -6,7 +6,7 @@ Song notes to D tin whistle fingering diagrams — a web-based MVP with English 
 
 [Open Tin Whistle Note Creator](https://ozguregemen.github.io/tin-whistle-note-creator/)
 
-The site is built and deployed automatically with GitHub Pages whenever `main` is updated.
+The site is published by GitHub Pages from the versioned `docs` directory on `main`.
 
 ## Bu sürümde çalışanlar
 
@@ -41,6 +41,8 @@ GitHub Pages statik çıktısını yerelde kontrol etmek için:
 npm run build:pages
 npm run preview:pages
 ```
+
+`npm run build:pages` komutu yayınlanacak statik dosyaları `docs` klasöründe günceller.
 
 ## Ürün planı
 

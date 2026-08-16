@@ -6,7 +6,7 @@ export default defineConfig({
   base: "/tin-whistle-note-creator/",
   plugins: [react()],
   build: {
-    outDir: "../dist-pages",
+    outDir: "../docs",
     emptyOutDir: true,
   },
 });
