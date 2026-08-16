@@ -2,6 +2,12 @@
 
 Song notes to D tin whistle fingering diagrams — a web-based MVP with English and Turkish interfaces.
 
+## Live app
+
+[Open Tin Whistle Note Creator](https://ozguregemen.github.io/tin-whistle-note-creator/)
+
+The site is built and deployed automatically with GitHub Pages whenever `main` is updated.
+
 ## Bu sürümde çalışanlar
 
 - Üç örnek ezgiden oluşan yerel katalogda arama
@@ -27,6 +33,13 @@ npm run dev
 
 ```bash
 npm run build
+```
+
+GitHub Pages statik çıktısını yerelde kontrol etmek için:
+
+```bash
+npm run build:pages
+npm run preview:pages
 ```
 
 ## Ürün planı
