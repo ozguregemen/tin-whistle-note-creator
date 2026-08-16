@@ -50,11 +50,13 @@ test("temel D tin whistle parmak eşlemelerini içerir", async () => {
   assert.match(page, /window\.print\(\)/);
 });
 
-test("PDF çıktısı parmakları metin sembolleriyle ve sıkıştırılmış düzenle basar", async () => {
+test("ekran ve PDF çıktısı eşit boyutlu CSS parmak işaretleriyle basılır", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(page, /state === "1" \? "●"/);
-  assert.match(page, /state === "h" \? "◐"/);
+  assert.match(page, /state === "1" \? "closed"/);
+  assert.match(page, /state === "h" \? "half"/);
+  assert.match(css, /\.hole \{[^}]*width:10px; height:10px;/);
+  assert.match(css, /\.hole\.half \{ background:linear-gradient/);
   assert.match(css, /@page \{ size:A4 portrait; margin:10mm; \}/);
   assert.match(css, /grid-template-columns:repeat\(12,minmax\(0,1fr\)\)/);
   assert.match(css, /break-inside:avoid-page/);
