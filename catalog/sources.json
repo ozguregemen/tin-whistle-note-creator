@@ -1,0 +1,40 @@
+{
+  "songs": [
+    {
+      "id": "duman-bu-aksam",
+      "title": "Bu Akşam",
+      "artist": "Duman",
+      "aliases": [
+        "Duman Bu Akşam",
+        "İçerim Ben Bu Akşam",
+        "Duman İçerim Ben Bu Akşam"
+      ],
+      "difficulty": {
+        "en": "Intermediate",
+        "tr": "Orta"
+      },
+      "source": {
+        "name": "Notalar.net",
+        "apiUrl": "https://www.notalar.net/wp-json/wp/v2/posts?slug=icerim-ben-aksam-melodika-notalari&_fields=title,link,content,modified",
+        "pageUrl": "https://www.notalar.net/icerim-ben-aksam-melodika-notalari/"
+      },
+      "verificationSources": [
+        {
+          "name": "HKLPS Müzik · YouTube",
+          "url": "https://www.youtube.com/watch?v=LWWKiIJ9RD0"
+        }
+      ],
+      "phraseLengths": [5, 5, 5, 4, 5, 5, 4, 3],
+      "octaves": [
+        4, 5, 5, 5, 5,
+        4, 5, 5, 4, 4,
+        4, 5, 5, 5, 5,
+        4, 5, 5, 5,
+        4, 5, 5, 5, 5,
+        4, 5, 5, 4, 4,
+        5, 4, 4, 5,
+        4, 4, 4
+      ]
+    }
+  ]
+}

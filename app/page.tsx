@@ -3,14 +3,27 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type Language = "en" | "tr";
-type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes";
+type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "liveFound" | "sourceUnavailable";
+
+type SongSource = {
+  name: string;
+  url: string;
+  role: "note-source" | "cross-check";
+};
 
 type Song = {
+  id: string;
   title: string;
+  artist?: string;
+  aliases: string[];
   subtitle: Record<Language, string>;
   difficulty: Record<Language, string>;
   notes: string;
+  sourceStatus: "cross-checked" | "live" | "manual";
+  sources: SongSource[];
 };
+
+type Catalog = { songs: Song[] };
 
 type ParsedNote = {
   token: string;
@@ -39,9 +52,13 @@ const COPY = {
     pasteLabel: "Separate notes with spaces and phrases with a “|”",
     pasteHint: "Use Do/Re/Mi or C/D/E · Add # for sharps · Example: F#4",
     convert: "Convert",
-    catalogPrepared: "Ready from the local MVP catalog",
-    catalogFound: "Found in the local MVP catalog",
-    notFound: "That song is not in the catalog yet. Paste its notes to continue.",
+    catalogPrepared: "Verified web-sourced catalog is ready",
+    catalogUpdated: "Latest source catalog loaded from GitHub",
+    catalogFound: "Found in the web-sourced catalog",
+    searching: "Searching live note sources…",
+    liveFound: "Found through The Session live API",
+    sourceUnavailable: "The live source could not be reached. Try again or request the song.",
+    notFound: "No reviewed source match yet. Request this song or paste its notes.",
     converted: "Notes converted into fingering diagrams",
     invalidNotes: "No valid notes found. Example: D4 E4 F#4 G4 | A4 B4",
     guide: "Fingering guide",
@@ -67,6 +84,15 @@ const COPY = {
     customTitle: "My melody",
     customSubtitle: "Manually entered note sequence",
     customDifficulty: "Custom",
+    verified: "Cross-checked",
+    liveSource: "Live API source",
+    sources: "Sources",
+    primarySource: "note source",
+    crossCheck: "cross-check",
+    requestSong: "Request this song",
+    emptyTitle: "No note sheet selected",
+    emptyBody: "We did not leave the previous song on screen. Only reviewed source matches are shown here.",
+    sourceCaveat: "Pitch sequence is sourced; rhythm and note durations are not included yet.",
   },
   tr: {
     languageAction: "English",
@@ -86,9 +112,13 @@ const COPY = {
     pasteLabel: "Notaları boşlukla, cümleleri “|” işaretiyle ayır",
     pasteHint: "Do/Re/Mi veya C/D/E kullan · Diyez için # ekle · Örnek: F#4",
     convert: "Dönüştür",
-    catalogPrepared: "Yerel MVP kataloğundan hazırlandı",
-    catalogFound: "Yerel MVP kataloğunda bulundu",
-    notFound: "Bu şarkı henüz katalogda yok. Notaları yapıştırarak devam edebilirsin.",
+    catalogPrepared: "Doğrulanmış internet kaynaklı katalog hazır",
+    catalogUpdated: "Güncel kaynak kataloğu GitHub’dan yüklendi",
+    catalogFound: "İnternet kaynaklı katalogda bulundu",
+    searching: "Canlı nota kaynaklarında aranıyor…",
+    liveFound: "The Session canlı API’sinde bulundu",
+    sourceUnavailable: "Canlı kaynağa ulaşılamadı. Yeniden deneyebilir veya şarkıyı isteyebilirsin.",
+    notFound: "Henüz incelenmiş kaynak eşleşmesi yok. Şarkıyı isteyebilir veya notaları yapıştırabilirsin.",
     converted: "Notalar parmak pozisyonlarına dönüştürüldü",
     invalidNotes: "Geçerli nota bulunamadı. Örnek: D4 E4 F#4 G4 | A4 B4",
     guide: "Parmak rehberi",
@@ -114,33 +144,41 @@ const COPY = {
     customTitle: "Benim ezgim",
     customSubtitle: "Elle girilen nota dizisi",
     customDifficulty: "Özel",
+    verified: "Karşılaştırıldı",
+    liveSource: "Canlı API kaynağı",
+    sources: "Kaynaklar",
+    primarySource: "nota kaynağı",
+    crossCheck: "karşılaştırma",
+    requestSong: "Bu şarkıyı iste",
+    emptyTitle: "Nota sayfası seçilmedi",
+    emptyBody: "Önceki şarkıyı ekranda bırakmadık. Burada yalnızca incelenmiş kaynak eşleşmeleri gösterilir.",
+    sourceCaveat: "Ses dizisi kaynaklıdır; ritim ve nota süreleri henüz dahil değildir.",
   },
 } as const;
 
-const SONGS: Song[] = [
+const FALLBACK_SONGS: Song[] = [
   {
-    title: "Üsküdar’a Gider İken",
-    subtitle: { en: "Traditional Istanbul folk tune · demo arrangement", tr: "Geleneksel İstanbul türküsü · demo düzenleme" },
-    difficulty: { en: "Beginner", tr: "Başlangıç" },
-    notes: "D4 E4 F#4 G4 | A4 G4 F#4 E4 | D4 F#4 A4 B4 | A4 G4 F#4 E4",
-  },
-  {
-    title: "Çanakkale Türküsü",
-    subtitle: { en: "Traditional folk tune · demo arrangement", tr: "Geleneksel halk ezgisi · demo düzenleme" },
-    difficulty: { en: "Beginner", tr: "Başlangıç" },
-    notes: "A4 A4 B4 A4 | G4 F#4 E4 F#4 | G4 A4 B4 A4 | G4 F#4 E4 D4",
-  },
-  {
-    title: "Drama Köprüsü",
-    subtitle: { en: "Rumelian folk tune · demo arrangement", tr: "Rumeli türküsü · demo düzenleme" },
+    id: "duman-bu-aksam",
+    title: "Bu Akşam",
+    artist: "Duman",
+    aliases: ["Duman Bu Akşam", "İçerim Ben Bu Akşam", "Duman İçerim Ben Bu Akşam"],
+    subtitle: { en: "Web-sourced melody · independently cross-checked", tr: "İnternetten alınan ezgi · bağımsız kaynakla karşılaştırıldı" },
     difficulty: { en: "Intermediate", tr: "Orta" },
-    notes: "B4 A4 G4 F#4 | G4 A4 B4 D5 | C#5 B4 A4 G4 | F#4 E4 D4 D4",
+    notes: "A4 E5 D5 C5 D5 | B4 C5 D5 B4 A4 | A4 E5 D5 C5 D5 | B4 C5 D5 D5 | A4 E5 D5 C5 D5 | B4 C5 D5 B4 A4 | C5 B4 A4 C5 | B4 A4 A4",
+    sourceStatus: "cross-checked",
+    sources: [
+      { name: "Notalar.net", url: "https://www.notalar.net/icerim-ben-aksam-melodika-notalari/", role: "note-source" },
+      { name: "HKLPS Müzik · YouTube", url: "https://www.youtube.com/watch?v=LWWKiIJ9RD0", role: "cross-check" },
+    ],
   },
 ];
 
+const REMOTE_CATALOG_URL = "https://raw.githubusercontent.com/ozguregemen/tin-whistle-note-creator/main/catalog/catalog.json";
+const THE_SESSION_SEARCH_URL = "https://thesession.org/tunes/search?format=json&q=";
+
 const FINGERINGS: Record<string, string> = {
   D: "111111", E: "111110", "F#": "111100", G: "111000",
-  A: "110000", B: "100000", "C#": "000000",
+  A: "110000", B: "100000", C: "011000", "C#": "000000",
 };
 
 const SOLFEGE: Record<string, string> = { DO: "C", RE: "D", RÉ: "D", MI: "E", FA: "F", SOL: "G", LA: "A", SI: "B" };
@@ -169,6 +207,47 @@ function parsePhrases(source: string): ParsedNote[][] {
     .filter((phrase) => phrase.length > 0);
 }
 
+const KEY_SIGNATURES: Record<string, string[]> = {
+  d: ["F", "C"], dmajor: ["F", "C"],
+  g: ["F"], gmajor: ["F"], eminor: ["F"], edorian: ["F", "C"], edor: ["F", "C"],
+  a: ["F", "C", "G"], amajor: ["F", "C", "G"], adorian: ["F"], ador: ["F"],
+  bminor: ["F", "C"], bm: ["F", "C"], dmixolydian: ["F"], dmix: ["F"],
+};
+
+function parseAbcNotes(abc: string, key: string): string {
+  const cleaned = abc
+    .replace(/"[^"]*"/g, "")
+    .replace(/\{[^}]*\}/g, "")
+    .replace(/\[[^\]]*\]/g, "")
+    .replace(/\([^)]*\)/g, "");
+  const sharps = new Set(KEY_SIGNATURES[key.toLowerCase().replace(/[^a-z]/g, "")] ?? []);
+  const segments = cleaned.includes("!") ? cleaned.split("!") : [cleaned];
+  const phrases: string[][] = [];
+
+  for (const segment of segments) {
+    const notes: string[] = [];
+    for (const match of segment.matchAll(/([_=^]*)([A-Ga-g])([,']*)/g)) {
+      const accidental = match[1];
+      const letter = match[2];
+      let pitch = letter.toUpperCase();
+      if (accidental.startsWith("^")) pitch += "#";
+      else if (accidental.startsWith("_")) {
+        const flatToSharp: Record<string, string> = { Db: "C#", Eb: "D#", Gb: "F#", Ab: "G#", Bb: "A#" };
+        pitch = flatToSharp[`${pitch}b`] ?? pitch;
+      } else if (!accidental.startsWith("=") && sharps.has(pitch)) pitch += "#";
+
+      let octave = letter === letter.toLowerCase() ? 5 : 4;
+      for (const marker of match[3]) octave += marker === "'" ? 1 : -1;
+      notes.push(`${pitch}${octave}`);
+    }
+    for (let index = 0; index < notes.length; index += 16) {
+      const phrase = notes.slice(index, index + 16);
+      if (phrase.length) phrases.push(phrase);
+    }
+  }
+  return phrases.map((phrase) => phrase.join(" ")).join(" | ");
+}
+
 function Fingering({ note, index, language }: { note: ParsedNote; index: number; language: Language }) {
   const playable = Boolean(note.holes);
   return (
@@ -189,18 +268,38 @@ function Fingering({ note, index, language }: { note: ParsedNote; index: number;
 export default function Home() {
   const [language, setLanguage] = useState<Language>("en");
   const [mode, setMode] = useState<"search" | "paste">("search");
-  const [query, setQuery] = useState("Üsküdar’a Gider İken");
+  const [catalog, setCatalog] = useState<Song[]>(FALLBACK_SONGS);
+  const [query, setQuery] = useState("Duman İçerim Ben Bu Akşam");
   const [manualNotes, setManualNotes] = useState("D4 E4 F#4 G4 | A4 B4 C#5 D5 | D5 C#5 B4 A4 | G4 F#4 E4 D4");
-  const [song, setSong] = useState<Song>(SONGS[0]);
+  const [song, setSong] = useState<Song | null>(FALLBACK_SONGS[0]);
   const [status, setStatus] = useState<StatusKey>("catalogPrepared");
   const t = COPY[language];
 
   useEffect(() => {
     const saved = window.localStorage.getItem("twnc-language");
+    // The saved preference only exists in the browser; applying it after hydration is intentional.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (saved === "tr" || saved === "en") setLanguage(saved);
+
+    const controller = new AbortController();
+    fetch(REMOTE_CATALOG_URL, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Catalog returned ${response.status}`);
+        return response.json() as Promise<Catalog>;
+      })
+      .then((remoteCatalog) => {
+        if (!Array.isArray(remoteCatalog.songs) || remoteCatalog.songs.length === 0) return;
+        setCatalog(remoteCatalog.songs);
+        setSong((current) => remoteCatalog.songs.find((item) => item.id === current?.id) ?? current);
+        setStatus("catalogUpdated");
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      });
+    return () => controller.abort();
   }, []);
 
-  const phrases = useMemo(() => parsePhrases(song.notes), [song]);
+  const phrases = useMemo(() => parsePhrases(song?.notes ?? ""), [song]);
   const allNotes = phrases.flat();
   const unsupported = allNotes.filter((note) => !note.holes);
 
@@ -210,22 +309,64 @@ export default function Home() {
     window.localStorage.setItem("twnc-language", next);
   }
 
-  function findSong(event?: FormEvent) {
+  async function findSong(event?: FormEvent) {
     event?.preventDefault();
     const normalized = query.toLocaleLowerCase("tr-TR").trim();
-    const match = SONGS.find((item) => item.title.toLocaleLowerCase("tr-TR").includes(normalized) || normalized.includes(item.title.toLocaleLowerCase("tr-TR")));
-    if (match) { setSong(match); setStatus("catalogFound"); }
-    else { setStatus("notFound"); setMode("paste"); }
+    const match = normalized ? catalog.find((item) => {
+      const candidates = [item.title, item.artist ? `${item.artist} ${item.title}` : "", ...item.aliases]
+        .map((candidate) => candidate.toLocaleLowerCase("tr-TR"));
+      return candidates.some((candidate) => candidate.includes(normalized) || normalized.includes(candidate));
+    }) : undefined;
+    if (match) { setSong(match); setStatus("catalogFound"); return; }
+    if (!normalized) { setSong(null); setStatus("notFound"); return; }
+
+    setSong(null);
+    setStatus("searching");
+    try {
+      const searchResponse = await fetch(`${THE_SESSION_SEARCH_URL}${encodeURIComponent(query.trim())}`);
+      if (!searchResponse.ok) throw new Error(`The Session search returned ${searchResponse.status}`);
+      const searchData = await searchResponse.json() as { tunes?: Array<{ id: number; name: string; alias?: string; url: string; type?: string }> };
+      const result = searchData.tunes?.[0];
+      if (!result) { setStatus("notFound"); return; }
+
+      const tuneResponse = await fetch(`https://thesession.org/tunes/${result.id}?format=json`);
+      if (!tuneResponse.ok) throw new Error(`The Session tune returned ${tuneResponse.status}`);
+      const tune = await tuneResponse.json() as { aliases?: string[]; settings?: Array<{ key: string; abc: string }> };
+      const setting = tune.settings?.find((item) => /^(d|g|e(minor|dorian)|a(dorian)?)/i.test(item.key)) ?? tune.settings?.[0];
+      const notes = setting ? parseAbcNotes(setting.abc, setting.key) : "";
+      if (!notes) { setStatus("notFound"); return; }
+
+      setSong({
+        id: `thesession-${result.id}`,
+        title: result.name,
+        aliases: [result.alias ?? "", ...(tune.aliases ?? [])].filter(Boolean),
+        subtitle: {
+          en: `${result.type ?? "Traditional tune"} · live ABC setting in ${setting?.key ?? "unknown key"}`,
+          tr: `${result.type ?? "Geleneksel ezgi"} · ${setting?.key ?? "bilinmeyen ton"} tonunda canlı ABC düzeni`,
+        },
+        difficulty: { en: "Source arrangement", tr: "Kaynak düzeni" },
+        notes,
+        sourceStatus: "live",
+        sources: [{ name: "The Session", url: result.url, role: "note-source" }],
+      });
+      setStatus("liveFound");
+    } catch {
+      setStatus("sourceUnavailable");
+    }
   }
 
   function convertManual(event?: FormEvent) {
     event?.preventDefault();
     if (!parsePhrases(manualNotes).flat().length) { setStatus("invalidNotes"); return; }
     setSong({
+      id: "manual",
       title: t.customTitle,
+      aliases: [],
       subtitle: { en: COPY.en.customSubtitle, tr: COPY.tr.customSubtitle },
       difficulty: { en: COPY.en.customDifficulty, tr: COPY.tr.customDifficulty },
       notes: manualNotes,
+      sourceStatus: "manual",
+      sources: [],
     });
     setStatus("converted");
   }
@@ -261,11 +402,11 @@ export default function Home() {
               <div className="search-row">
                 <span aria-hidden="true">⌕</span>
                 <input id="song-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.searchPlaceholder} />
-                <button type="submit">{t.find} <span aria-hidden="true">→</span></button>
+                <button type="submit" disabled={status === "searching"}>{status === "searching" ? "…" : t.find} <span aria-hidden="true">→</span></button>
               </div>
               <div className="suggestions">
                 <span>{t.suggested}</span>
-                {SONGS.map((item) => <button type="button" onClick={() => chooseSuggestion(item)} key={item.title}>{item.title}</button>)}
+                {catalog.slice(0, 4).map((item) => <button type="button" onClick={() => chooseSuggestion(item)} key={item.id}>{item.artist ? `${item.artist} · ` : ""}{item.title}</button>)}
               </div>
             </form>
           ) : (
@@ -279,14 +420,18 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="workspace shell" aria-labelledby="preview-title">
+      {song ? <section className="workspace shell" aria-labelledby="preview-title">
         <div className="workspace-heading">
-          <div><span className="section-kicker">{t.guide}</span><h2 id="preview-title">{song.title}</h2><p>{song.subtitle[language]} · {song.difficulty[language]} · D tin whistle</p></div>
+          <div><span className="section-kicker">{t.guide}</span><h2 id="preview-title">{song.artist ? `${song.artist} — ` : ""}{song.title}</h2><p>{song.subtitle[language]} · {song.difficulty[language]} · D tin whistle</p></div>
           <div className="workspace-actions">
             <div className="legend"><span className="hole closed" /> {t.closed} <span className="hole" /> {t.open}</div>
             <button type="button" className="print-button" onClick={() => window.print()}>{t.print}</button>
           </div>
         </div>
+        {song.sourceStatus !== "manual" && <div className="source-panel">
+          <div><strong>✓ {song.sourceStatus === "live" ? t.liveSource : t.verified}</strong><span>{t.sourceCaveat}</span></div>
+          <div className="source-links"><span>{t.sources}:</span>{song.sources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.url}>{source.name} <small>({source.role === "note-source" ? t.primarySource : t.crossCheck})</small></a>)}</div>
+        </div>}
         {unsupported.length > 0 && <div className="warning" role="alert"><strong>{unsupported.length} {t.warningStart}</strong> {t.warningEnd}</div>}
         <div className="phrases">
           {phrases.map((phrase, phraseIndex) => (
@@ -297,7 +442,12 @@ export default function Home() {
           ))}
         </div>
         <footer className="score-footer"><span>{allNotes.length} {t.notes} · {phrases.length} {t.phrases}</span><span>Tin Whistle Note Creator MVP · {t.noRhythm}</span></footer>
-      </section>
+      </section> : <section className="workspace empty-workspace shell" aria-live="polite">
+        <span className="section-kicker">{t.guide}</span>
+        <h2>{t.emptyTitle}</h2>
+        <p>{t.emptyBody}</p>
+        <a className="request-button" href={`https://github.com/ozguregemen/tin-whistle-note-creator/issues/new?title=${encodeURIComponent(`Song request: ${query}`)}`} target="_blank" rel="noreferrer">{t.requestSong} →</a>
+      </section>}
 
       <section className="how shell" id="how-it-works">
         <div><span className="section-kicker">{t.mvpScope}</span><h2>{t.howTitle}</h2></div>

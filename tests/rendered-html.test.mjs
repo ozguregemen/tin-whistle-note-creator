@@ -22,7 +22,10 @@ test("Tin Whistle Note Creator ana sayfasını sunucu tarafında oluşturur", as
   const html = await response.text();
   assert.match(html, /<title>Tin Whistle Note Creator<\/title>/i);
   assert.match(html, /Turn a melody into/);
-  assert.match(html, /Üsküdar’a Gider İken/);
+  assert.match(html, /Duman —/);
+  assert.match(html, /Bu Akşam/);
+  assert.match(html, /Notalar\.net/);
+  assert.match(html, /Cross-checked/);
   assert.match(html, /Paste notes/);
   assert.match(html, /Türkçe/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|Your site is taking shape/i);
@@ -32,7 +35,10 @@ test("temel D tin whistle parmak eşlemelerini içerir", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   assert.match(page, /D: "111111"/);
   assert.match(page, /"F#": "111100"/);
+  assert.match(page, /C: "011000"/);
   assert.match(page, /"C#": "000000"/);
   assert.match(page, /function parsePhrases/);
+  assert.match(page, /function parseAbcNotes/);
+  assert.match(page, /thesession\.org\/tunes\/search/);
   assert.match(page, /window\.print\(\)/);
 });
