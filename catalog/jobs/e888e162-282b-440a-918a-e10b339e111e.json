@@ -1,0 +1,31 @@
+{
+  "requestId": "e888e162-282b-440a-918a-e10b339e111e",
+  "status": "completed",
+  "confidence": "omr-unreviewed",
+  "song": {
+    "id": "gitaregitim-22205-tarkan-dudu",
+    "title": "Tarkan – Dudu –",
+    "aliases": [
+      "Tarkan Dudu",
+      "Tarkan - Dudu - Gitar Tab"
+    ],
+    "subtitle": {
+      "en": "Live score source · machine-read notation",
+      "tr": "Canlı nota kaynağı · makineyle okunan notasyon"
+    },
+    "difficulty": {
+      "en": "Source arrangement",
+      "tr": "Kaynak düzeni"
+    },
+    "notes": "G3 G3 A3 B3 F3 G3 B3 C4 | G3 A3 A3 C4 C4 C4 B3 | C4 E4 E4 D4 D4 B3 | E3 F3 C4 C4 C4 C4 C4 B3 | C4 E4 E4 E4 B3 B3 | E4 F3 A3 A3 A3 E4 D4 | B3 A3 A3 A3 E4 D4 | B3 A3 A3 A3 D4 | E4 D4 A3 B3 C4 E4 E4 | E4 D4 A3 A3 B3 F3 G3 | B3 C4 G3 A3 A3 B3 F4 F4 | F4 E4 E4 E4 E4 D4 F4 F4 | F4 E4 C#4 D4 D4 F4 F4 | F4 E4 E4 E4 E4 D4 D4 D4 | E4 E4 A3 A3 B3 F3 G3 | B3 C4 G3 A3 A3",
+    "sourceStatus": "live",
+    "sourceConfidence": "omr-unreviewed",
+    "sources": [
+      {
+        "name": "Gitaregitim.net",
+        "url": "https://www.gitaregitim.net/tarkan-dudu-gitar-tab/",
+        "role": "note-source"
+      }
+    ]
+  }
+}
