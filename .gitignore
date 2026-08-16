@@ -36,5 +36,8 @@ yarn-error.log*
 
 /dist/
 /.wrangler/
+/.wrangler-logs/
 /outputs/
 /work/
+/.source-job/
+/audiveris.deb

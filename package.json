@@ -10,9 +10,12 @@
     "build": "vinext build",
     "build:pages": "vite build --config vite.pages.config.ts",
     "sync:sources": "node scripts/sync-note-sources.mjs",
+    "worker:dev": "wrangler dev --config wrangler.source-api.jsonc",
+    "worker:check": "wrangler deploy --dry-run --config wrangler.source-api.jsonc",
+    "worker:deploy": "wrangler deploy --config wrangler.source-api.jsonc",
     "preview:pages": "vite preview --config vite.pages.config.ts",
     "start": "vinext start",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs tests/search-relevance.test.mjs",
+    "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },
