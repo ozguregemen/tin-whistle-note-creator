@@ -33,10 +33,13 @@ test("Tin Whistle Note Creator ana sayfasını sunucu tarafında oluşturur", as
 
 test("temel D tin whistle parmak eşlemelerini içerir", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-  assert.match(page, /D: "111111"/);
-  assert.match(page, /"F#": "111100"/);
-  assert.match(page, /C: "011000"/);
-  assert.match(page, /"C#": "000000"/);
+  const fingerings = await readFile(new URL("../app/fingerings.mjs", import.meta.url), "utf8");
+  assert.match(fingerings, /D: "111111"/);
+  assert.match(fingerings, /F: "1111h0"/);
+  assert.match(fingerings, /"F#": "111100"/);
+  assert.match(fingerings, /C: "011000"/);
+  assert.match(fingerings, /"C#": "000000"/);
+  assert.match(page, /adaptPhrasesToDWhistle/);
   assert.match(page, /function parsePhrases/);
   assert.match(page, /function parseAbcNotes/);
   assert.match(page, /searchMatchScore/);
@@ -50,7 +53,8 @@ test("temel D tin whistle parmak eşlemelerini içerir", async () => {
 test("PDF çıktısı parmakları metin sembolleriyle ve sıkıştırılmış düzenle basar", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(page, /closed === "1" \? "●"/);
+  assert.match(page, /state === "1" \? "●"/);
+  assert.match(page, /state === "h" \? "◐"/);
   assert.match(css, /@page \{ size:A4 portrait; margin:10mm; \}/);
   assert.match(css, /grid-template-columns:repeat\(12,minmax\(0,1fr\)\)/);
   assert.match(css, /break-inside:avoid-page/);

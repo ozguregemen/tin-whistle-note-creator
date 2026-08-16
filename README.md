@@ -25,8 +25,9 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 - Varsayılan İngilizce arayüz ve tek tıkla Türkçe/İngilizce dil geçişi
 - Do/Re/Mi veya C/D/E biçiminde elle nota girişi
 - `|` işaretiyle müzik cümlelerini ayırma
-- D tin whistle'ın temel dizisi için altı delikli parmak şemaları
-- Standart dizinin dışındaki sesler için uyarı
+- Clarke D chromatic fingering referansına göre tam, yarım ve açık delikli parmak şemaları
+- Melodiyi aralıklarını değiştirmeden çalınabilir D whistle oktavına otomatik taşıma
+- Desteklenen kromatik aralığın dışındaki sesler için uyarı
 - Mobil uyumlu görünüm ve yazdırma/PDF çıktısı
 
 > Nota kaynakları metin tabanlı perde sırasını veriyor; ritim ve nota süreleri bu MVP’de henüz yok. Her sonuçta kaynak ve doğrulama durumu gösterilir.
@@ -108,8 +109,8 @@ Worker arama sonucunu hemen döndürür. Kullanıcı bir kaynağı seçince `.gi
 
 ### 3. Müzikal dönüştürme
 
-- Otomatik oktav seçimi ve transpoze önerisi
-- Alternatif/cross fingering seçenekleri
+- Yarım delik ve temel cross-fingering seçenekleri
+- Oktav uyarlamasına ek olarak ton bazlı transpoze önerisi
 - Farklı tin whistle tonları (C, D, Eb vb.)
 - Müzisyen onayı ve kullanıcı düzeltme akışı
 

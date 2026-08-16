@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { adaptPhrasesToDWhistle } from "./fingerings.mjs";
 import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
 
 type Language = "en" | "tr";
@@ -87,10 +88,11 @@ const COPY = {
     invalidNotes: "No valid notes found. Example: D4 E4 F#4 G4 | A4 B4",
     guide: "Fingering guide",
     closed: "Closed",
+    half: "Half",
     open: "Open",
     print: "Print / PDF",
-    warningStart: "note(s) sit outside the standard D scale.",
-    warningEnd: "Faded notes need an alternate fingering or transposition.",
+    warningStart: "note(s) sit outside the supported D whistle range.",
+    warningEnd: "Faded notes need a different octave or arrangement.",
     phrase: "Phrase",
     note: "note",
     notes: "notes",
@@ -101,7 +103,7 @@ const COPY = {
     step1Title: "Bring in the notes",
     step1Body: "Choose from the local catalog or paste a simple note sequence.",
     step2Title: "Check playability",
-    step2Body: "Clearly flag notes that fall outside a standard D tin whistle scale.",
+    step2Body: "Use chromatic and half-hole fingerings, then flag notes outside the supported range.",
     step3Title: "Build the fingering sheet",
     step3Body: "Create a readable guide for screen, print, and PDF.",
     footer: "A first step toward a more accessible Turkish tin whistle repertoire.",
@@ -154,10 +156,11 @@ const COPY = {
     invalidNotes: "Geçerli nota bulunamadı. Örnek: D4 E4 F#4 G4 | A4 B4",
     guide: "Parmak rehberi",
     closed: "Kapalı",
+    half: "Yarım",
     open: "Açık",
     print: "Yazdır / PDF",
-    warningStart: "nota standart D dizisinin dışında.",
-    warningEnd: "Soluk gösterilen notalar için alternatif parmak veya transpoze gerekir.",
+    warningStart: "nota desteklenen D whistle aralığının dışında.",
+    warningEnd: "Soluk gösterilen notalar için farklı oktav veya düzenleme gerekir.",
     phrase: "Cümle",
     note: "nota",
     notes: "nota",
@@ -168,7 +171,7 @@ const COPY = {
     step1Title: "Notayı al",
     step1Body: "Yerel katalogdan seç veya basit bir nota dizisi yapıştır.",
     step2Title: "Uygunluğu kontrol et",
-    step2Body: "Standart D tin whistle dizisinin dışındaki sesleri açıkça işaretle.",
+    step2Body: "Kromatik ve yarım delik parmaklarını kullan, desteklenen aralığın dışındaki sesleri işaretle.",
     step3Title: "Parmak rehberini üret",
     step3Body: "Ekran, yazıcı ve PDF için okunaklı bir çıktı oluştur.",
     footer: "Türkçe tin whistle repertuvarını erişilebilir kılmak için ilk adım.",
@@ -229,11 +232,6 @@ async function waitForSourceJob(api: string, requestId: string) {
   return null;
 }
 
-const FINGERINGS: Record<string, string> = {
-  D: "111111", E: "111110", "F#": "111100", G: "111000",
-  A: "110000", B: "100000", C: "011000", "C#": "000000",
-};
-
 const SOLFEGE: Record<string, string> = { DO: "C", RE: "D", RÉ: "D", MI: "E", FA: "F", SOL: "G", LA: "A", SI: "B" };
 const NOTE_NAMES: Record<string, string> = {
   C: "Do", "C#": "Do♯", D: "Re", "D#": "Re♯", E: "Mi", F: "Fa",
@@ -251,13 +249,14 @@ function normalizeNote(raw: string): ParsedNote | null {
     pitch = flatToSharp[`${pitch}b`] ?? pitch;
   }
   const octave = Number(match[3] ?? (pitch === "C" || pitch === "C#" ? 5 : 4));
-  return { token: raw, pitch, octave, display: NOTE_NAMES[pitch] ?? pitch, holes: FINGERINGS[pitch] };
+  return { token: raw, pitch, octave, display: NOTE_NAMES[pitch] ?? pitch };
 }
 
 function parsePhrases(source: string): ParsedNote[][] {
-  return source.split("|")
+  const phrases = source.split("|")
     .map((phrase) => phrase.split(/[\s,;]+/).map(normalizeNote).filter((note): note is ParsedNote => note !== null))
     .filter((phrase) => phrase.length > 0);
+  return adaptPhrasesToDWhistle(phrases) as ParsedNote[][];
 }
 
 const KEY_SIGNATURES: Record<string, string[]> = {
@@ -308,8 +307,8 @@ function Fingering({ note, index, language }: { note: ParsedNote; index: number;
       {note.octave >= 5 && <span className="octave-mark" title="Upper octave">•</span>}
       <span className="note-order">{String(index + 1).padStart(2, "0")}</span>
       <div className="whistle-holes" aria-hidden="true">
-        {(note.holes ?? "??????").split("").map((closed, holeIndex) => (
-          <span className={`hole ${closed === "1" ? "closed" : ""} ${closed === "?" ? "unknown" : ""}`} key={holeIndex}>{closed === "1" ? "●" : closed === "0" ? "○" : "?"}</span>
+        {(note.holes ?? "??????").split("").map((state, holeIndex) => (
+          <span className={`hole ${state === "1" ? "closed" : ""} ${state === "h" ? "half" : ""} ${state === "?" ? "unknown" : ""}`} key={holeIndex}>{state === "1" ? "●" : state === "0" ? "○" : state === "h" ? "◐" : "?"}</span>
         ))}
       </div>
       <strong>{language === "en" ? note.pitch : note.display}</strong>
@@ -563,7 +562,7 @@ export default function Home() {
         <div className="workspace-heading">
           <div><span className="section-kicker">{t.guide}</span><h2 id="preview-title">{song.artist ? `${song.artist} — ` : ""}{song.title}</h2><p>{song.subtitle[language]} · {song.difficulty[language]} · D tin whistle</p></div>
           <div className="workspace-actions">
-            <div className="legend"><span className="hole closed">●</span> {t.closed} <span className="hole">○</span> {t.open}</div>
+            <div className="legend"><span className="hole closed">●</span> {t.closed} <span className="hole half">◐</span> {t.half} <span className="hole">○</span> {t.open}</div>
             <button type="button" className="print-button" onClick={() => window.print()}>{t.print}</button>
           </div>
         </div>
