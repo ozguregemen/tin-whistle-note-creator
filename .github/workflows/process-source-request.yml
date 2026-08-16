@@ -1,0 +1,96 @@
+name: Process live note source request
+
+on:
+  repository_dispatch:
+    types: [source-conversion-request]
+  workflow_dispatch:
+    inputs:
+      source_id:
+        description: Source adapter ID (notalar or gitaregitim)
+        required: true
+        type: choice
+        options: [notalar, gitaregitim]
+      post_id:
+        description: WordPress post ID
+        required: true
+        type: string
+      query:
+        description: Original song search
+        required: false
+        type: string
+      title:
+        description: Source result title
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: live-note-source-processing
+  cancel-in-progress: false
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      REQUEST_ID: ${{ github.event.client_payload.requestId }}
+      SOURCE_ID: ${{ github.event.client_payload.sourceId || inputs.source_id }}
+      POST_ID: ${{ github.event.client_payload.postId || inputs.post_id }}
+      SOURCE_QUERY: ${{ github.event.client_payload.query || inputs.query }}
+      SOURCE_TITLE: ${{ github.event.client_payload.title || inputs.title }}
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Use Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Prepare source request
+        id: prepare
+        run: node scripts/process-source-job.mjs prepare
+
+      - name: Install Audiveris 5.11
+        if: steps.prepare.outputs.mode == 'omr'
+        run: |
+          curl --fail --location --output audiveris.deb https://github.com/Audiveris/audiveris/releases/download/5.11.0/Audiveris-5.11.0-ubuntu24.04-x86_64.deb
+          echo "f20113aaa33b3149ec8d6a09b2a7963360e65fafd92d69389987a85bbc3ec7a3  audiveris.deb" | sha256sum --check
+          sudo apt-get install --yes ./audiveris.deb
+
+      - name: Read score images and PDFs
+        if: steps.prepare.outputs.mode == 'omr'
+        continue-on-error: true
+        run: |
+          mkdir -p .source-job/omr
+          AUDIVERIS_BIN="$(command -v Audiveris || command -v audiveris || true)"
+          if [ -z "$AUDIVERIS_BIN" ] && [ -x /opt/audiveris/bin/Audiveris ]; then AUDIVERIS_BIN=/opt/audiveris/bin/Audiveris; fi
+          test -n "$AUDIVERIS_BIN"
+          for input in .source-job/input/*; do
+            "$AUDIVERIS_BIN" -batch -export -output .source-job/omr "$input"
+          done
+          find .source-job/omr -type f -name '*.mxl' -print0 | while IFS= read -r -d '' archive; do
+            mkdir -p "${archive}.unpacked"
+            unzip -o "$archive" -d "${archive}.unpacked"
+          done
+
+      - name: Finalize machine-read score
+        if: always() && steps.prepare.outputs.mode == 'omr'
+        run: node scripts/process-source-job.mjs finalize
+
+      - name: Commit result and catalog update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add catalog/catalog.json catalog/jobs
+          if git diff --cached --quiet; then
+            echo "No result files changed"
+            exit 0
+          fi
+          git commit -m "Process live note source request"
+          git pull --rebase origin main
+          git push origin HEAD:main

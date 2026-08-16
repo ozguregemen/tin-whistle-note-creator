@@ -41,6 +41,9 @@ test("temel D tin whistle parmak eşlemelerini içerir", async () => {
   assert.match(page, /function parseAbcNotes/);
   assert.match(page, /searchMatchScore/);
   assert.match(page, /thesession\.org\/tunes\/search/);
+  assert.match(page, /\/api\/search\?q=/);
+  assert.match(page, /\/api\/jobs/);
+  assert.match(page, /sourceCandidates/);
   assert.match(page, /window\.print\(\)/);
 });
 

@@ -13,6 +13,10 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 - İzin verilen kaynakları WordPress REST API üzerinden okuyan kaynak eşitleyici
 - İlk gerçek ve kaynaklı kayıt: Duman — Bu Akşam
 - The Session’ın CORS-açık API’sinde ziyaret anında canlı ABC nota araması
+- Cloudflare Worker üzerinden Notalar.net ve Gitaregitim.net üzerinde canlı, paralel kaynak araması
+- Seçilen kaynağı güvenli `repository_dispatch` çağrısıyla GitHub Actions işleme kuyruğuna gönderme
+- Metin notalarını otomatik çıkarma; PDF/JPG portelerini Audiveris OMR ile MusicXML'e dönüştürme
+- Uzun süren kaynak işlerini sayfa yenilense bile takip edip tamamlanan sonucu otomatik açma
 - Nota kaynağı ve bağımsız karşılaştırma bağlantılarını sonuçta gösterme
 - Türkçe karakter normalizasyonu ve kontrollü fuzzy matching ile yazım hatasına dayanıklı arama
 - Arka plan baskısından bağımsız `● / ○` parmak işaretleri ve sıkıştırılmış A4 PDF düzeni
@@ -59,6 +63,32 @@ npm run preview:pages
 
 `npm run build:pages` komutu yayınlanacak statik dosyaları `docs` klasöründe günceller.
 
+## Canlı kaynak API'si
+
+GitHub Pages yalnızca arayüzü sunar. `worker/source-api.mjs` içindeki Cloudflare Worker canlı kaynak aramasını, özel GitHub kataloğuna erişimi ve Actions iş tetiklemesini yürütür. Desteklenen ilk adaptörler Notalar.net ve Gitaregitim.net'tir.
+
+Canlı API: `https://tin-whistle-note-source-api.ozguregemenbusiness.workers.dev`
+
+Worker'ı kontrol etmek ve yayımlamak için:
+
+```bash
+npm run worker:check
+npx wrangler login
+npx wrangler secret put GITHUB_TOKEN --config wrangler.source-api.jsonc
+npm run worker:deploy
+```
+
+`GITHUB_TOKEN`, yalnızca bu depoya erişebilen ve repository dispatch oluşturup katalog sonuçlarını okuyabilen dar kapsamlı bir GitHub token'ı olmalıdır. Token hiçbir zaman GitHub Pages paketine eklenmez.
+
+Wrangler'ın verdiği `workers.dev` adresi Pages derlemesine aktarılır:
+
+```powershell
+$env:VITE_SOURCE_API_URL="https://<worker-adresi>.workers.dev"
+npm run build:pages
+```
+
+Worker arama sonucunu hemen döndürür. Kullanıcı bir kaynağı seçince `.github/workflows/process-source-request.yml` çalışır; sonuç `catalog/jobs/<request-id>.json` dosyasına ve başarı halinde ana kataloğa yazılır. Gitaregitim PDF/JPG sonuçları otomatik okunamazsa yanlış nota yayımlamak yerine `needs-review` durumuna geçer.
+
 ## Ürün planı
 
 ### 1. MVP — parmak diyagramı
@@ -73,7 +103,7 @@ npm run preview:pages
 - Öncelik: izinli API, MusicXML/ABC dosyası ve kullanıcı yüklemesi
 - İlk bağlayıcı: Notalar.net’in herkese açık WordPress REST uç noktası
 - İkinci bağlayıcı: The Session’ın salt okunur JSON/ABC API’si
-- Yeni site kazıyıcıları yalnızca ilgili sitenin kullanım şartları ve izni doğrulandıktan sonra
+- Yeni kaynak adaptörlerini ikişerli dilimler halinde ekleme ve her birini gerçek şarkı kabul testleriyle doğrulama
 - Kaynak, düzenleyen kişi, lisans ve doğrulama durumunu her eserle birlikte saklama
 
 ### 3. Müzikal dönüştürme

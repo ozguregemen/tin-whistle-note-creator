@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tin-whistle-note-source-api",
+  "main": "worker/source-api.mjs",
+  "compatibility_date": "2026-08-16",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "ALLOWED_ORIGINS": "https://ozguregemen.github.io",
+    "GITHUB_REPOSITORY": "ozguregemen/tin-whistle-note-creator",
+    "GITHUB_RESULT_REF": "main"
+  }
+}

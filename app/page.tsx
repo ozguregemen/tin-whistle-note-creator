@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
 
 type Language = "en" | "tr";
-type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "liveFound" | "sourceUnavailable";
+type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "queueing" | "processing" | "needsReview" | "liveFound" | "sourceUnavailable";
 
 type SongSource = {
   name: string;
@@ -21,10 +21,29 @@ type Song = {
   difficulty: Record<Language, string>;
   notes: string;
   sourceStatus: "cross-checked" | "live" | "manual";
+  sourceConfidence?: "estimated" | "omr-unreviewed";
   sources: SongSource[];
 };
 
 type Catalog = { songs: Song[] };
+
+type SourceCandidate = {
+  id: string;
+  sourceId: "notalar" | "gitaregitim";
+  sourceName: string;
+  postId: number;
+  title: string;
+  url: string;
+  processingMode: "text" | "omr";
+  score: number;
+};
+
+type SourceJob = {
+  requestId: string;
+  status: "queued" | "completed" | "needs-review";
+  reason?: string;
+  song?: Song;
+};
 
 type ParsedNote = {
   token: string;
@@ -57,7 +76,11 @@ const COPY = {
     catalogUpdated: "Latest source catalog loaded from GitHub",
     catalogFound: "Found in the web-sourced catalog",
     searching: "Searching live note sources…",
-    liveFound: "Found through The Session live API",
+    sourceFound: "Matching score sources found. Choose the right result.",
+    queueing: "Sending the selected score for processing…",
+    processing: "Reading the selected score. This may take a few minutes…",
+    needsReview: "The source was found, but automatic score reading needs review.",
+    liveFound: "Live source converted into a fingering guide",
     sourceUnavailable: "The live source could not be reached. Try again or request the song.",
     notFound: "No reviewed source match yet. Request this song or paste its notes.",
     converted: "Notes converted into fingering diagrams",
@@ -91,6 +114,9 @@ const COPY = {
     primarySource: "note source",
     crossCheck: "cross-check",
     requestSong: "Request this song",
+    processSource: "Read this score",
+    textSource: "Text notes · fast",
+    scoreSource: "PDF / image score · OMR",
     emptyTitle: "No note sheet selected",
     emptyBody: "We did not leave the previous song on screen. Only reviewed source matches are shown here.",
     sourceCaveat: "Pitch sequence is sourced; rhythm and note durations are not included yet.",
@@ -117,7 +143,11 @@ const COPY = {
     catalogUpdated: "Güncel kaynak kataloğu GitHub’dan yüklendi",
     catalogFound: "İnternet kaynaklı katalogda bulundu",
     searching: "Canlı nota kaynaklarında aranıyor…",
-    liveFound: "The Session canlı API’sinde bulundu",
+    sourceFound: "Eşleşen nota kaynakları bulundu. Doğru sonucu seç.",
+    queueing: "Seçilen nota işlenmek üzere gönderiliyor…",
+    processing: "Seçilen nota okunuyor. Bu işlem birkaç dakika sürebilir…",
+    needsReview: "Kaynak bulundu ancak otomatik nota okuma sonucunun kontrol edilmesi gerekiyor.",
+    liveFound: "Canlı kaynak parmak rehberine dönüştürüldü",
     sourceUnavailable: "Canlı kaynağa ulaşılamadı. Yeniden deneyebilir veya şarkıyı isteyebilirsin.",
     notFound: "Henüz incelenmiş kaynak eşleşmesi yok. Şarkıyı isteyebilir veya notaları yapıştırabilirsin.",
     converted: "Notalar parmak pozisyonlarına dönüştürüldü",
@@ -151,6 +181,9 @@ const COPY = {
     primarySource: "nota kaynağı",
     crossCheck: "karşılaştırma",
     requestSong: "Bu şarkıyı iste",
+    processSource: "Bu notayı oku",
+    textSource: "Metin notası · hızlı",
+    scoreSource: "PDF / görsel nota · OMR",
     emptyTitle: "Nota sayfası seçilmedi",
     emptyBody: "Önceki şarkıyı ekranda bırakmadık. Burada yalnızca incelenmiş kaynak eşleşmeleri gösterilir.",
     sourceCaveat: "Ses dizisi kaynaklıdır; ritim ve nota süreleri henüz dahil değildir.",
@@ -176,6 +209,25 @@ const FALLBACK_SONGS: Song[] = [
 
 const REMOTE_CATALOG_URL = "https://raw.githubusercontent.com/ozguregemen/tin-whistle-note-creator/main/catalog/catalog.json";
 const THE_SESSION_SEARCH_URL = "https://thesession.org/tunes/search?format=json&q=";
+
+function sourceApiUrl() {
+  if (typeof window === "undefined") return "";
+  const configured = (window as typeof window & { __TWNC_SOURCE_API_URL__?: string }).__TWNC_SOURCE_API_URL__ ?? "";
+  return configured.startsWith("http") ? configured.replace(/\/$/, "") : "";
+}
+
+const wait = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+
+async function waitForSourceJob(api: string, requestId: string) {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    await wait(5000);
+    const response = await fetch(`${api}/api/jobs/${requestId}`, { cache: "no-store" });
+    if (!response.ok && response.status !== 202) throw new Error(`Source job status returned ${response.status}`);
+    const job = await response.json() as SourceJob;
+    if (job.status === "completed" || job.status === "needs-review") return job;
+  }
+  return null;
+}
 
 const FINGERINGS: Record<string, string> = {
   D: "111111", E: "111110", "F#": "111100", G: "111000",
@@ -273,6 +325,7 @@ export default function Home() {
   const [query, setQuery] = useState("Duman İçerim Ben Bu Akşam");
   const [manualNotes, setManualNotes] = useState("D4 E4 F#4 G4 | A4 B4 C#5 D5 | D5 C#5 B4 A4 | G4 F#4 E4 D4");
   const [song, setSong] = useState<Song | null>(FALLBACK_SONGS[0]);
+  const [sourceCandidates, setSourceCandidates] = useState<SourceCandidate[]>([]);
   const [status, setStatus] = useState<StatusKey>("catalogPrepared");
   const t = COPY[language];
 
@@ -283,7 +336,8 @@ export default function Home() {
     if (saved === "tr" || saved === "en") setLanguage(saved);
 
     const controller = new AbortController();
-    fetch(REMOTE_CATALOG_URL, { signal: controller.signal })
+    const api = sourceApiUrl();
+    fetch(api ? `${api}/api/catalog` : REMOTE_CATALOG_URL, { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error(`Catalog returned ${response.status}`);
         return response.json() as Promise<Catalog>;
@@ -300,6 +354,29 @@ export default function Home() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    const api = sourceApiUrl();
+    const requestId = window.localStorage.getItem("twnc-pending-source-job");
+    if (!api || !requestId) return;
+    let active = true;
+    // Resuming a user-started background conversion after reload is intentional.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStatus("processing");
+    waitForSourceJob(api, requestId).then((job) => {
+      if (!active || !job) return;
+      if (job.status === "completed" && job.song) {
+        setSong(job.song);
+        setStatus("liveFound");
+      } else {
+        setStatus("needsReview");
+      }
+      window.localStorage.removeItem("twnc-pending-source-job");
+    }).catch(() => {
+      if (active) setStatus("sourceUnavailable");
+    });
+    return () => { active = false; };
+  }, []);
+
   const phrases = useMemo(() => parsePhrases(song?.notes ?? ""), [song]);
   const allNotes = phrases.flat();
   const unsupported = allNotes.filter((note) => !note.holes);
@@ -312,6 +389,7 @@ export default function Home() {
 
   async function findSong(event?: FormEvent) {
     event?.preventDefault();
+    setSourceCandidates([]);
     const normalized = normalizeSearchText(query);
     const match = normalized ? catalog
       .map((item) => ({ item, score: searchMatchScore(query, [item.title, item.artist ?? "", item.artist ? `${item.artist} ${item.title}` : "", ...item.aliases]) }))
@@ -323,6 +401,18 @@ export default function Home() {
     setSong(null);
     setStatus("searching");
     try {
+      const api = sourceApiUrl();
+      if (api) {
+        const sourceResponse = await fetch(`${api}/api/search?q=${encodeURIComponent(query.trim())}`);
+        if (!sourceResponse.ok) throw new Error(`Source API returned ${sourceResponse.status}`);
+        const sourceData = await sourceResponse.json() as { results?: SourceCandidate[] };
+        if (sourceData.results?.length) {
+          setSourceCandidates(sourceData.results);
+          setStatus("sourceFound");
+          return;
+        }
+      }
+
       const searchResponse = await fetch(`${THE_SESSION_SEARCH_URL}${encodeURIComponent(query.trim())}`);
       if (!searchResponse.ok) throw new Error(`The Session search returned ${searchResponse.status}`);
       const searchData = await searchResponse.json() as { tunes?: Array<{ id: number; name: string; alias?: string; url: string; type?: string }> };
@@ -353,6 +443,40 @@ export default function Home() {
         sources: [{ name: "The Session", url: result.url, role: "note-source" }],
       });
       setStatus("liveFound");
+    } catch {
+      setStatus("sourceUnavailable");
+    }
+  }
+
+  async function processSource(candidate: SourceCandidate) {
+    const api = sourceApiUrl();
+    if (!api) { setStatus("sourceUnavailable"); return; }
+    setStatus("queueing");
+    try {
+      const response = await fetch(`${api}/api/jobs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceId: candidate.sourceId, postId: candidate.postId, query, title: candidate.title }),
+      });
+      if (!response.ok) throw new Error(`Source job returned ${response.status}`);
+      const queued = await response.json() as SourceJob;
+      setStatus("processing");
+      window.localStorage.setItem("twnc-pending-source-job", queued.requestId);
+
+      const job = await waitForSourceJob(api, queued.requestId);
+      if (job?.status === "completed" && job.song) {
+        setSong(job.song);
+        setSourceCandidates([]);
+        setStatus("liveFound");
+        window.localStorage.removeItem("twnc-pending-source-job");
+        return;
+      }
+      if (job?.status === "needs-review") {
+        setStatus("needsReview");
+        window.localStorage.removeItem("twnc-pending-source-job");
+        return;
+      }
+      setStatus("sourceUnavailable");
     } catch {
       setStatus("sourceUnavailable");
     }
@@ -411,6 +535,18 @@ export default function Home() {
                 <span>{t.suggested}</span>
                 {catalog.slice(0, 4).map((item) => <button type="button" onClick={() => chooseSuggestion(item)} key={item.id}>{item.artist ? `${item.artist} · ` : ""}{item.title}</button>)}
               </div>
+              {sourceCandidates.length > 0 && <div className="source-results" aria-label={t.sourceFound}>
+                {sourceCandidates.map((candidate) => <article className="source-result" key={candidate.id}>
+                  <div>
+                    <strong>{candidate.title}</strong>
+                    <span>{candidate.sourceName} · {candidate.processingMode === "text" ? t.textSource : t.scoreSource}</span>
+                  </div>
+                  <div>
+                    <a href={candidate.url} target="_blank" rel="noreferrer">{t.primarySource}</a>
+                    <button type="button" onClick={() => processSource(candidate)}>{t.processSource} →</button>
+                  </div>
+                </article>)}
+              </div>}
             </form>
           ) : (
             <form onSubmit={convertManual}>
