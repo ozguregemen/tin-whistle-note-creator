@@ -55,21 +55,22 @@ jobs:
         id: prepare
         run: node scripts/process-source-job.mjs prepare
 
-      - name: Install Audiveris 5.11
+      - name: Extract Audiveris 5.11
         if: steps.prepare.outputs.mode == 'omr'
         run: |
           curl --fail --location --output audiveris.deb https://github.com/Audiveris/audiveris/releases/download/5.11.0/Audiveris-5.11.0-ubuntu24.04-x86_64.deb
           echo "f20113aaa33b3149ec8d6a09b2a7963360e65fafd92d69389987a85bbc3ec7a3  audiveris.deb" | sha256sum --check
-          sudo apt-get install --yes ./audiveris.deb
+          mkdir -p .source-job/audiveris
+          dpkg-deb --extract audiveris.deb .source-job/audiveris
+          test -x .source-job/audiveris/opt/audiveris/bin/Audiveris
 
       - name: Read score images and PDFs
         if: steps.prepare.outputs.mode == 'omr'
         continue-on-error: true
         run: |
           mkdir -p .source-job/omr
-          AUDIVERIS_BIN="$(command -v Audiveris || command -v audiveris || true)"
-          if [ -z "$AUDIVERIS_BIN" ] && [ -x /opt/audiveris/bin/Audiveris ]; then AUDIVERIS_BIN=/opt/audiveris/bin/Audiveris; fi
-          test -n "$AUDIVERIS_BIN"
+          AUDIVERIS_BIN="$GITHUB_WORKSPACE/.source-job/audiveris/opt/audiveris/bin/Audiveris"
+          test -x "$AUDIVERIS_BIN"
           for input in .source-job/input/*; do
             "$AUDIVERIS_BIN" -batch -export -output .source-job/omr "$input"
           done
