@@ -308,7 +308,7 @@ function Fingering({ note, index, language }: { note: ParsedNote; index: number;
       <span className="note-order">{String(index + 1).padStart(2, "0")}</span>
       <div className="whistle-holes" aria-hidden="true">
         {(note.holes ?? "??????").split("").map((state, holeIndex) => (
-          <span className={`hole ${state === "1" ? "closed" : ""} ${state === "h" ? "half" : ""} ${state === "?" ? "unknown" : ""}`} key={holeIndex}>{state === "1" ? "●" : state === "0" ? "○" : state === "h" ? "◐" : "?"}</span>
+          <span className={`hole ${state === "1" ? "closed" : state === "0" ? "open" : state === "h" ? "half" : "unknown"}`} key={holeIndex} />
         ))}
       </div>
       <strong>{language === "en" ? note.pitch : note.display}</strong>
@@ -562,7 +562,7 @@ export default function Home() {
         <div className="workspace-heading">
           <div><span className="section-kicker">{t.guide}</span><h2 id="preview-title">{song.artist ? `${song.artist} — ` : ""}{song.title}</h2><p>{song.subtitle[language]} · {song.difficulty[language]} · D tin whistle</p></div>
           <div className="workspace-actions">
-            <div className="legend"><span className="hole closed">●</span> {t.closed} <span className="hole half">◐</span> {t.half} <span className="hole">○</span> {t.open}</div>
+            <div className="legend"><span className="hole closed" /> {t.closed} <span className="hole half" /> {t.half} <span className="hole open" /> {t.open}</div>
             <button type="button" className="print-button" onClick={() => window.print()}>{t.print}</button>
           </div>
         </div>

@@ -49,7 +49,7 @@ h2 { margin:7px 0 5px; font:600 clamp(30px,4vw,44px)/1.1 Georgia,serif; letter-s
 .workspace-heading p { margin:0; color:var(--muted); font-size:14px; }
 .workspace-actions { display:flex; align-items:center; gap:18px; }
 .legend { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; white-space:nowrap; }
-.legend .hole { width:11px; height:11px; margin-left:8px; font-size:12px; line-height:11px; }
+.legend .hole { width:10px; height:10px; margin-left:8px; flex-basis:10px; }
 .print-button { padding:9px 12px; border:1px solid #c9c4b8; border-radius:8px; background:transparent; color:var(--ink); font-size:12px; font-weight:700; }
 .warning { margin-top:24px; padding:13px 15px; border:1px solid #e4c89e; border-radius:10px; background:#fff6e6; color:#75552e; font-size:13px; line-height:1.5; }
 .source-panel { display:flex; justify-content:space-between; gap:24px; margin-top:24px; padding:16px 18px; border:1px solid #b9d5c4; border-radius:12px; background:#eef7f0; color:var(--green); font-size:12px; }
@@ -72,10 +72,11 @@ h2 { margin:7px 0 5px; font:600 clamp(30px,4vw,44px)/1.1 Georgia,serif; letter-s
 .note-order { position:absolute; top:8px; left:8px; color:#aba79d; font-size:8px; }
 .octave-mark { position:absolute; top:4px; right:10px; color:var(--accent); font-size:20px; line-height:1; }
 .whistle-holes { display:flex; flex-direction:column; align-items:center; gap:5px; margin-bottom:13px; }
-.hole { display:inline-block; width:17px; height:17px; border:0; color:var(--ink); background:transparent; font:17px/17px Arial,Helvetica,sans-serif; text-align:center; }
-.hole.closed { background:transparent; }
-.hole.half { color:var(--ink); font-size:16px; }
-.hole.unknown { color:var(--muted); font-size:12px; }
+.hole { display:inline-block; width:10px; height:10px; flex:0 0 10px; box-sizing:border-box; border:1px solid var(--ink); border-radius:50%; background:transparent; }
+.hole.closed { background:var(--ink); }
+.hole.half { background:linear-gradient(90deg,var(--ink) 0 50%,transparent 50% 100%); }
+.hole.unknown { position:relative; border:0; color:var(--muted); }
+.hole.unknown::before { position:absolute; inset:0; content:"?"; font:10px/10px Arial,Helvetica,sans-serif; text-align:center; }
 .fingering strong { display:block; font:700 16px Georgia,serif; }
 .fingering small { display:block; margin-top:3px; color:var(--muted); font-size:10px; }
 .score-footer { display:flex; justify-content:space-between; gap:20px; margin-top:20px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font-size:11px; }
@@ -137,7 +138,7 @@ h2 { margin:7px 0 5px; font:600 clamp(30px,4vw,44px)/1.1 Georgia,serif; letter-s
   .note-order { position:static; display:block; margin-bottom:1px; font-size:6px; text-align:left; }
   .octave-mark { top:1px; right:2px; font-size:10px; }
   .whistle-holes { gap:0; margin-bottom:3px; }
-  .hole { width:12px; height:11px; font-size:12px; line-height:11px; }
+  .hole { width:8px; height:8px; flex-basis:8px; }
   .fingering strong { font-size:11px; }
   .fingering small { margin-top:1px; font-size:7px; }
   .score-footer { margin-top:7px; padding-top:7px; font-size:8px; }
