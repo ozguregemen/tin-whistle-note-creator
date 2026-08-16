@@ -74,6 +74,7 @@ h2 { margin:7px 0 5px; font:600 clamp(30px,4vw,44px)/1.1 Georgia,serif; letter-s
 .whistle-holes { display:flex; flex-direction:column; align-items:center; gap:5px; margin-bottom:13px; }
 .hole { display:inline-block; width:17px; height:17px; border:0; color:var(--ink); background:transparent; font:17px/17px Arial,Helvetica,sans-serif; text-align:center; }
 .hole.closed { background:transparent; }
+.hole.half { color:var(--ink); font-size:16px; }
 .hole.unknown { color:var(--muted); font-size:12px; }
 .fingering strong { display:block; font:700 16px Georgia,serif; }
 .fingering small { display:block; margin-top:3px; color:var(--muted); font-size:10px; }
