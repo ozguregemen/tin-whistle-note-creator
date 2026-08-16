@@ -10,7 +10,12 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 
 ## Bu sürümde çalışanlar
 
-- Üç örnek ezgiden oluşan yerel katalogda arama
+- İzin verilen kaynakları WordPress REST API üzerinden okuyan kaynak eşitleyici
+- İlk gerçek ve kaynaklı kayıt: Duman — Bu Akşam
+- The Session’ın CORS-açık API’sinde ziyaret anında canlı ABC nota araması
+- Nota kaynağı ve bağımsız karşılaştırma bağlantılarını sonuçta gösterme
+- Haftalık GitHub Actions kaynak kontrolü; kaynak yapısı değişirse yayını durdurma
+- GitHub’daki güncel katalog JSON’unu açılışta yükleme
 - Varsayılan İngilizce arayüz ve tek tıkla Türkçe/İngilizce dil geçişi
 - Do/Re/Mi veya C/D/E biçiminde elle nota girişi
 - `|` işaretiyle müzik cümlelerini ayırma
@@ -18,7 +23,7 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 - Standart dizinin dışındaki sesler için uyarı
 - Mobil uyumlu görünüm ve yazdırma/PDF çıktısı
 
-> Katalogdaki diziler ürün akışını denemek için hazırlanmış demo düzenlemelerdir; yayınlanmadan önce bir müzisyen tarafından doğrulanmalıdır.
+> Nota kaynakları metin tabanlı perde sırasını veriyor; ritim ve nota süreleri bu MVP’de henüz yok. Her sonuçta kaynak ve doğrulama durumu gösterilir.
 
 ## Çalıştırma
 
@@ -34,6 +39,14 @@ npm run dev
 ```bash
 npm run build
 ```
+
+İzin verilen internet kaynaklarını yeniden okumak için:
+
+```bash
+npm run sync:sources
+```
+
+Kaynak listesi `catalog/sources.json`, web uygulamasının okuduğu üretilmiş katalog ise `catalog/catalog.json` dosyasındadır. Eşitleyici kaynakta beklenmeyen nota veya cümle sayısı görürse yanlış sonucu otomatik yayımlamak yerine hata verir.
 
 GitHub Pages statik çıktısını yerelde kontrol etmek için:
 
@@ -56,7 +69,9 @@ npm run preview:pages
 
 - Kaynak başına bağımsız bağlayıcı (`SourceAdapter`) geliştirme
 - Öncelik: izinli API, MusicXML/ABC dosyası ve kullanıcı yüklemesi
-- Site kazıma yalnızca ilgili sitenin kullanım şartları ve izni doğrulandıktan sonra
+- İlk bağlayıcı: Notalar.net’in herkese açık WordPress REST uç noktası
+- İkinci bağlayıcı: The Session’ın salt okunur JSON/ABC API’si
+- Yeni site kazıyıcıları yalnızca ilgili sitenin kullanım şartları ve izni doğrulandıktan sonra
 - Kaynak, düzenleyen kişi, lisans ve doğrulama durumunu her eserle birlikte saklama
 
 ### 3. Müzikal dönüştürme

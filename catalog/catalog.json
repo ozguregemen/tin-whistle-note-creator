@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-16T14:41:45.094Z",
+  "songs": [
+    {
+      "id": "duman-bu-aksam",
+      "title": "Bu Akşam",
+      "artist": "Duman",
+      "aliases": [
+        "Duman Bu Akşam",
+        "İçerim Ben Bu Akşam",
+        "Duman İçerim Ben Bu Akşam"
+      ],
+      "subtitle": {
+        "en": "Web-sourced melody · independently cross-checked",
+        "tr": "İnternetten alınan ezgi · bağımsız kaynakla karşılaştırıldı"
+      },
+      "difficulty": {
+        "en": "Intermediate",
+        "tr": "Orta"
+      },
+      "notes": "A4 E5 D5 C5 D5 | B4 C5 D5 B4 A4 | A4 E5 D5 C5 D5 | B4 C5 D5 D5 | A4 E5 D5 C5 D5 | B4 C5 D5 B4 A4 | C5 B4 A4 C5 | B4 A4 A4",
+      "sourceStatus": "cross-checked",
+      "sourceModifiedAt": "2017-12-08T21:50:14",
+      "sources": [
+        {
+          "name": "Notalar.net",
+          "url": "https://www.notalar.net/icerim-ben-aksam-melodika-notalari/",
+          "role": "note-source"
+        },
+        {
+          "name": "HKLPS Müzik · YouTube",
+          "url": "https://www.youtube.com/watch?v=LWWKiIJ9RD0",
+          "role": "cross-check"
+        }
+      ]
+    }
+  ]
+}
