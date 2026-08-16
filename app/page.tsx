@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
 
 type Language = "en" | "tr";
 type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "liveFound" | "sourceUnavailable";
@@ -256,7 +257,7 @@ function Fingering({ note, index, language }: { note: ParsedNote; index: number;
       <span className="note-order">{String(index + 1).padStart(2, "0")}</span>
       <div className="whistle-holes" aria-hidden="true">
         {(note.holes ?? "??????").split("").map((closed, holeIndex) => (
-          <span className={`hole ${closed === "1" ? "closed" : ""} ${closed === "?" ? "unknown" : ""}`} key={holeIndex} />
+          <span className={`hole ${closed === "1" ? "closed" : ""} ${closed === "?" ? "unknown" : ""}`} key={holeIndex}>{closed === "1" ? "●" : closed === "0" ? "○" : "?"}</span>
         ))}
       </div>
       <strong>{language === "en" ? note.pitch : note.display}</strong>
@@ -311,12 +312,11 @@ export default function Home() {
 
   async function findSong(event?: FormEvent) {
     event?.preventDefault();
-    const normalized = query.toLocaleLowerCase("tr-TR").trim();
-    const match = normalized ? catalog.find((item) => {
-      const candidates = [item.title, item.artist ? `${item.artist} ${item.title}` : "", ...item.aliases]
-        .map((candidate) => candidate.toLocaleLowerCase("tr-TR"));
-      return candidates.some((candidate) => candidate.includes(normalized) || normalized.includes(candidate));
-    }) : undefined;
+    const normalized = normalizeSearchText(query);
+    const match = normalized ? catalog
+      .map((item) => ({ item, score: searchMatchScore(query, [item.title, item.artist ?? "", item.artist ? `${item.artist} ${item.title}` : "", ...item.aliases]) }))
+      .filter((candidate) => candidate.score > 0)
+      .sort((left, right) => right.score - left.score)[0]?.item : undefined;
     if (match) { setSong(match); setStatus("catalogFound"); return; }
     if (!normalized) { setSong(null); setStatus("notFound"); return; }
 
@@ -326,7 +326,10 @@ export default function Home() {
       const searchResponse = await fetch(`${THE_SESSION_SEARCH_URL}${encodeURIComponent(query.trim())}`);
       if (!searchResponse.ok) throw new Error(`The Session search returned ${searchResponse.status}`);
       const searchData = await searchResponse.json() as { tunes?: Array<{ id: number; name: string; alias?: string; url: string; type?: string }> };
-      const result = searchData.tunes?.[0];
+      const result = searchData.tunes
+        ?.map((item) => ({ item, score: searchMatchScore(query, [item.name, item.alias ?? "", `${item.name} ${item.type ?? ""}`]) }))
+        .filter((candidate) => candidate.score > 0)
+        .sort((left, right) => right.score - left.score)[0]?.item;
       if (!result) { setStatus("notFound"); return; }
 
       const tuneResponse = await fetch(`https://thesession.org/tunes/${result.id}?format=json`);
@@ -424,7 +427,7 @@ export default function Home() {
         <div className="workspace-heading">
           <div><span className="section-kicker">{t.guide}</span><h2 id="preview-title">{song.artist ? `${song.artist} — ` : ""}{song.title}</h2><p>{song.subtitle[language]} · {song.difficulty[language]} · D tin whistle</p></div>
           <div className="workspace-actions">
-            <div className="legend"><span className="hole closed" /> {t.closed} <span className="hole" /> {t.open}</div>
+            <div className="legend"><span className="hole closed">●</span> {t.closed} <span className="hole">○</span> {t.open}</div>
             <button type="button" className="print-button" onClick={() => window.print()}>{t.print}</button>
           </div>
         </div>

@@ -39,6 +39,16 @@ test("temel D tin whistle parmak eşlemelerini içerir", async () => {
   assert.match(page, /"C#": "000000"/);
   assert.match(page, /function parsePhrases/);
   assert.match(page, /function parseAbcNotes/);
+  assert.match(page, /searchMatchScore/);
   assert.match(page, /thesession\.org\/tunes\/search/);
   assert.match(page, /window\.print\(\)/);
+});
+
+test("PDF çıktısı parmakları metin sembolleriyle ve sıkıştırılmış düzenle basar", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(page, /closed === "1" \? "●"/);
+  assert.match(css, /@page \{ size:A4 portrait; margin:10mm; \}/);
+  assert.match(css, /grid-template-columns:repeat\(12,minmax\(0,1fr\)\)/);
+  assert.match(css, /break-inside:avoid-page/);
 });

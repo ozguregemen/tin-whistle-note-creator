@@ -14,6 +14,8 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 - İlk gerçek ve kaynaklı kayıt: Duman — Bu Akşam
 - The Session’ın CORS-açık API’sinde ziyaret anında canlı ABC nota araması
 - Nota kaynağı ve bağımsız karşılaştırma bağlantılarını sonuçta gösterme
+- Türkçe karakter normalizasyonu ve kontrollü fuzzy matching ile yazım hatasına dayanıklı arama
+- Arka plan baskısından bağımsız `● / ○` parmak işaretleri ve sıkıştırılmış A4 PDF düzeni
 - Haftalık GitHub Actions kaynak kontrolü; kaynak yapısı değişirse yayını durdurma
 - GitHub’daki güncel katalog JSON’unu açılışta yükleme
 - Varsayılan İngilizce arayüz ve tek tıkla Türkçe/İngilizce dil geçişi
