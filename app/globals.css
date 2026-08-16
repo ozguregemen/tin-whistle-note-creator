@@ -8,10 +8,10 @@ button,input,textarea { font:inherit; }
 button { cursor:pointer; }
 .shell { width:min(1160px, calc(100% - 40px)); margin-inline:auto; }
 .nav { height:84px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid rgba(24,49,39,.12); }
-.brand { color:var(--ink); text-decoration:none; display:flex; align-items:center; gap:10px; font-family:Georgia,serif; font-size:24px; font-weight:700; }
-.brand-mark { display:grid; place-items:center; width:36px; height:36px; border-radius:50% 50% 46% 54%; background:var(--green); color:#fff; font-style:italic; }
+.brand { color:var(--ink); text-decoration:none; display:flex; align-items:center; font-family:Georgia,serif; font-size:21px; font-weight:700; }
 .nav-actions { display:flex; align-items:center; gap:22px; }
 .nav-actions a { color:var(--ink); font-size:13px; text-decoration:none; }
+.language-toggle { border:0; border-bottom:1px solid #aaa397; padding:3px 0; background:transparent; color:var(--ink); font-size:12px; font-weight:700; }
 .mvp-badge { padding:8px 12px; border:1px solid #c9c4b8; border-radius:999px; color:var(--muted); font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
 .hero { padding:86px 0 64px; }
 .eyebrow,.section-kicker { color:var(--accent); font-size:12px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
@@ -80,6 +80,8 @@ h2 { margin:7px 0 5px; font:600 clamp(30px,4vw,44px)/1.1 Georgia,serif; letter-s
 }
 @media (max-width:580px) {
   .nav-actions a { display:none; }
+  .brand { max-width:170px; font-size:17px; line-height:1.05; }
+  .nav-actions { gap:12px; }
   .mvp-badge { font-size:9px; }
   .search-row { grid-template-columns:auto 1fr; }
   .search-row button { grid-column:1/-1; }

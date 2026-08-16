@@ -14,16 +14,17 @@ async function render() {
   );
 }
 
-test("Nefes ana sayfasını sunucu tarafında oluşturur", async () => {
+test("Tin Whistle Note Creator ana sayfasını sunucu tarafında oluşturur", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>Nefes — Tin Whistle Nota Dönüştürücü<\/title>/i);
-  assert.match(html, /Aradığın şarkı/);
+  assert.match(html, /<title>Tin Whistle Note Creator<\/title>/i);
+  assert.match(html, /Turn a melody into/);
   assert.match(html, /Üsküdar’a Gider İken/);
-  assert.match(html, /Notaları yapıştır/);
+  assert.match(html, /Paste notes/);
+  assert.match(html, /Türkçe/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|Your site is taking shape/i);
 });
 

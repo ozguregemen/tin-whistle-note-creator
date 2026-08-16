@@ -1,10 +1,11 @@
-# Nefes
+# Tin Whistle Note Creator
 
-Türkçe ezgileri D tin whistle parmak pozisyonlarına dönüştüren web tabanlı bir MVP.
+Song notes to D tin whistle fingering diagrams — a web-based MVP with English and Turkish interfaces.
 
 ## Bu sürümde çalışanlar
 
 - Üç örnek ezgiden oluşan yerel katalogda arama
+- Varsayılan İngilizce arayüz ve tek tıkla Türkçe/İngilizce dil geçişi
 - Do/Re/Mi veya C/D/E biçiminde elle nota girişi
 - `|` işaretiyle müzik cümlelerini ayırma
 - D tin whistle'ın temel dizisi için altı delikli parmak şemaları
@@ -59,6 +60,7 @@ npm run build
 ## Teknik yön
 
 - Arayüz: React + TypeScript
+- Dil yapısı: genişletilebilir sözlük tabanlı İngilizce/Türkçe arayüz
 - Dağıtım: Cloudflare uyumlu vinext/Sites; statik sürüm GitHub Pages'e de uyarlanabilir
 - Gelecek veri katmanı: sunucu tarafı kaynak bağlayıcıları, eser kataloğu ve doğrulama durumu
 - Nota değişim biçimleri: MusicXML ve ABC; basit metin biçimi hızlı giriş için korunur
