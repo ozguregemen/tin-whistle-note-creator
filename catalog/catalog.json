@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-16T17:06:57.205Z",
+  "generatedAt": "2026-08-17T04:04:13.572Z",
   "songs": [
     {
       "id": "duman-bu-aksam",
@@ -32,84 +32,6 @@
           "name": "HKLPS Müzik · YouTube",
           "url": "https://www.youtube.com/watch?v=LWWKiIJ9RD0",
           "role": "cross-check"
-        }
-      ]
-    },
-    {
-      "id": "gitaregitim-22205-tarkan-dudu",
-      "title": "Tarkan – Dudu –",
-      "aliases": [
-        "Tarkan Dudu",
-        "Tarkan - Dudu - Gitar Tab"
-      ],
-      "subtitle": {
-        "en": "Live score source · machine-read notation",
-        "tr": "Canlı nota kaynağı · makineyle okunan notasyon"
-      },
-      "difficulty": {
-        "en": "Source arrangement",
-        "tr": "Kaynak düzeni"
-      },
-      "notes": "G3 G3 A3 B3 F3 G3 B3 C4 | G3 A3 A3 C4 C4 C4 B3 | C4 E4 E4 D4 D4 B3 | E3 F3 C4 C4 C4 C4 C4 B3 | C4 E4 E4 E4 B3 B3 | E4 F3 A3 A3 A3 E4 D4 | B3 A3 A3 A3 E4 D4 | B3 A3 A3 A3 D4 | E4 D4 A3 B3 C4 E4 E4 | E4 D4 A3 A3 B3 F3 G3 | B3 C4 G3 A3 A3 B3 F4 F4 | F4 E4 E4 E4 E4 D4 F4 F4 | F4 E4 C#4 D4 D4 F4 F4 | F4 E4 E4 E4 E4 D4 D4 D4 | E4 E4 A3 A3 B3 F3 G3 | B3 C4 G3 A3 A3",
-      "sourceStatus": "live",
-      "sourceConfidence": "omr-unreviewed",
-      "sources": [
-        {
-          "name": "Gitaregitim.net",
-          "url": "https://www.gitaregitim.net/tarkan-dudu-gitar-tab/",
-          "role": "note-source"
-        }
-      ]
-    },
-    {
-      "id": "notalar-4800-caddelerde-ruzgar",
-      "title": "Caddelerde Rüzgar",
-      "aliases": [
-        "caddelerde rüzgar",
-        "Caddelerde Rüzgar Notaları"
-      ],
-      "subtitle": {
-        "en": "Live text source · octave register estimated",
-        "tr": "Canlı metin kaynağı · oktav bölgesi tahmini"
-      },
-      "difficulty": {
-        "en": "Source arrangement",
-        "tr": "Kaynak düzeni"
-      },
-      "notes": "E4 E4 E4 E4 F4 E4 E4 E4 E4 A4 E5 | D5 D5 D5 D5 E5 D5 D5 D5 D5 E5 D5 | C5 C5 C5 C5 D5 C5 C5 C5 C5 D5 C5 | B4 B4 B4 B4 C5 B4 B4 B4 C5 B4 A4 | D5 D5 D5 D5 A5 E5 D5 D5 D5 A5 G5 F5 | E5 E5 E5 F5 E5 C5 C5 C5 D5 C5 | B4 B4 B4 B4 E5 E5 D5 C5 B4 C5 | D5 D5 D5 D5 A5 E5 D5 D5 D5 A5 G5 F5 | E5 E5 E5 F5 E5 C5 C5 C5 D5 C5 | B4 B4 B4 B4 E5 E5 D5 C5 B4 A4",
-      "sourceStatus": "live",
-      "sourceConfidence": "estimated",
-      "sources": [
-        {
-          "name": "Notalar.net",
-          "url": "https://www.notalar.net/caddelerde-ruzgar-notalari/",
-          "role": "note-source"
-        }
-      ]
-    },
-    {
-      "id": "gitaregitim-12712-bir-derdim-var",
-      "title": "Bir Derdim Var –",
-      "aliases": [
-        "bir derdim var",
-        "Bir Derdim Var – Gitar – Nota – Tab"
-      ],
-      "subtitle": {
-        "en": "Live score source · machine-read notation",
-        "tr": "Canlı nota kaynağı · makineyle okunan notasyon"
-      },
-      "difficulty": {
-        "en": "Source arrangement",
-        "tr": "Kaynak düzeni"
-      },
-      "notes": "C#4 F#5 B5 C#6 D6 C#6 B5 F#5 C#4 F#5 B5 C#6 D6 C#6 B5 F#5 C#4 F#5 B5 C#6 D6 C#6 B5 F#5 B4 F#5 B5 B4 F#5 A5 B5 A5 | F#4 D5 C#5 B4 A4 G4 F#4 D5 C#5 B4 C#5 D5 | E4 D5 C#5 B4 G4 F#4 D5 C#5 B4 C#5 D5 C#5 | D5 D5 C#5 B4 A4 G4 F#4 G4 D5 C#5 B4 A4 A4 G4 G4 F#4 | F#4 D5 C#5 B4 A4 G4 F#4 D5 C#5 B4 C#5 D5 | E4 D5 C#5 B4 A4 G4 F#4 F#4 D5 C#5 B4 C#5 D5 C#5 | D5 D5 C#5 B4 A4 G4 F#4 G4 D5 C#5 B4 A4 G4 F#4 | F#4 F#5 B5 C#6 D6 C#6 B5 F#5 E6 D6 C#6 B5 F#6 E6 D6 C#6 D6 G5 F#5 G5 D6 G5 F#5 G5 C#6 G5 B5 G5 A5 F#5 G5 F#5 | B4 F#5 B5 C#6 D6 C#6 B5 F#5 E6 D6 C#6 B5 F#6 E6 D6 C#6 D6 G5 F#5 G5 D6 G5 F#5 G5 C#6 G5 B5 G5 A5 F#5 G5 F#5 | F#4 D5 C#5 B4 A4 G4 F#4 D5 C#5 B4 C#5 D5 | E4 D5 C#5 B4 A4 G4 F#4 D5 C#5 B4 C#5 D5 C#5 | D5 D5 C#5 B4 A4 G4 F#4 G4 D5 C#5 B4 A4 A4 G4 G4 F#4 | F#4 F#5 B5 C#6 D6 C#6 B5 F#5 B4 F#5 B5 C#6 D6 C#6 B5 F#5 B4 F#5 B5 C#6 D6 C#6 B5 F#5 B5 C#6 C#6 D6 D6 E6 E6 F#6 | D5 F#5 E5 D5 C#5 D5 C#5 F#5 E5 D5 C#5 D5 | C#5 F#5 E5 D5 C#5 D5 C#5 C#5 C#5 C#5 | G4 D5 C#5 G4 D5 C#5 B4 B4 C#5 D5 | C#5 C#5 D5 E5 D5 E5 E5 F#5 G5 | F#5 F#5 G4 D5 C#5 B4 A4 G4 | G4 D5 C#5 B4 C#5 D5 C#5 C#5 B4 B4",
-      "sourceStatus": "live",
-      "sourceConfidence": "omr-unreviewed",
-      "sources": [
-        {
-          "name": "Gitaregitim.net",
-          "url": "https://www.gitaregitim.net/bir-derdim-var-gitar-nota-tab/",
-          "role": "note-source"
         }
       ]
     }
