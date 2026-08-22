@@ -1,0 +1,31 @@
+{
+  "requestId": "2b5324eb-434b-4df2-8e4a-36446fa4ede9",
+  "status": "completed",
+  "confidence": "omr-unreviewed",
+  "song": {
+    "id": "gitaregitim-13370-ezel-eysan-unutamiyorum",
+    "title": "Ezel ” Eyşan Unutamıyorum ” –",
+    "aliases": [
+      "ezel unutamıyorum",
+      "Ezel ” Eyşan Unutamıyorum ” – Gitar – Nota – Tab"
+    ],
+    "subtitle": {
+      "en": "Live score source · machine-read notation",
+      "tr": "Canlı nota kaynağı · makineyle okunan notasyon"
+    },
+    "difficulty": {
+      "en": "Source arrangement",
+      "tr": "Kaynak düzeni"
+    },
+    "notes": "C5 B4 C5 D5 B4 C5 B4 C5 D5 B4 C5 A4 B4 G4 A4 F4 F4 B4 G4 G4 | B4 A4 A4 C5 B4 C5 C5 B4 C5 D5 G5 F5 E5 D5 D5 C5 D5 D5 C5 E5 C5 D5 C5 E5 D5 C5 B4 C5 C5 B4 C5 D5 G5 F5 E5 D5 | D5 C5 D5 D5 C5 E5 C5 D5 C5 E5 F5 B4 C5 D5 B4 C5 A4 | C5 B4 C5 D5 B4 C5 B4 C5 D5 B4 C5 A4 B4 G4 A4 F4 F4 B4 G4 G4 | B4 A4 A4 C5 B4 C5 D5 B4 C5 B4 C5 D5 B4 C5 A4 B4 G4 A4 F4 F4 | B4 G4 G4 C5 D5 C5 B4 A4 A4",
+    "sourceStatus": "live",
+    "sourceConfidence": "omr-unreviewed",
+    "sources": [
+      {
+        "name": "Gitaregitim.net",
+        "url": "https://www.gitaregitim.net/ezel-eysan-unutamiyorum-gitar-nota-tab/",
+        "role": "note-source"
+      }
+    ]
+  }
+}
