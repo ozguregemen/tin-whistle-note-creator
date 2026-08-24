@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-22T10:06:20.923Z",
+  "generatedAt": "2026-08-24T04:07:25.871Z",
   "songs": [
     {
       "id": "duman-bu-aksam",
@@ -32,32 +32,6 @@
           "name": "HKLPS Müzik · YouTube",
           "url": "https://www.youtube.com/watch?v=LWWKiIJ9RD0",
           "role": "cross-check"
-        }
-      ]
-    },
-    {
-      "id": "gitaregitim-13370-ezel-eysan-unutamiyorum",
-      "title": "Ezel ” Eyşan Unutamıyorum ” –",
-      "aliases": [
-        "ezel unutamıyorum",
-        "Ezel ” Eyşan Unutamıyorum ” – Gitar – Nota – Tab"
-      ],
-      "subtitle": {
-        "en": "Live score source · machine-read notation",
-        "tr": "Canlı nota kaynağı · makineyle okunan notasyon"
-      },
-      "difficulty": {
-        "en": "Source arrangement",
-        "tr": "Kaynak düzeni"
-      },
-      "notes": "C5 B4 C5 D5 B4 C5 B4 C5 D5 B4 C5 A4 B4 G4 A4 F4 F4 B4 G4 G4 | B4 A4 A4 C5 B4 C5 C5 B4 C5 D5 G5 F5 E5 D5 D5 C5 D5 D5 C5 E5 C5 D5 C5 E5 D5 C5 B4 C5 C5 B4 C5 D5 G5 F5 E5 D5 | D5 C5 D5 D5 C5 E5 C5 D5 C5 E5 F5 B4 C5 D5 B4 C5 A4 | C5 B4 C5 D5 B4 C5 B4 C5 D5 B4 C5 A4 B4 G4 A4 F4 F4 B4 G4 G4 | B4 A4 A4 C5 B4 C5 D5 B4 C5 B4 C5 D5 B4 C5 A4 B4 G4 A4 F4 F4 | B4 G4 G4 C5 D5 C5 B4 A4 A4",
-      "sourceStatus": "live",
-      "sourceConfidence": "omr-unreviewed",
-      "sources": [
-        {
-          "name": "Gitaregitim.net",
-          "url": "https://www.gitaregitim.net/ezel-eysan-unutamiyorum-gitar-nota-tab/",
-          "role": "note-source"
         }
       ]
     }
