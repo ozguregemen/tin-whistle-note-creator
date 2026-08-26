@@ -326,6 +326,7 @@ export default function Home() {
   const bpmRef = useRef(90);
   const audioContextRef = useRef<AudioContext | null>(null);
   const oscillatorRef = useRef<OscillatorNode | null>(null);
+  const gainRef = useRef<GainNode | null>(null);
   const t = COPY[language];
 
   useEffect(() => {
@@ -388,6 +389,7 @@ export default function Home() {
     if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
     oscillatorRef.current?.stop();
     oscillatorRef.current = null;
+    gainRef.current = null;
     playbackCursorRef.current = 0;
     playbackPhaseRef.current = null;
     // Resetting transport state when a different score is selected is intentional.
@@ -407,11 +409,25 @@ export default function Home() {
 
   function stopTone() {
     if (!oscillatorRef.current) return;
-    try { oscillatorRef.current.stop(); } catch { /* The oscillator may already have stopped. */ }
+    const oscillator = oscillatorRef.current;
+    const gain = gainRef.current;
+    const context = audioContextRef.current;
+    try {
+      if (gain && context) {
+        const now = context.currentTime;
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.setValueAtTime(Math.max(0.0001, gain.gain.value), now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.015);
+        oscillator.stop(now + 0.02);
+      } else {
+        oscillator.stop();
+      }
+    } catch { /* The oscillator may already have stopped. */ }
     oscillatorRef.current = null;
+    gainRef.current = null;
   }
 
-  function playTone(note: ParsedNote, durationMs: number) {
+  function playTone(note: ParsedNote) {
     const AudioContextConstructor = window.AudioContext;
     if (!AudioContextConstructor) return;
     const context = audioContextRef.current ?? new AudioContextConstructor();
@@ -421,18 +437,19 @@ export default function Home() {
     const oscillator = context.createOscillator();
     const gain = context.createGain();
     const now = context.currentTime;
-    const toneSeconds = Math.max(0.08, Math.min(durationMs / 1000 * 0.82, 1.2));
     oscillator.type = "sine";
     oscillator.frequency.setValueAtTime(frequencyForNote(note.pitch, note.octave), now);
     gain.gain.setValueAtTime(0.0001, now);
     gain.gain.exponentialRampToValueAtTime(0.16, now + 0.015);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + toneSeconds);
     oscillator.connect(gain).connect(context.destination);
     oscillator.start(now);
-    oscillator.stop(now + toneSeconds + 0.02);
     oscillatorRef.current = oscillator;
+    gainRef.current = gain;
     oscillator.addEventListener("ended", () => {
-      if (oscillatorRef.current === oscillator) oscillatorRef.current = null;
+      if (oscillatorRef.current === oscillator) {
+        oscillatorRef.current = null;
+        gainRef.current = null;
+      }
     }, { once: true });
   }
 
@@ -446,7 +463,7 @@ export default function Home() {
     setIsPlaying(false);
   }
 
-  function schedulePlaybackPhase(index: number, kind: PlaybackPhase["kind"], remainingBeats?: number) {
+  function schedulePlaybackPhase(index: number, kind: PlaybackPhase["kind"], remainingBeats?: number, keepCurrentTone = false) {
     const event = playbackPlanRef.current[index];
     if (!event) { finishPlayback(); return; }
     playbackCursorRef.current = index;
@@ -475,7 +492,7 @@ export default function Home() {
       }, durationMs);
     } else {
       setActiveNoteIndex(event.globalIndex);
-      playTone(event.note as ParsedNote, durationMs);
+      if (!keepCurrentTone) playTone(event.note as ParsedNote);
       playbackTimerRef.current = window.setTimeout(() => {
         playbackTimerRef.current = null;
         schedulePlaybackPhase(index + 1, "delay");
@@ -536,8 +553,7 @@ export default function Home() {
     if (!phase || !isPlaying) return;
     if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
     playbackTimerRef.current = null;
-    stopTone();
-    schedulePlaybackPhase(phase.index, phase.kind, remainingBeats);
+    schedulePlaybackPhase(phase.index, phase.kind, remainingBeats, phase.kind === "note");
   }
 
   function toggleLanguage() {
