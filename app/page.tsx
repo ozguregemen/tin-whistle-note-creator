@@ -1,7 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { parseAbcScore } from "./abc.mjs";
 import { adaptPhrasesToDWhistle } from "./fingerings.mjs";
+import { buildPlaybackPlan, frequencyForNote } from "./practice.mjs";
 import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
 
 type Language = "en" | "tr";
@@ -21,6 +23,12 @@ type Song = {
   subtitle: Record<Language, string>;
   difficulty: Record<Language, string>;
   notes: string;
+  rhythm?: {
+    bpm: number;
+    source: "score" | "estimated";
+    durations: number[][];
+    gaps?: number[][];
+  };
   sourceStatus: "cross-checked" | "live" | "manual";
   sourceConfidence?: "estimated" | "omr-unreviewed";
   sources: SongSource[];
@@ -91,6 +99,14 @@ const COPY = {
     half: "Half",
     open: "Open",
     print: "Print / PDF",
+    practice: "Practice mode",
+    play: "Play",
+    pause: "Pause",
+    stop: "Stop",
+    tempo: "Tempo",
+    scoreRhythm: "Score rhythm",
+    estimatedRhythm: "Estimated equal beats",
+    progress: "Progress",
     warningStart: "note(s) sit outside the supported D whistle range.",
     warningEnd: "Faded notes need a different octave or arrangement.",
     phrase: "Phrase",
@@ -99,13 +115,13 @@ const COPY = {
     phrases: "phrases",
     noRhythm: "Rhythm is not included in this MVP",
     mvpScope: "MVP scope",
-    howTitle: "First the right fingers, then the right tempo.",
+    howTitle: "Practice the right fingers at your own tempo.",
     step1Title: "Bring in the notes",
     step1Body: "Choose from the local catalog or paste a simple note sequence.",
     step2Title: "Check playability",
     step2Body: "Use chromatic and half-hole fingerings, then flag notes outside the supported range.",
-    step3Title: "Build the fingering sheet",
-    step3Body: "Create a readable guide for screen, print, and PDF.",
+    step3Title: "Practice the melody",
+    step3Body: "Play, pause, follow the active note, and adjust the BPM.",
     footer: "A first step toward a more accessible Turkish tin whistle repertoire.",
     customTitle: "My melody",
     customSubtitle: "Manually entered note sequence",
@@ -159,6 +175,14 @@ const COPY = {
     half: "Yarım",
     open: "Açık",
     print: "Yazdır / PDF",
+    practice: "Pratik modu",
+    play: "Çal",
+    pause: "Duraklat",
+    stop: "Durdur",
+    tempo: "Tempo",
+    scoreRhythm: "Nota kaynağındaki ritim",
+    estimatedRhythm: "Tahmini eşit vuruşlar",
+    progress: "İlerleme",
     warningStart: "nota desteklenen D whistle aralığının dışında.",
     warningEnd: "Soluk gösterilen notalar için farklı oktav veya düzenleme gerekir.",
     phrase: "Cümle",
@@ -167,13 +191,13 @@ const COPY = {
     phrases: "cümle",
     noRhythm: "Ritim bilgisi bu MVP’ye dahil değildir",
     mvpScope: "MVP sınırı",
-    howTitle: "Önce doğru parmak, sonra doğru tempo.",
+    howTitle: "Doğru parmakları kendi temponda çalış.",
     step1Title: "Notayı al",
     step1Body: "Yerel katalogdan seç veya basit bir nota dizisi yapıştır.",
     step2Title: "Uygunluğu kontrol et",
     step2Body: "Kromatik ve yarım delik parmaklarını kullan, desteklenen aralığın dışındaki sesleri işaretle.",
-    step3Title: "Parmak rehberini üret",
-    step3Body: "Ekran, yazıcı ve PDF için okunaklı bir çıktı oluştur.",
+    step3Title: "Melodiyi çalış",
+    step3Body: "Çal, duraklat, aktif notayı takip et ve BPM’i ayarla.",
     footer: "Türkçe tin whistle repertuvarını erişilebilir kılmak için ilk adım.",
     customTitle: "Benim ezgim",
     customSubtitle: "Elle girilen nota dizisi",
@@ -259,51 +283,10 @@ function parsePhrases(source: string): ParsedNote[][] {
   return adaptPhrasesToDWhistle(phrases) as ParsedNote[][];
 }
 
-const KEY_SIGNATURES: Record<string, string[]> = {
-  d: ["F", "C"], dmajor: ["F", "C"],
-  g: ["F"], gmajor: ["F"], eminor: ["F"], edorian: ["F", "C"], edor: ["F", "C"],
-  a: ["F", "C", "G"], amajor: ["F", "C", "G"], adorian: ["F"], ador: ["F"],
-  bminor: ["F", "C"], bm: ["F", "C"], dmixolydian: ["F"], dmix: ["F"],
-};
-
-function parseAbcNotes(abc: string, key: string): string {
-  const cleaned = abc
-    .replace(/"[^"]*"/g, "")
-    .replace(/\{[^}]*\}/g, "")
-    .replace(/\[[^\]]*\]/g, "")
-    .replace(/\([^)]*\)/g, "");
-  const sharps = new Set(KEY_SIGNATURES[key.toLowerCase().replace(/[^a-z]/g, "")] ?? []);
-  const segments = cleaned.includes("!") ? cleaned.split("!") : [cleaned];
-  const phrases: string[][] = [];
-
-  for (const segment of segments) {
-    const notes: string[] = [];
-    for (const match of segment.matchAll(/([_=^]*)([A-Ga-g])([,']*)/g)) {
-      const accidental = match[1];
-      const letter = match[2];
-      let pitch = letter.toUpperCase();
-      if (accidental.startsWith("^")) pitch += "#";
-      else if (accidental.startsWith("_")) {
-        const flatToSharp: Record<string, string> = { Db: "C#", Eb: "D#", Gb: "F#", Ab: "G#", Bb: "A#" };
-        pitch = flatToSharp[`${pitch}b`] ?? pitch;
-      } else if (!accidental.startsWith("=") && sharps.has(pitch)) pitch += "#";
-
-      let octave = letter === letter.toLowerCase() ? 5 : 4;
-      for (const marker of match[3]) octave += marker === "'" ? 1 : -1;
-      notes.push(`${pitch}${octave}`);
-    }
-    for (let index = 0; index < notes.length; index += 16) {
-      const phrase = notes.slice(index, index + 16);
-      if (phrase.length) phrases.push(phrase);
-    }
-  }
-  return phrases.map((phrase) => phrase.join(" ")).join(" | ");
-}
-
-function Fingering({ note, index, language }: { note: ParsedNote; index: number; language: Language }) {
+function Fingering({ note, index, globalIndex, active, language }: { note: ParsedNote; index: number; globalIndex: number; active: boolean; language: Language }) {
   const playable = Boolean(note.holes);
   return (
-    <div className={`fingering ${playable ? "" : "unsupported"}`} aria-label={`${language === "en" ? note.pitch : note.display} ${note.octave}`}>
+    <div className={`fingering ${playable ? "" : "unsupported"} ${active ? "active" : ""}`} aria-current={active ? "step" : undefined} data-note-index={globalIndex} aria-label={`${language === "en" ? note.pitch : note.display} ${note.octave}`}>
       {note.octave >= 5 && <span className="octave-mark" title="Upper octave">•</span>}
       <span className="note-order">{String(index + 1).padStart(2, "0")}</span>
       <div className="whistle-holes" aria-hidden="true">
@@ -326,6 +309,13 @@ export default function Home() {
   const [song, setSong] = useState<Song | null>(FALLBACK_SONGS[0]);
   const [sourceCandidates, setSourceCandidates] = useState<SourceCandidate[]>([]);
   const [status, setStatus] = useState<StatusKey>("catalogPrepared");
+  const [bpm, setBpm] = useState(90);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [activeNoteIndex, setActiveNoteIndex] = useState(-1);
+  const playbackCursorRef = useRef(0);
+  const playbackTimerRef = useRef<number | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const oscillatorRef = useRef<OscillatorNode | null>(null);
   const t = COPY[language];
 
   useEffect(() => {
@@ -379,6 +369,98 @@ export default function Home() {
   const phrases = useMemo(() => parsePhrases(song?.notes ?? ""), [song]);
   const allNotes = phrases.flat();
   const unsupported = allNotes.filter((note) => !note.holes);
+  const playbackPlan = useMemo(() => buildPlaybackPlan(phrases, song?.rhythm, bpm), [phrases, song?.rhythm, bpm]);
+  const phraseOffsets = useMemo(() => phrases.map((_, index) => phrases.slice(0, index).reduce((sum, phrase) => sum + phrase.length, 0)), [phrases]);
+
+  useEffect(() => {
+    if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
+    oscillatorRef.current?.stop();
+    oscillatorRef.current = null;
+    playbackCursorRef.current = 0;
+    // Resetting transport state when a different score is selected is intentional.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActiveNoteIndex(-1);
+    setIsPlaying(false);
+    setBpm(song?.rhythm?.bpm ?? 90);
+  }, [song?.id, song?.rhythm?.bpm]);
+
+  useEffect(() => () => {
+    if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
+    oscillatorRef.current?.stop();
+    void audioContextRef.current?.close();
+  }, []);
+
+  function stopTone() {
+    if (!oscillatorRef.current) return;
+    try { oscillatorRef.current.stop(); } catch { /* The oscillator may already have stopped. */ }
+    oscillatorRef.current = null;
+  }
+
+  function playTone(note: ParsedNote, durationMs: number) {
+    const AudioContextConstructor = window.AudioContext;
+    if (!AudioContextConstructor) return;
+    const context = audioContextRef.current ?? new AudioContextConstructor();
+    audioContextRef.current = context;
+    void context.resume();
+    stopTone();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const now = context.currentTime;
+    const toneSeconds = Math.max(0.08, Math.min(durationMs / 1000 * 0.82, 1.2));
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(frequencyForNote(note.pitch, note.octave), now);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.16, now + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + toneSeconds);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start(now);
+    oscillator.stop(now + toneSeconds + 0.02);
+    oscillatorRef.current = oscillator;
+    oscillator.addEventListener("ended", () => {
+      if (oscillatorRef.current === oscillator) oscillatorRef.current = null;
+    }, { once: true });
+  }
+
+  function finishPlayback() {
+    stopTone();
+    playbackCursorRef.current = 0;
+    setActiveNoteIndex(-1);
+    setIsPlaying(false);
+  }
+
+  function playStep(index: number) {
+    const event = playbackPlan[index];
+    if (!event) { finishPlayback(); return; }
+    playbackCursorRef.current = index;
+    const startNote = () => {
+      setActiveNoteIndex(event.globalIndex);
+      playTone(event.note as ParsedNote, event.durationMs);
+      playbackTimerRef.current = window.setTimeout(() => playStep(index + 1), event.durationMs);
+    };
+    if (event.delayMs > 0) {
+      setActiveNoteIndex(-1);
+      playbackTimerRef.current = window.setTimeout(startNote, event.delayMs);
+    } else {
+      startNote();
+    }
+  }
+
+  function togglePractice() {
+    if (isPlaying) {
+      if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
+      stopTone();
+      setIsPlaying(false);
+      return;
+    }
+    setIsPlaying(true);
+    playStep(playbackCursorRef.current);
+  }
+
+  function stopPractice() {
+    if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
+    playbackTimerRef.current = null;
+    finishPlayback();
+  }
 
   function toggleLanguage() {
     const next = language === "en" ? "tr" : "en";
@@ -425,7 +507,8 @@ export default function Home() {
       if (!tuneResponse.ok) throw new Error(`The Session tune returned ${tuneResponse.status}`);
       const tune = await tuneResponse.json() as { aliases?: string[]; settings?: Array<{ key: string; abc: string }> };
       const setting = tune.settings?.find((item) => /^(d|g|e(minor|dorian)|a(dorian)?)/i.test(item.key)) ?? tune.settings?.[0];
-      const notes = setting ? parseAbcNotes(setting.abc, setting.key) : "";
+      const parsedScore = setting ? parseAbcScore(setting.abc, setting.key) : null;
+      const notes = parsedScore?.notes ?? "";
       if (!notes) { setStatus("notFound"); return; }
 
       setSong({
@@ -438,6 +521,7 @@ export default function Home() {
         },
         difficulty: { en: "Source arrangement", tr: "Kaynak düzeni" },
         notes,
+        rhythm: parsedScore?.rhythm as Song["rhythm"],
         sourceStatus: "live",
         sources: [{ name: "The Session", url: result.url, role: "note-source" }],
       });
@@ -567,19 +651,33 @@ export default function Home() {
           </div>
         </div>
         {song.sourceStatus !== "manual" && <div className="source-panel">
-          <div><strong>✓ {song.sourceStatus === "live" ? t.liveSource : t.verified}</strong><span>{t.sourceCaveat}</span></div>
+          <div><strong>✓ {song.sourceStatus === "live" ? t.liveSource : t.verified}</strong><span>{song.rhythm?.source === "score" ? t.scoreRhythm : t.sourceCaveat}</span></div>
           <div className="source-links"><span>{t.sources}:</span>{song.sources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.url}>{source.name} <small>({source.role === "note-source" ? t.primarySource : t.crossCheck})</small></a>)}</div>
         </div>}
+        <section className="practice-panel" aria-label={t.practice}>
+          <div className="practice-title"><span className="section-kicker">{t.practice}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : t.estimatedRhythm}</strong></div>
+          <div className="practice-controls">
+            <button type="button" className="practice-play" onClick={togglePractice} disabled={!playbackPlan.length} aria-pressed={isPlaying}><span aria-hidden="true">{isPlaying ? "Ⅱ" : "▶"}</span> {isPlaying ? t.pause : t.play}</button>
+            <button type="button" className="practice-stop" onClick={stopPractice} disabled={!isPlaying && activeNoteIndex < 0}><span aria-hidden="true">■</span> {t.stop}</button>
+            <label htmlFor="practice-bpm">{t.tempo}</label>
+            <input id="practice-bpm" type="range" min="40" max="180" step="5" value={bpm} onChange={(event) => { if (isPlaying) stopPractice(); setBpm(Number(event.target.value)); }} />
+            <output htmlFor="practice-bpm">{bpm} BPM</output>
+          </div>
+          <div className="practice-progress" aria-live="polite"><span>{t.progress}</span><strong>{activeNoteIndex < 0 ? 0 : activeNoteIndex + 1} / {allNotes.length}</strong></div>
+        </section>
         {unsupported.length > 0 && <div className="warning" role="alert"><strong>{unsupported.length} {t.warningStart}</strong> {t.warningEnd}</div>}
         <div className="phrases">
           {phrases.map((phrase, phraseIndex) => (
             <article className="phrase-card" key={phraseIndex}>
               <div className="phrase-meta"><span>{t.phrase} {String(phraseIndex + 1).padStart(2, "0")}</span><span>{phrase.length} {phrase.length === 1 ? t.note : t.notes}</span></div>
-              <div className="notes-grid">{phrase.map((note, index) => <Fingering note={note} index={index} language={language} key={`${note.pitch}-${note.octave}-${index}`} />)}</div>
+              <div className="notes-grid">{phrase.map((note, index) => {
+                const globalIndex = phraseOffsets[phraseIndex] + index;
+                return <Fingering note={note} index={index} globalIndex={globalIndex} active={activeNoteIndex === globalIndex} language={language} key={`${note.pitch}-${note.octave}-${index}`} />;
+              })}</div>
             </article>
           ))}
         </div>
-        <footer className="score-footer"><span>{allNotes.length} {t.notes} · {phrases.length} {t.phrases}</span><span>Tin Whistle Note Creator MVP · {t.noRhythm}</span></footer>
+        <footer className="score-footer"><span>{allNotes.length} {t.notes} · {phrases.length} {t.phrases}</span><span>Tin Whistle Note Creator MVP · {song.rhythm?.source === "score" ? t.scoreRhythm : t.estimatedRhythm}</span></footer>
       </section> : <section className="workspace empty-workspace shell" aria-live="polite">
         <span className="section-kicker">{t.guide}</span>
         <h2>{t.emptyTitle}</h2>

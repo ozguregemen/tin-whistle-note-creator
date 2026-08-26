@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import {
   addEstimatedOctaves, extractScoreAssets, extractTextPhrases, mergeSongIntoCatalog,
-  musicXmlToPhrases, phrasesToString, plainTitle, slugify,
+  musicXmlToTimedPhrases, phrasesToString, plainTitle, slugify,
 } from "./source-processing.mjs";
 
 const CATALOG_FILE = new URL("../catalog/catalog.json", import.meta.url);
@@ -45,7 +45,7 @@ async function writeJob(job) {
   await writeFile(new URL(`${job.requestId}.json`, JOB_DIRECTORY), `${JSON.stringify(job, null, 2)}\n`);
 }
 
-function buildSong(payload, post, notes, confidence) {
+function buildSong(payload, post, notes, confidence, rhythm) {
   const title = plainTitle(post.title?.rendered || post.title || payload.requestedTitle || `Source ${payload.postId}`)
     .replace(/\s+(?:do\s+re\s+mi|melodika|gitar|nota|tab).*$/i, "").trim();
   return {
@@ -58,16 +58,17 @@ function buildSong(payload, post, notes, confidence) {
     },
     difficulty: { en: "Source arrangement", tr: "Kaynak düzeni" },
     notes,
+    ...(rhythm ? { rhythm } : {}),
     sourceStatus: "live",
     sourceConfidence: confidence,
     sources: [{ name: payload.source.name, url: post.link, role: "note-source" }],
   };
 }
 
-async function complete(payload, post, phrases, confidence) {
+async function complete(payload, post, phrases, confidence, rhythm) {
   const notes = phrasesToString(phrases);
   if (!notes) throw new Error("No notes were extracted from the source");
-  const song = buildSong(payload, post, notes, confidence);
+  const song = buildSong(payload, post, notes, confidence, rhythm);
   const catalog = mergeSongIntoCatalog(await readCatalog(), song);
   await writeFile(CATALOG_FILE, `${JSON.stringify(catalog, null, 2)}\n`);
   await writeJob({ requestId: payload.requestId, status: "completed", confidence, song });
@@ -136,13 +137,18 @@ async function finalize() {
   const { payload, post } = JSON.parse(await readFile(new URL("context.json", WORK_DIRECTORY), "utf8"));
   const workPath = fileURLToPath(WORK_DIRECTORY);
   const xmlFiles = (await findFiles(workPath)).filter((path) => /\.(?:musicxml|xml)$/i.test(path) && !/container\.xml$/i.test(path));
-  let bestPhrases = [];
+  let bestScore = { phrases: [], durations: [], gaps: [], tempo: 90 };
   for (const path of xmlFiles) {
-    const phrases = musicXmlToPhrases(await readFile(path, "utf8"));
-    if (phrases.flat().length > bestPhrases.flat().length) bestPhrases = phrases;
+    const score = musicXmlToTimedPhrases(await readFile(path, "utf8"));
+    if (score.phrases.flat().length > bestScore.phrases.flat().length) bestScore = score;
   }
-  if (bestPhrases.flat().length >= 4) {
-    await complete(payload, post, bestPhrases, "omr-unreviewed");
+  if (bestScore.phrases.flat().length >= 4) {
+    await complete(payload, post, bestScore.phrases, "omr-unreviewed", {
+      bpm: bestScore.tempo,
+      source: "score",
+      durations: bestScore.durations,
+      gaps: bestScore.gaps,
+    });
   } else {
     const assets = JSON.parse(await readFile(new URL("assets.json", WORK_DIRECTORY), "utf8"));
     await writeJob({
