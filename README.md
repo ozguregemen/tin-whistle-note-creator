@@ -28,9 +28,12 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 - Clarke D chromatic fingering referansına göre tam, yarım ve açık delikli parmak şemaları
 - Melodiyi aralıklarını değiştirmeden çalınabilir D whistle oktavına otomatik taşıma
 - Desteklenen kromatik aralığın dışındaki sesler için uyarı
+- Play/Pause/Stop, aktif nota takibi ve ayarlanabilir BPM içeren Pratik Modu v1
+- ABC ve MusicXML kaynaklarından nota süresi, tempo ve es bilgisi okuma
+- Ritim bilgisi bulunmayan eski kayıtlar için açıkça işaretlenmiş eşit vuruş tahmini
 - Mobil uyumlu görünüm ve yazdırma/PDF çıktısı
 
-> Nota kaynakları metin tabanlı perde sırasını veriyor; ritim ve nota süreleri bu MVP’de henüz yok. Her sonuçta kaynak ve doğrulama durumu gösterilir.
+> ABC ve MusicXML kaynaklarında ritim bilgisi varsa korunur. Yalnız perde sırası sunan metin kaynakları eşit vuruş tahminiyle çalınır; arayüz hangi yöntemin kullanıldığını açıkça gösterir.
 
 ## Çalıştırma
 
@@ -116,9 +119,10 @@ Worker arama sonucunu hemen döndürür. Kullanıcı bir kaynağı seçince `.gi
 
 ### 4. Pratik modu
 
-- BPM, ritim ve nota süreleri
-- Hareketli çalma imleci ve metronom
-- Yavaşlatma, döngü ve backing track senkronizasyonu
+- Tamamlandı: temel sesli oynatma, BPM ayarı ve hareketli nota vurgusu
+- Tamamlandı: ABC/MusicXML nota süreleri ve MusicXML es/tempo aktarımı
+- Sırada: metronom, seçili cümleyi döngüye alma ve kaldığı yerden hassas devam
+- Daha sonra: backing track senkronizasyonu ve gerçek whistle ses örnekleri
 
 ## Teknik yön
 

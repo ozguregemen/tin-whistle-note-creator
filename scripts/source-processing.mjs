@@ -99,17 +99,44 @@ function tagValue(xml, tag) {
   return xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([^<]+)</${tag}>`, "i"))?.[1]?.trim();
 }
 
-export function musicXmlToPhrases(xml) {
+const TYPE_BEATS = Object.freeze({
+  whole: 4, half: 2, quarter: 1, eighth: 0.5, "16th": 0.25, "32nd": 0.125,
+});
+
+function noteDurationBeats(note, divisions) {
+  const duration = Number(tagValue(note, "duration"));
+  if (Number.isFinite(duration) && duration > 0 && divisions > 0) return duration / divisions;
+  const type = tagValue(note, "type")?.toLowerCase();
+  let beats = TYPE_BEATS[type] || 1;
+  const dots = [...note.matchAll(/<dot\b[^>]*\/?>/gi)].length;
+  let addition = beats / 2;
+  for (let index = 0; index < dots; index += 1) {
+    beats += addition;
+    addition /= 2;
+  }
+  return beats;
+}
+
+export function musicXmlToTimedPhrases(xml) {
   const part = xml.match(/<part\b[^>]*>[\s\S]*?<\/part>/i)?.[0] || xml;
   const measures = [...part.matchAll(/<measure\b[^>]*>([\s\S]*?)<\/measure>/gi)];
-  const measureNotes = measures.map((measure) => {
-    const notes = [];
+  let divisions = 1;
+  let pendingGap = 0;
+  const measureEvents = measures.map((measure) => {
+    const declaredDivisions = Number(tagValue(measure[1], "divisions"));
+    if (Number.isFinite(declaredDivisions) && declaredDivisions > 0) divisions = declaredDivisions;
+    const events = [];
     for (const noteMatch of measure[1].matchAll(/<note\b[^>]*>([\s\S]*?)<\/note>/gi)) {
       const note = noteMatch[1];
-      if (/<rest\b/i.test(note) || /<chord\b/i.test(note) || /<grace\b/i.test(note)) continue;
+      if (/<chord\b/i.test(note) || /<grace\b/i.test(note)) continue;
       const staff = tagValue(note, "staff");
       const voice = tagValue(note, "voice");
       if ((staff && staff !== "1") || (voice && voice !== "1")) continue;
+      const durationBeats = noteDurationBeats(note, divisions);
+      if (/<rest\b/i.test(note)) {
+        pendingGap += durationBeats;
+        continue;
+      }
       const step = tagValue(note, "step")?.toUpperCase();
       const octave = Number(tagValue(note, "octave"));
       const alter = Number(tagValue(note, "alter") || 0);
@@ -117,17 +144,31 @@ export function musicXmlToPhrases(xml) {
       let pitch = step;
       if (alter === 1) pitch += "#";
       else if (alter === -1) pitch = { D: "C#", E: "D#", G: "F#", A: "G#", B: "A#" }[step] || step;
-      notes.push(`${pitch}${octave}`);
+      events.push({ note: `${pitch}${octave}`, durationBeats, gapBeforeBeats: pendingGap });
+      pendingGap = 0;
     }
-    return notes;
-  }).filter((notes) => notes.length > 0);
+    return events;
+  });
 
   const phrases = [];
-  for (let index = 0; index < measureNotes.length; index += 4) {
-    const phrase = measureNotes.slice(index, index + 4).flat();
-    if (phrase.length) phrases.push(phrase);
+  const durations = [];
+  const gaps = [];
+  for (let index = 0; index < measureEvents.length; index += 4) {
+    const events = measureEvents.slice(index, index + 4).flat();
+    if (!events.length) continue;
+    phrases.push(events.map((event) => event.note));
+    durations.push(events.map((event) => event.durationBeats));
+    gaps.push(events.map((event) => event.gapBeforeBeats));
   }
-  return phrases;
+
+  const soundTempo = Number(xml.match(/<sound\b[^>]*\btempo=["']([^"']+)["']/i)?.[1]);
+  const metronomeTempo = Number(tagValue(xml, "per-minute"));
+  const tempo = [soundTempo, metronomeTempo].find((value) => Number.isFinite(value) && value > 0) || 90;
+  return { phrases, durations, gaps, tempo };
+}
+
+export function musicXmlToPhrases(xml) {
+  return musicXmlToTimedPhrases(xml).phrases;
 }
 
 export function slugify(value) {

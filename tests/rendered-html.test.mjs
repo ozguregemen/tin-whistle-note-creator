@@ -27,6 +27,9 @@ test("Tin Whistle Note Creator ana sayfasını sunucu tarafında oluşturur", as
   assert.match(html, /Notalar\.net/);
   assert.match(html, /Cross-checked/);
   assert.match(html, /Paste notes/);
+  assert.match(html, /Practice mode/);
+  assert.match(html, /90(?:<!-- -->)? BPM/);
+  assert.match(html, /aria-pressed="false"/);
   assert.match(html, /Türkçe/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|Your site is taking shape/i);
 });
@@ -41,7 +44,9 @@ test("temel D tin whistle parmak eşlemelerini içerir", async () => {
   assert.match(fingerings, /"C#": "000000"/);
   assert.match(page, /adaptPhrasesToDWhistle/);
   assert.match(page, /function parsePhrases/);
-  assert.match(page, /function parseAbcNotes/);
+  assert.match(page, /parseAbcScore/);
+  assert.match(page, /buildPlaybackPlan/);
+  assert.match(page, /practice-panel/);
   assert.match(page, /searchMatchScore/);
   assert.match(page, /thesession\.org\/tunes\/search/);
   assert.match(page, /\/api\/search\?q=/);
