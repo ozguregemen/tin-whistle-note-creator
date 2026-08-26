@@ -21,10 +21,23 @@ export function buildPlaybackPlan(phrases, rhythm, bpm = 90) {
   const gaps = rhythm?.gaps ?? [];
   let globalIndex = 0;
 
-  return phrases.flatMap((phrase, phraseIndex) => phrase.map((note, noteIndex) => ({
-    note,
-    globalIndex: globalIndex++,
-    durationMs: safeBeat(durations[phraseIndex]?.[noteIndex], 1, false) * millisecondsPerBeat,
-    delayMs: safeBeat(gaps[phraseIndex]?.[noteIndex], 0, true) * millisecondsPerBeat,
-  })));
+  return phrases.flatMap((phrase, phraseIndex) => phrase.map((note, noteIndex) => {
+    const durationBeats = safeBeat(durations[phraseIndex]?.[noteIndex], 1, false);
+    const delayBeats = safeBeat(gaps[phraseIndex]?.[noteIndex], 0, true);
+    return {
+      note,
+      globalIndex: globalIndex++,
+      durationBeats,
+      delayBeats,
+      durationMs: durationBeats * millisecondsPerBeat,
+      delayMs: delayBeats * millisecondsPerBeat,
+    };
+  }));
+}
+
+export function remainingBeatsAfterElapsed(remainingBeats, elapsedMilliseconds, bpm) {
+  const safeRemaining = Math.max(0, Number(remainingBeats) || 0);
+  const safeElapsed = Math.max(0, Number(elapsedMilliseconds) || 0);
+  const safeBpm = Math.min(240, Math.max(30, Number(bpm) || 90));
+  return Math.max(0, safeRemaining - safeElapsed / (60000 / safeBpm));
 }
