@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { parseAbcScore } from "../app/abc.mjs";
-import { buildPlaybackPlan, frequencyForNote } from "../app/practice.mjs";
+import { buildPlaybackPlan, frequencyForNote, remainingBeatsAfterElapsed } from "../app/practice.mjs";
 
 test("ABC nota uzunluklarını perde dizisiyle birlikte okur", () => {
   const score = parseAbcScore("D2 E/2 F3/2 ^G", "D");
@@ -17,6 +17,10 @@ test("pratik planı gerçek süreleri ve nota öncesi esleri milisaniyeye çevir
     { durationMs: 500, delayMs: 0 },
     { durationMs: 250, delayMs: 500 },
   ]);
+  assert.deepEqual(plan.map(({ durationBeats, delayBeats }) => ({ durationBeats, delayBeats })), [
+    { durationBeats: 1, delayBeats: 0 },
+    { durationBeats: 0.5, delayBeats: 1 },
+  ]);
 });
 
 test("ritim verisi olmayan eski katalog kayıtlarına eşit vuruş uygular", () => {
@@ -24,4 +28,9 @@ test("ritim verisi olmayan eski katalog kayıtlarına eşit vuruş uygular", () 
   assert.equal(plan[0].durationMs, 1000);
   assert.equal(plan[0].delayMs, 0);
   assert.ok(Math.abs(frequencyForNote("A", 4) - 440) < 0.001);
+});
+
+test("tempo değişirken geçen süreyi vuruş cinsinden korur", () => {
+  assert.equal(remainingBeatsAfterElapsed(2, 500, 120), 1);
+  assert.equal(remainingBeatsAfterElapsed(1, 2000, 120), 0);
 });

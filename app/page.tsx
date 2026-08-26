@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { parseAbcScore } from "./abc.mjs";
 import { adaptPhrasesToDWhistle } from "./fingerings.mjs";
-import { buildPlaybackPlan, frequencyForNote } from "./practice.mjs";
+import { buildPlaybackPlan, frequencyForNote, remainingBeatsAfterElapsed } from "./practice.mjs";
 import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
 
 type Language = "en" | "tr";
@@ -60,6 +60,14 @@ type ParsedNote = {
   pitch: string;
   octave: number;
   holes?: string;
+};
+
+type PlaybackPhase = {
+  index: number;
+  kind: "delay" | "note";
+  remainingBeats: number;
+  startedAt: number;
+  bpm: number;
 };
 
 const COPY = {
@@ -314,8 +322,11 @@ export default function Home() {
   const [activeNoteIndex, setActiveNoteIndex] = useState(-1);
   const playbackCursorRef = useRef(0);
   const playbackTimerRef = useRef<number | null>(null);
+  const playbackPhaseRef = useRef<PlaybackPhase | null>(null);
+  const bpmRef = useRef(90);
   const audioContextRef = useRef<AudioContext | null>(null);
   const oscillatorRef = useRef<OscillatorNode | null>(null);
+  const gainRef = useRef<GainNode | null>(null);
   const t = COPY[language];
 
   useEffect(() => {
@@ -370,18 +381,24 @@ export default function Home() {
   const allNotes = phrases.flat();
   const unsupported = allNotes.filter((note) => !note.holes);
   const playbackPlan = useMemo(() => buildPlaybackPlan(phrases, song?.rhythm, bpm), [phrases, song?.rhythm, bpm]);
+  const playbackPlanRef = useRef(playbackPlan);
+  playbackPlanRef.current = playbackPlan;
   const phraseOffsets = useMemo(() => phrases.map((_, index) => phrases.slice(0, index).reduce((sum, phrase) => sum + phrase.length, 0)), [phrases]);
 
   useEffect(() => {
     if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
     oscillatorRef.current?.stop();
     oscillatorRef.current = null;
+    gainRef.current = null;
     playbackCursorRef.current = 0;
+    playbackPhaseRef.current = null;
     // Resetting transport state when a different score is selected is intentional.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveNoteIndex(-1);
     setIsPlaying(false);
-    setBpm(song?.rhythm?.bpm ?? 90);
+    const initialBpm = song?.rhythm?.bpm ?? 90;
+    bpmRef.current = initialBpm;
+    setBpm(initialBpm);
   }, [song?.id, song?.rhythm?.bpm]);
 
   useEffect(() => () => {
@@ -392,11 +409,25 @@ export default function Home() {
 
   function stopTone() {
     if (!oscillatorRef.current) return;
-    try { oscillatorRef.current.stop(); } catch { /* The oscillator may already have stopped. */ }
+    const oscillator = oscillatorRef.current;
+    const gain = gainRef.current;
+    const context = audioContextRef.current;
+    try {
+      if (gain && context) {
+        const now = context.currentTime;
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.setValueAtTime(Math.max(0.0001, gain.gain.value), now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.015);
+        oscillator.stop(now + 0.02);
+      } else {
+        oscillator.stop();
+      }
+    } catch { /* The oscillator may already have stopped. */ }
     oscillatorRef.current = null;
+    gainRef.current = null;
   }
 
-  function playTone(note: ParsedNote, durationMs: number) {
+  function playTone(note: ParsedNote) {
     const AudioContextConstructor = window.AudioContext;
     if (!AudioContextConstructor) return;
     const context = audioContextRef.current ?? new AudioContextConstructor();
@@ -406,60 +437,123 @@ export default function Home() {
     const oscillator = context.createOscillator();
     const gain = context.createGain();
     const now = context.currentTime;
-    const toneSeconds = Math.max(0.08, Math.min(durationMs / 1000 * 0.82, 1.2));
     oscillator.type = "sine";
     oscillator.frequency.setValueAtTime(frequencyForNote(note.pitch, note.octave), now);
     gain.gain.setValueAtTime(0.0001, now);
     gain.gain.exponentialRampToValueAtTime(0.16, now + 0.015);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + toneSeconds);
     oscillator.connect(gain).connect(context.destination);
     oscillator.start(now);
-    oscillator.stop(now + toneSeconds + 0.02);
     oscillatorRef.current = oscillator;
+    gainRef.current = gain;
     oscillator.addEventListener("ended", () => {
-      if (oscillatorRef.current === oscillator) oscillatorRef.current = null;
+      if (oscillatorRef.current === oscillator) {
+        oscillatorRef.current = null;
+        gainRef.current = null;
+      }
     }, { once: true });
   }
 
   function finishPlayback() {
+    if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
+    playbackTimerRef.current = null;
     stopTone();
     playbackCursorRef.current = 0;
+    playbackPhaseRef.current = null;
     setActiveNoteIndex(-1);
     setIsPlaying(false);
   }
 
-  function playStep(index: number) {
-    const event = playbackPlan[index];
+  function schedulePlaybackPhase(index: number, kind: PlaybackPhase["kind"], remainingBeats?: number, keepCurrentTone = false) {
+    const event = playbackPlanRef.current[index];
     if (!event) { finishPlayback(); return; }
     playbackCursorRef.current = index;
-    const startNote = () => {
-      setActiveNoteIndex(event.globalIndex);
-      playTone(event.note as ParsedNote, event.durationMs);
-      playbackTimerRef.current = window.setTimeout(() => playStep(index + 1), event.durationMs);
-    };
-    if (event.delayMs > 0) {
-      setActiveNoteIndex(-1);
-      playbackTimerRef.current = window.setTimeout(startNote, event.delayMs);
-    } else {
-      startNote();
+    const beats = remainingBeats ?? (kind === "delay" ? event.delayBeats : event.durationBeats);
+
+    if (kind === "delay" && beats <= 0) {
+      schedulePlaybackPhase(index, "note");
+      return;
     }
+
+    const phaseBpm = bpmRef.current;
+    const durationMs = beats * 60000 / phaseBpm;
+    playbackPhaseRef.current = {
+      index,
+      kind,
+      remainingBeats: beats,
+      startedAt: window.performance.now(),
+      bpm: phaseBpm,
+    };
+
+    if (kind === "delay") {
+      setActiveNoteIndex(-1);
+      playbackTimerRef.current = window.setTimeout(() => {
+        playbackTimerRef.current = null;
+        schedulePlaybackPhase(index, "note");
+      }, durationMs);
+    } else {
+      setActiveNoteIndex(event.globalIndex);
+      if (!keepCurrentTone) playTone(event.note as ParsedNote);
+      playbackTimerRef.current = window.setTimeout(() => {
+        playbackTimerRef.current = null;
+        schedulePlaybackPhase(index + 1, "delay");
+      }, durationMs);
+    }
+  }
+
+  function playStep(index: number) {
+    schedulePlaybackPhase(index, "delay");
+  }
+
+  function remainingPhaseBeats(phase: PlaybackPhase) {
+    return remainingBeatsAfterElapsed(
+      phase.remainingBeats,
+      window.performance.now() - phase.startedAt,
+      phase.bpm,
+    );
   }
 
   function togglePractice() {
     if (isPlaying) {
       if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
+      playbackTimerRef.current = null;
+      const phase = playbackPhaseRef.current;
+      if (phase) {
+        playbackPhaseRef.current = {
+          ...phase,
+          remainingBeats: remainingPhaseBeats(phase),
+          startedAt: window.performance.now(),
+          bpm: bpmRef.current,
+        };
+      }
       stopTone();
       setIsPlaying(false);
       return;
     }
     setIsPlaying(true);
-    playStep(playbackCursorRef.current);
+    const pausedPhase = playbackPhaseRef.current;
+    if (pausedPhase) {
+      schedulePlaybackPhase(pausedPhase.index, pausedPhase.kind, pausedPhase.remainingBeats);
+    } else {
+      playStep(playbackCursorRef.current);
+    }
   }
 
   function stopPractice() {
     if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
     playbackTimerRef.current = null;
     finishPlayback();
+  }
+
+  function changeTempo(nextBpm: number) {
+    const phase = playbackPhaseRef.current;
+    const remainingBeats = phase && isPlaying ? remainingPhaseBeats(phase) : 0;
+    bpmRef.current = nextBpm;
+    setBpm(nextBpm);
+
+    if (!phase || !isPlaying) return;
+    if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
+    playbackTimerRef.current = null;
+    schedulePlaybackPhase(phase.index, phase.kind, remainingBeats, phase.kind === "note");
   }
 
   function toggleLanguage() {
@@ -660,7 +754,7 @@ export default function Home() {
             <button type="button" className="practice-play" onClick={togglePractice} disabled={!playbackPlan.length} aria-pressed={isPlaying}><span aria-hidden="true">{isPlaying ? "Ⅱ" : "▶"}</span> {isPlaying ? t.pause : t.play}</button>
             <button type="button" className="practice-stop" onClick={stopPractice} disabled={!isPlaying && activeNoteIndex < 0}><span aria-hidden="true">■</span> {t.stop}</button>
             <label htmlFor="practice-bpm">{t.tempo}</label>
-            <input id="practice-bpm" type="range" min="40" max="180" step="5" value={bpm} onChange={(event) => { if (isPlaying) stopPractice(); setBpm(Number(event.target.value)); }} />
+            <input id="practice-bpm" type="range" min="40" max="180" step="5" value={bpm} onChange={(event) => changeTempo(Number(event.target.value))} />
             <output htmlFor="practice-bpm">{bpm} BPM</output>
           </div>
           <div className="practice-progress" aria-live="polite"><span>{t.progress}</span><strong>{activeNoteIndex < 0 ? 0 : activeNoteIndex + 1} / {allNotes.length}</strong></div>
