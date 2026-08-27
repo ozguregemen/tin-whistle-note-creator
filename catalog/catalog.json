@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-24T04:07:25.871Z",
+  "generatedAt": "2026-08-27T15:34:18.220Z",
   "songs": [
     {
       "id": "duman-bu-aksam",
@@ -32,6 +32,32 @@
           "name": "HKLPS Müzik · YouTube",
           "url": "https://www.youtube.com/watch?v=LWWKiIJ9RD0",
           "role": "cross-check"
+        }
+      ]
+    },
+    {
+      "id": "notalar-4800-caddelerde-ruzgar",
+      "title": "Caddelerde Rüzgar",
+      "aliases": [
+        "caddelerde rüzgar",
+        "Caddelerde Rüzgar Notaları"
+      ],
+      "subtitle": {
+        "en": "Live text source · octave register estimated",
+        "tr": "Canlı metin kaynağı · oktav bölgesi tahmini"
+      },
+      "difficulty": {
+        "en": "Source arrangement",
+        "tr": "Kaynak düzeni"
+      },
+      "notes": "E4 E4 E4 E4 F4 E4 E4 E4 E4 A4 E5 | D5 D5 D5 D5 E5 D5 D5 D5 D5 E5 D5 | C5 C5 C5 C5 D5 C5 C5 C5 C5 D5 C5 | B4 B4 B4 B4 C5 B4 B4 B4 C5 B4 A4 | D5 D5 D5 D5 A5 E5 D5 D5 D5 A5 G5 F5 | E5 E5 E5 F5 E5 C5 C5 C5 D5 C5 | B4 B4 B4 B4 E5 E5 D5 C5 B4 C5 | D5 D5 D5 D5 A5 E5 D5 D5 D5 A5 G5 F5 | E5 E5 E5 F5 E5 C5 C5 C5 D5 C5 | B4 B4 B4 B4 E5 E5 D5 C5 B4 A4",
+      "sourceStatus": "live",
+      "sourceConfidence": "estimated",
+      "sources": [
+        {
+          "name": "Notalar.net",
+          "url": "https://www.notalar.net/caddelerde-ruzgar-notalari/",
+          "role": "note-source"
         }
       ]
     }
