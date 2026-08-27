@@ -60,6 +60,7 @@ h2 { margin:7px 0 5px; font:600 clamp(30px,4vw,44px)/1.1 Georgia,serif; letter-s
 .source-links a { color:var(--green); font-weight:700; text-decoration-thickness:1px; text-underline-offset:3px; }
 .source-links small { font-weight:400; }
 .practice-panel { display:grid; grid-template-columns:minmax(170px,auto) 1fr auto; align-items:center; gap:22px; margin-top:18px; padding:16px 18px; border:1px solid #d8d2c4; border-radius:12px; background:#f7f3e9; }
+.practice-panel.playing { position:sticky; top:12px; z-index:20; box-shadow:0 12px 30px rgba(24,49,39,.14); }
 .practice-title { display:flex; flex-direction:column; gap:4px; }
 .practice-title .section-kicker { font-size:9px; }
 .practice-title strong { color:var(--ink); font:700 13px Georgia,serif; }
@@ -88,7 +89,7 @@ h2 { margin:7px 0 5px; font:600 clamp(30px,4vw,44px)/1.1 Georgia,serif; letter-s
 .phrase-card.selected { border-color:#7aa18e; box-shadow:0 0 0 2px rgba(31,90,67,.12); }
 .phrase-meta { display:flex; justify-content:space-between; color:var(--muted); font-size:10px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
 .notes-grid { display:grid; grid-template-columns:repeat(8,minmax(65px,1fr)); gap:10px; margin-top:20px; }
-.fingering { position:relative; min-width:0; padding:17px 8px 14px; border-radius:12px; text-align:center; transition:background .2s,transform .2s; }
+.fingering { position:relative; min-width:0; padding:17px 8px 14px; border-radius:12px; scroll-margin-top:190px; text-align:center; transition:background .2s,transform .2s; }
 .fingering:hover { background:#f1eee4; transform:translateY(-2px); }
 .fingering.active { background:#fff0e7; box-shadow:0 0 0 2px var(--accent); transform:translateY(-2px); }
 .fingering.unsupported { opacity:.48; }
@@ -119,6 +120,7 @@ h2 { margin:7px 0 5px; font:600 clamp(30px,4vw,44px)/1.1 Georgia,serif; letter-s
   .workspace-heading,.workspace-actions,.source-panel { align-items:flex-start; flex-direction:column; }
   .source-links { align-items:flex-start; justify-content:flex-start; text-align:left; }
   .practice-panel { grid-template-columns:1fr; gap:14px; }
+  .practice-panel.playing { top:8px; gap:10px; padding:12px 14px; }
   .practice-controls { justify-content:flex-start; flex-wrap:wrap; }
   .practice-progress { align-items:flex-start; }
   .practice-options { justify-content:flex-start; flex-wrap:wrap; }

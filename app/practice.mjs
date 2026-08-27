@@ -58,3 +58,9 @@ export function nextPlaybackIndex(currentIndex, planLength, loopRange) {
   }
   return nextIndex < planLength ? nextIndex : -1;
 }
+
+export function noteNeedsFollowing(noteTop, noteBottom, occlusionBottom, viewportHeight, margin = 24) {
+  const safeTop = Math.max(0, Number(occlusionBottom) || 0) + margin;
+  const safeBottom = Math.max(safeTop, (Number(viewportHeight) || 0) - margin);
+  return Number(noteTop) < safeTop || Number(noteBottom) > safeBottom;
+}

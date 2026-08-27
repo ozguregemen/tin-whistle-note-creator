@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { parseAbcScore } from "../app/abc.mjs";
-import { buildPhraseRanges, buildPlaybackPlan, frequencyForNote, nextPlaybackIndex, remainingBeatsAfterElapsed } from "../app/practice.mjs";
+import { buildPhraseRanges, buildPlaybackPlan, frequencyForNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "../app/practice.mjs";
 import { midiForNote, playbackRateForMidi, sampleZoneForMidi } from "../app/whistle-sampler.mjs";
 
 test("ABC nota uzunluklarını perde dizisiyle birlikte okur", () => {
@@ -48,6 +48,12 @@ test("seçilen cümlenin sonunda başına döner, döngü yoksa şarkıyı bitir
   assert.equal(nextPlaybackIndex(2, 6, { start: 1, end: 3 }), 1);
   assert.equal(nextPlaybackIndex(4, 6, null), 5);
   assert.equal(nextPlaybackIndex(5, 6, null), -1);
+});
+
+test("aktif nota görünür çalışma alanının dışına çıkınca takip ister", () => {
+  assert.equal(noteNeedsFollowing(180, 320, 120, 720), false);
+  assert.equal(noteNeedsFollowing(100, 240, 120, 720), true);
+  assert.equal(noteNeedsFollowing(650, 760, 120, 720), true);
 });
 
 test("tin whistle örnek bölgesini seçer ve hedef perde hızını hesaplar", () => {

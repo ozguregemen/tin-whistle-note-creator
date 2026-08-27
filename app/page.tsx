@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { parseAbcScore } from "./abc.mjs";
 import { adaptPhrasesToDWhistle } from "./fingerings.mjs";
-import { buildPhraseRanges, buildPlaybackPlan, frequencyForNote, nextPlaybackIndex, remainingBeatsAfterElapsed } from "./practice.mjs";
+import { buildPhraseRanges, buildPlaybackPlan, frequencyForNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "./practice.mjs";
 import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
 import { midiForNote, playbackRateForMidi, sampleZoneForMidi, WHISTLE_SAMPLE_ZONES } from "./whistle-sampler.mjs";
 
@@ -122,6 +122,7 @@ const COPY = {
     stop: "Stop",
     tempo: "Tempo",
     metronome: "Metronome",
+    followNotes: "Follow active note",
     loopPhrase: "Loop phrase",
     selectPhrase: "Phrase to loop",
     loadingSound: "Loading tin whistle sound…",
@@ -206,6 +207,7 @@ const COPY = {
     stop: "Durdur",
     tempo: "Tempo",
     metronome: "Metronom",
+    followNotes: "Aktif notayı takip et",
     loopPhrase: "Cümleyi döngüle",
     selectPhrase: "Döngülenecek cümle",
     loadingSound: "Tin whistle sesi yükleniyor…",
@@ -347,6 +349,7 @@ export default function Home() {
   const [soundStatus, setSoundStatus] = useState<SoundStatus>("idle");
   const [activeNoteIndex, setActiveNoteIndex] = useState(-1);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
+  const [followEnabled, setFollowEnabled] = useState(true);
   const [loopEnabled, setLoopEnabled] = useState(false);
   const [selectedPhraseIndex, setSelectedPhraseIndex] = useState(0);
   const playbackCursorRef = useRef(0);
@@ -423,6 +426,24 @@ export default function Home() {
   const phraseRanges = useMemo(() => buildPhraseRanges(phrases), [phrases]);
   const phraseRangesRef = useRef(phraseRanges);
   phraseRangesRef.current = phraseRanges;
+  const visibleLoopRange = loopEnabled ? phraseRanges[selectedPhraseIndex] : null;
+  const progressCurrent = activeNoteIndex < 0 ? 0 : visibleLoopRange ? activeNoteIndex - visibleLoopRange.start + 1 : activeNoteIndex + 1;
+  const progressTotal = visibleLoopRange ? visibleLoopRange.end - visibleLoopRange.start : allNotes.length;
+
+  useEffect(() => {
+    if (!followEnabled || !isPlaying || activeNoteIndex < 0) return;
+    const frame = window.requestAnimationFrame(() => {
+      const activeNote = document.querySelector<HTMLElement>(`[data-note-index="${activeNoteIndex}"]`);
+      if (!activeNote) return;
+      const noteRect = activeNote.getBoundingClientRect();
+      const panelRect = document.querySelector<HTMLElement>(".practice-panel")?.getBoundingClientRect();
+      if (noteNeedsFollowing(noteRect.top, noteRect.bottom, panelRect?.bottom ?? 0, window.innerHeight)) {
+        const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        activeNote.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "center", inline: "nearest" });
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeNoteIndex, followEnabled, isPlaying]);
 
   useEffect(() => {
     if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
@@ -967,7 +988,7 @@ export default function Home() {
           <div><strong>✓ {song.sourceStatus === "live" ? t.liveSource : t.verified}</strong><span>{song.rhythm?.source === "score" ? t.scoreRhythm : t.sourceCaveat}</span></div>
           <div className="source-links"><span>{t.sources}:</span>{song.sources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.url}>{source.name} <small>({source.role === "note-source" ? t.primarySource : t.crossCheck})</small></a>)}</div>
         </div>}
-        <section className="practice-panel" aria-label={t.practice}>
+        <section className={`practice-panel${isPlaying ? " playing" : ""}`} aria-label={t.practice}>
           <div className="practice-title"><span className="section-kicker">{t.practice}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : t.estimatedRhythm}</strong></div>
           <div className="practice-controls">
             <button type="button" className="practice-play" onClick={togglePractice} disabled={!playbackPlan.length || soundStatus === "loading"} aria-pressed={isPlaying}><span aria-hidden="true">{isPlaying ? "Ⅱ" : "▶"}</span> {soundStatus === "loading" ? "…" : isPlaying ? t.pause : t.play}</button>
@@ -976,9 +997,10 @@ export default function Home() {
             <input id="practice-bpm" type="range" min="40" max="180" step="5" value={bpm} onChange={(event) => changeTempo(Number(event.target.value))} />
             <output htmlFor="practice-bpm">{bpm} BPM</output>
           </div>
-          <div className="practice-progress" aria-live="polite"><span>{soundStatus === "loading" ? t.loadingSound : soundStatus === "fallback" ? t.referenceSound : t.whistleSound}</span><strong>{activeNoteIndex < 0 ? 0 : activeNoteIndex + 1} / {allNotes.length}</strong></div>
+          <div className="practice-progress" aria-live="polite"><span>{soundStatus === "loading" ? t.loadingSound : soundStatus === "fallback" ? t.referenceSound : t.whistleSound}</span><strong>{progressCurrent} / {progressTotal}</strong></div>
           <div className="practice-options">
             <label className="practice-toggle"><input type="checkbox" checked={metronomeEnabled} onChange={(event) => changeMetronome(event.target.checked)} /> <span>{t.metronome}</span></label>
+            <label className="practice-toggle"><input type="checkbox" checked={followEnabled} onChange={(event) => setFollowEnabled(event.target.checked)} /> <span>{t.followNotes}</span></label>
             <label className="practice-toggle"><input type="checkbox" checked={loopEnabled} onChange={(event) => changeLoop(event.target.checked)} /> <span>{t.loopPhrase}</span></label>
             <label className="phrase-select" htmlFor="loop-phrase"><span>{t.selectPhrase}</span><select id="loop-phrase" value={selectedPhraseIndex} onChange={(event) => changeSelectedPhrase(Number(event.target.value))} disabled={!loopEnabled}>{phrases.map((_, index) => <option value={index} key={index}>{t.phrase} {String(index + 1).padStart(2, "0")}</option>)}</select></label>
           </div>
