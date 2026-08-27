@@ -46,6 +46,18 @@ test("son harfi eksik kısa kelimeyi kaynak sonucuyla güvenli biçimde eşleşt
   assert.equal(result.results[0].sourceId, "notalar");
 });
 
+test("sanatçı adı kaynak başlığında yoksa başlık ekiyle eşleşir", async () => {
+  const fetchMock = async (input) => {
+    const url = new URL(input);
+    return url.hostname === "www.notalar.net"
+      ? response([{ id: 4800, title: "Caddelerde Rüzgar Notaları", url: "https://www.notalar.net/caddelerde-ruzgar-notalari/" }])
+      : response([]);
+  };
+  const result = await searchAllSources("Nilüfer Caddelerde Rüzgar", fetchMock);
+  assert.equal(result.results[0].postId, 4800);
+  assert.equal(result.results[0].sourceId, "notalar");
+});
+
 test("bir kaynak bozulduğunda diğer kaynak sonuç vermeye devam eder", async () => {
   const fetchMock = async (input) => {
     const url = new URL(input);
