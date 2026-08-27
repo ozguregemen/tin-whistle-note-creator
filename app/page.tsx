@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { parseAbcScore } from "./abc.mjs";
 import { adaptPhrasesToDWhistle } from "./fingerings.mjs";
-import { buildPlaybackPlan, frequencyForNote, remainingBeatsAfterElapsed } from "./practice.mjs";
+import { buildPhraseRanges, buildPlaybackPlan, frequencyForNote, nextPlaybackIndex, remainingBeatsAfterElapsed } from "./practice.mjs";
 import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
 import { midiForNote, playbackRateForMidi, sampleZoneForMidi, WHISTLE_SAMPLE_ZONES } from "./whistle-sampler.mjs";
 
@@ -71,6 +71,12 @@ type PlaybackPhase = {
   bpm: number;
 };
 
+type MetronomePhase = {
+  remainingBeats: number;
+  startedAt: number;
+  bpm: number;
+};
+
 type SoundStatus = "idle" | "loading" | "ready" | "fallback";
 
 const COPY = {
@@ -115,6 +121,9 @@ const COPY = {
     pause: "Pause",
     stop: "Stop",
     tempo: "Tempo",
+    metronome: "Metronome",
+    loopPhrase: "Loop phrase",
+    selectPhrase: "Phrase to loop",
     loadingSound: "Loading tin whistle sound…",
     whistleSound: "Tin whistle sound",
     referenceSound: "Reference tone fallback",
@@ -196,6 +205,9 @@ const COPY = {
     pause: "Duraklat",
     stop: "Durdur",
     tempo: "Tempo",
+    metronome: "Metronom",
+    loopPhrase: "Cümleyi döngüle",
+    selectPhrase: "Döngülenecek cümle",
     loadingSound: "Tin whistle sesi yükleniyor…",
     whistleSound: "Tin whistle sesi",
     referenceSound: "Yedek referans sesi",
@@ -334,9 +346,17 @@ export default function Home() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [soundStatus, setSoundStatus] = useState<SoundStatus>("idle");
   const [activeNoteIndex, setActiveNoteIndex] = useState(-1);
+  const [metronomeEnabled, setMetronomeEnabled] = useState(false);
+  const [loopEnabled, setLoopEnabled] = useState(false);
+  const [selectedPhraseIndex, setSelectedPhraseIndex] = useState(0);
   const playbackCursorRef = useRef(0);
   const playbackTimerRef = useRef<number | null>(null);
   const playbackPhaseRef = useRef<PlaybackPhase | null>(null);
+  const metronomeTimerRef = useRef<number | null>(null);
+  const metronomePhaseRef = useRef<MetronomePhase | null>(null);
+  const metronomeEnabledRef = useRef(false);
+  const loopEnabledRef = useRef(false);
+  const selectedPhraseRef = useRef(0);
   const bpmRef = useRef(90);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioScheduledSourceNode | null>(null);
@@ -400,18 +420,28 @@ export default function Home() {
   const playbackPlanRef = useRef(playbackPlan);
   playbackPlanRef.current = playbackPlan;
   const phraseOffsets = useMemo(() => phrases.map((_, index) => phrases.slice(0, index).reduce((sum, phrase) => sum + phrase.length, 0)), [phrases]);
+  const phraseRanges = useMemo(() => buildPhraseRanges(phrases), [phrases]);
+  const phraseRangesRef = useRef(phraseRanges);
+  phraseRangesRef.current = phraseRanges;
 
   useEffect(() => {
     if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
+    if (metronomeTimerRef.current !== null) window.clearTimeout(metronomeTimerRef.current);
     audioSourceRef.current?.stop();
     audioSourceRef.current = null;
     gainRef.current = null;
     playbackCursorRef.current = 0;
     playbackPhaseRef.current = null;
+    metronomeTimerRef.current = null;
+    metronomePhaseRef.current = null;
+    loopEnabledRef.current = false;
+    selectedPhraseRef.current = 0;
     // Resetting transport state when a different score is selected is intentional.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveNoteIndex(-1);
     setIsPlaying(false);
+    setLoopEnabled(false);
+    setSelectedPhraseIndex(0);
     const initialBpm = song?.rhythm?.bpm ?? 90;
     bpmRef.current = initialBpm;
     setBpm(initialBpm);
@@ -419,6 +449,7 @@ export default function Home() {
 
   useEffect(() => () => {
     if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
+    if (metronomeTimerRef.current !== null) window.clearTimeout(metronomeTimerRef.current);
     audioSourceRef.current?.stop();
     void audioContextRef.current?.close();
   }, []);
@@ -521,11 +552,81 @@ export default function Home() {
     }, { once: true });
   }
 
+  function playMetronomeClick() {
+    const context = ensureAudioContext();
+    if (!context) return;
+    const oscillator = context.createOscillator();
+    const clickGain = context.createGain();
+    const now = context.currentTime;
+    oscillator.type = "square";
+    oscillator.frequency.setValueAtTime(1500, now);
+    clickGain.gain.setValueAtTime(0.08, now);
+    clickGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.045);
+    oscillator.connect(clickGain);
+    clickGain.connect(context.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.05);
+  }
+
+  function scheduleMetronomePhase(remainingBeats = 1) {
+    if (!metronomeEnabledRef.current) return;
+    const phaseBpm = bpmRef.current;
+    metronomePhaseRef.current = {
+      remainingBeats,
+      startedAt: window.performance.now(),
+      bpm: phaseBpm,
+    };
+    metronomeTimerRef.current = window.setTimeout(() => {
+      metronomeTimerRef.current = null;
+      if (!metronomeEnabledRef.current) return;
+      playMetronomeClick();
+      scheduleMetronomePhase(1);
+    }, remainingBeats * 60000 / phaseBpm);
+  }
+
+  function startMetronome() {
+    if (!metronomeEnabledRef.current) return;
+    const pausedPhase = metronomePhaseRef.current;
+    if (pausedPhase) {
+      scheduleMetronomePhase(pausedPhase.remainingBeats);
+      return;
+    }
+    playMetronomeClick();
+    scheduleMetronomePhase(1);
+  }
+
+  function pauseMetronome() {
+    if (metronomeTimerRef.current !== null) window.clearTimeout(metronomeTimerRef.current);
+    metronomeTimerRef.current = null;
+    const phase = metronomePhaseRef.current;
+    if (!phase) return;
+    metronomePhaseRef.current = {
+      remainingBeats: remainingBeatsAfterElapsed(
+        phase.remainingBeats,
+        window.performance.now() - phase.startedAt,
+        phase.bpm,
+      ),
+      startedAt: window.performance.now(),
+      bpm: bpmRef.current,
+    };
+  }
+
+  function stopMetronome() {
+    if (metronomeTimerRef.current !== null) window.clearTimeout(metronomeTimerRef.current);
+    metronomeTimerRef.current = null;
+    metronomePhaseRef.current = null;
+  }
+
+  function activeLoopRange() {
+    return loopEnabledRef.current ? phraseRangesRef.current[selectedPhraseRef.current] ?? null : null;
+  }
+
   function finishPlayback() {
     if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
     playbackTimerRef.current = null;
     stopTone();
-    playbackCursorRef.current = 0;
+    stopMetronome();
+    playbackCursorRef.current = activeLoopRange()?.start ?? 0;
     playbackPhaseRef.current = null;
     setActiveNoteIndex(-1);
     setIsPlaying(false);
@@ -563,7 +664,9 @@ export default function Home() {
       if (!keepCurrentTone) playTone(event.note as ParsedNote);
       playbackTimerRef.current = window.setTimeout(() => {
         playbackTimerRef.current = null;
-        schedulePlaybackPhase(index + 1, "delay");
+        const nextIndex = nextPlaybackIndex(index, playbackPlanRef.current.length, activeLoopRange());
+        if (nextIndex < 0) finishPlayback();
+        else schedulePlaybackPhase(nextIndex, "delay");
       }, durationMs);
     }
   }
@@ -594,15 +697,18 @@ export default function Home() {
         };
       }
       stopTone();
+      pauseMetronome();
       setIsPlaying(false);
       return;
     }
     await prepareWhistleSamples();
     setIsPlaying(true);
+    startMetronome();
     const pausedPhase = playbackPhaseRef.current;
     if (pausedPhase) {
       schedulePlaybackPhase(pausedPhase.index, pausedPhase.kind, pausedPhase.remainingBeats);
     } else {
+      if (loopEnabledRef.current) playbackCursorRef.current = activeLoopRange()?.start ?? 0;
       playStep(playbackCursorRef.current);
     }
   }
@@ -616,6 +722,10 @@ export default function Home() {
   function changeTempo(nextBpm: number) {
     const phase = playbackPhaseRef.current;
     const remainingBeats = phase && isPlaying ? remainingPhaseBeats(phase) : 0;
+    const metronomePhase = metronomePhaseRef.current;
+    const remainingMetronomeBeats = metronomePhase && isPlaying
+      ? remainingBeatsAfterElapsed(metronomePhase.remainingBeats, window.performance.now() - metronomePhase.startedAt, metronomePhase.bpm)
+      : 0;
     bpmRef.current = nextBpm;
     setBpm(nextBpm);
 
@@ -623,6 +733,46 @@ export default function Home() {
     if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
     playbackTimerRef.current = null;
     schedulePlaybackPhase(phase.index, phase.kind, remainingBeats, phase.kind === "note");
+    if (metronomeEnabledRef.current && metronomePhase) {
+      if (metronomeTimerRef.current !== null) window.clearTimeout(metronomeTimerRef.current);
+      metronomeTimerRef.current = null;
+      scheduleMetronomePhase(remainingMetronomeBeats);
+    }
+  }
+
+  function changeMetronome(enabled: boolean) {
+    metronomeEnabledRef.current = enabled;
+    setMetronomeEnabled(enabled);
+    stopMetronome();
+    if (enabled && isPlaying) startMetronome();
+  }
+
+  function restartAtSelectedPhrase() {
+    const start = phraseRangesRef.current[selectedPhraseRef.current]?.start ?? 0;
+    if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
+    playbackTimerRef.current = null;
+    stopTone();
+    playbackPhaseRef.current = null;
+    playbackCursorRef.current = start;
+    setActiveNoteIndex(-1);
+    if (isPlaying) schedulePlaybackPhase(start, "delay");
+  }
+
+  function changeLoop(enabled: boolean) {
+    loopEnabledRef.current = enabled;
+    setLoopEnabled(enabled);
+    if (enabled) restartAtSelectedPhrase();
+    else if (!isPlaying) {
+      playbackCursorRef.current = 0;
+      playbackPhaseRef.current = null;
+      setActiveNoteIndex(-1);
+    }
+  }
+
+  function changeSelectedPhrase(index: number) {
+    selectedPhraseRef.current = index;
+    setSelectedPhraseIndex(index);
+    if (loopEnabledRef.current) restartAtSelectedPhrase();
   }
 
   function toggleLanguage() {
@@ -827,12 +977,17 @@ export default function Home() {
             <output htmlFor="practice-bpm">{bpm} BPM</output>
           </div>
           <div className="practice-progress" aria-live="polite"><span>{soundStatus === "loading" ? t.loadingSound : soundStatus === "fallback" ? t.referenceSound : t.whistleSound}</span><strong>{activeNoteIndex < 0 ? 0 : activeNoteIndex + 1} / {allNotes.length}</strong></div>
+          <div className="practice-options">
+            <label className="practice-toggle"><input type="checkbox" checked={metronomeEnabled} onChange={(event) => changeMetronome(event.target.checked)} /> <span>{t.metronome}</span></label>
+            <label className="practice-toggle"><input type="checkbox" checked={loopEnabled} onChange={(event) => changeLoop(event.target.checked)} /> <span>{t.loopPhrase}</span></label>
+            <label className="phrase-select" htmlFor="loop-phrase"><span>{t.selectPhrase}</span><select id="loop-phrase" value={selectedPhraseIndex} onChange={(event) => changeSelectedPhrase(Number(event.target.value))} disabled={!loopEnabled}>{phrases.map((_, index) => <option value={index} key={index}>{t.phrase} {String(index + 1).padStart(2, "0")}</option>)}</select></label>
+          </div>
         </section>
         <p className="audio-credit">{t.sampleCredit} · <a href="https://huggingface.co/AEmotionStudio/windstudio-tin-whistle-samples" target="_blank" rel="noreferrer">{t.samplePack}</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a></p>
         {unsupported.length > 0 && <div className="warning" role="alert"><strong>{unsupported.length} {t.warningStart}</strong> {t.warningEnd}</div>}
         <div className="phrases">
           {phrases.map((phrase, phraseIndex) => (
-            <article className="phrase-card" key={phraseIndex}>
+            <article className={`phrase-card${loopEnabled && phraseIndex === selectedPhraseIndex ? " selected" : ""}`} key={phraseIndex}>
               <div className="phrase-meta"><span>{t.phrase} {String(phraseIndex + 1).padStart(2, "0")}</span><span>{phrase.length} {phrase.length === 1 ? t.note : t.notes}</span></div>
               <div className="notes-grid">{phrase.map((note, index) => {
                 const globalIndex = phraseOffsets[phraseIndex] + index;
