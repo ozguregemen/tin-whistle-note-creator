@@ -19,6 +19,18 @@ export function plainTitle(value) {
   return decodeEntities(value).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
+export function stripLeadingArtist(title, artist) {
+  const cleanTitle = plainTitle(title);
+  const cleanArtist = plainTitle(artist);
+  if (!cleanTitle || !cleanArtist) return cleanTitle;
+  const titleWords = cleanTitle.split(/\s+/);
+  const artistWords = cleanArtist.split(/\s+/);
+  if (titleWords.length <= artistWords.length) return cleanTitle;
+  const leadingWords = titleWords.slice(0, artistWords.length).join(" ");
+  if (leadingWords.localeCompare(cleanArtist, "tr", { sensitivity: "base" }) !== 0) return cleanTitle;
+  return titleWords.slice(artistWords.length).join(" ").replace(/^[–—-]+\s*/u, "").trim() || cleanTitle;
+}
+
 function pitchFromToken(raw) {
   const token = raw.toLocaleLowerCase("tr-TR")
     .replaceAll("♯", "#").replaceAll("♭", "b")

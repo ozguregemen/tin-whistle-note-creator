@@ -76,6 +76,30 @@ test("GetSongBPM sonucunu katı sanatçı ve başlık eşleşmesiyle kabul edip 
   assert.equal(db.rows.get("tarkan|dudu").bpm, 90);
 });
 
+test("sanatçıyla birleşik kaynak başlığını kontrollü bölerek BPM bulur", async () => {
+  const lookups = [];
+  const db = memoryD1();
+  const result = await resolveTempo(
+    { title: "Ahmet Kaya Kum Gibi", query: "Ahmet Kaya Kum Gibi" },
+    { BPM_DB: db, GETSONGBPM_API_KEY: "secret" },
+    async (url) => {
+      const parsed = new URL(url);
+      lookups.push(parsed.searchParams.get("lookup"));
+      if (parsed.searchParams.get("lookup") === "song:Kum Gibi artist:Ahmet Kaya") {
+        return jsonResponse({ search: [{
+          title: "Kum Gibi", tempo: "92", uri: "https://getsongbpm.com/song/kum-gibi/R6LmNV", artist: { name: "Ahmet Kaya" },
+        }] });
+      }
+      return jsonResponse({ search: [] });
+    },
+  );
+  assert.equal(result.bpm, 92);
+  assert.equal(result.artist, "Ahmet Kaya");
+  assert.deepEqual(lookups, ["Ahmet Kaya Kum Gibi", "song:Kum Gibi artist:Ahmet Kaya"]);
+  assert.equal(db.rows.get("|ahmet kaya kum gibi").bpm, 92);
+  assert.equal(db.rows.get("ahmet kaya|kum gibi").bpm, 92);
+});
+
 test("yanlış sanatçı eşleşmesini BPM diye kullanmaz", async () => {
   const result = await resolveTempo(
     { artist: "Tarkan", title: "Kuzu Kuzu" },

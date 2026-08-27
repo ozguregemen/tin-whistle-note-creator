@@ -2,7 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   addEstimatedOctaves, extractScoreAssets, extractTextPhrases, musicXmlToPhrases, musicXmlToTimedPhrases, phrasesToString,
+  stripLeadingArtist,
 } from "../scripts/source-processing.mjs";
+
+test("kaynak başlığının başındaki sanatçıyı ayırır", () => {
+  assert.equal(stripLeadingArtist("Ahmet Kaya Kum Gibi", "Ahmet Kaya"), "Kum Gibi");
+  assert.equal(stripLeadingArtist("Tarkan – Dudu", "Tarkan"), "Dudu");
+  assert.equal(stripLeadingArtist("Bir Derdim Var", "Mor ve Ötesi"), "Bir Derdim Var");
+});
 
 test("Notalar.net metin bloklarından yalnızca nota satırlarını çıkarır", () => {
   const html = `<h3>İçerim Ben Bu Akşam Melodika Notaları</h3><p>La mi re do re<br>Si do re si la</p><p>Bu açıklama nota değildir.</p>`;

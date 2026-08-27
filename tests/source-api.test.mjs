@@ -102,4 +102,5 @@ test("Worker BPM sonucunu sunar ve kaynak işine aktarır", async () => {
   assert.equal(jobResponse.status, 202);
   assert.equal(dispatchBody.client_payload.tempo.bpm, 90);
   assert.equal(dispatchBody.client_payload.tempo.provider, "getsongbpm");
+  assert.equal(dispatchBody.client_payload.artist, "Tarkan");
 });

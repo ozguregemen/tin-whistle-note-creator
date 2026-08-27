@@ -557,7 +557,8 @@
     },
     {
       "id": "notalar-1280-ahmet-kaya-kum-gibi",
-      "title": "Ahmet Kaya Kum Gibi",
+      "title": "Kum Gibi",
+      "artist": "Ahmet Kaya",
       "aliases": [
         "ahmet kaya kum gibi",
         "Ahmet Kaya Kum Gibi Melodika Notaları"
@@ -571,6 +572,14 @@
         "tr": "Kaynak düzeni"
       },
       "notes": "G4 G4 G4 G4 A4 G4 A4 A#4 | A#4 A4 G4 A4 G4 F#4 F#4 | A4 G4 F#4 A4 G4 F#4 A#4 A4 G4 F#4 | G4 F#4 G4 F#4 | G4 F#4 G4 F#4 | A4 G4 F#4 D4",
+      "rhythm": {
+        "bpm": 92,
+        "source": "estimated",
+        "tempoSource": "database",
+        "tempoConfidence": 100,
+        "tempoUrl": "https://getsongbpm.com/song/kum-gibi/R6LmNV",
+        "durations": []
+      },
       "sourceStatus": "live",
       "sourceConfidence": "estimated",
       "sources": [

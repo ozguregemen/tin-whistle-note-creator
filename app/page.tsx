@@ -400,7 +400,7 @@ export default function Home() {
 
     const controller = new AbortController();
     const api = sourceApiUrl();
-    fetch(api ? `${api}/api/catalog` : REMOTE_CATALOG_URL, { signal: controller.signal })
+    fetch(api ? `${api}/api/catalog` : REMOTE_CATALOG_URL, { signal: controller.signal, cache: "no-store" })
       .then((response) => {
         if (!response.ok) throw new Error(`Catalog returned ${response.status}`);
         return response.json() as Promise<Catalog>;
@@ -513,7 +513,7 @@ export default function Home() {
     setTempoStatus("loading");
     const params = new URLSearchParams({ title: song.title });
     if (song.artist) params.set("artist", song.artist);
-    fetch(`${api}/api/tempo?${params}`, { signal: controller.signal })
+    fetch(`${api}/api/tempo?${params}`, { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         if (response.status === 404) return null;
         if (!response.ok) throw new Error(`Tempo API returned ${response.status}`);
@@ -898,7 +898,7 @@ export default function Home() {
     try {
       const api = sourceApiUrl();
       if (api) {
-        const sourceResponse = await fetch(`${api}/api/search?q=${encodeURIComponent(query.trim())}`);
+        const sourceResponse = await fetch(`${api}/api/search?q=${encodeURIComponent(query.trim())}`, { cache: "no-store" });
         if (!sourceResponse.ok) throw new Error(`Source API returned ${sourceResponse.status}`);
         const sourceData = await sourceResponse.json() as { results?: SourceCandidate[]; discoveryOnly?: boolean };
         if (sourceData.results?.length) {

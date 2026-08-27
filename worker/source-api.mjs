@@ -83,6 +83,7 @@ async function queueJob(request, env, fetchFn) {
   const title = typeof body.title === "string" ? body.title.trim().slice(0, 200) : "";
   const artist = typeof body.artist === "string" ? body.artist.trim().slice(0, 120) : "";
   const tempo = await resolveTempo({ title, artist, query }, env, fetchFn);
+  const resolvedArtist = artist || tempo?.artist || "";
   const requestId = crypto.randomUUID();
   const repository = env.GITHUB_REPOSITORY || DEFAULT_REPOSITORY;
   const dispatch = await githubRequest(`/repos/${repository}/dispatches`, env, fetchFn, {
@@ -96,7 +97,7 @@ async function queueJob(request, env, fetchFn) {
         ...(document ? { documentId: document.id } : {}),
         query,
         title,
-        ...(artist ? { artist } : {}),
+        ...(resolvedArtist ? { artist: resolvedArtist } : {}),
         ...(tempo ? { tempo } : {}),
       },
     }),
@@ -127,8 +128,8 @@ export function createSourceApi(env, fetchFn = fetch) {
         if (title.length < 2) return json({ error: "Title must contain at least 2 characters" }, 400, cors);
         const tempo = await resolveTempo({ title, artist, query }, env, fetchFn);
         return tempo
-          ? json(tempo, 200, { ...cors, "Cache-Control": "public, max-age=3600" })
-          : json({ found: false }, 404, { ...cors, "Cache-Control": "public, max-age=300" });
+          ? json(tempo, 200, { ...cors, "Cache-Control": "no-store" })
+          : json({ found: false }, 404, { ...cors, "Cache-Control": "no-store" });
       }
       if (request.method === "GET" && url.pathname === "/api/search") {
         const query = (url.searchParams.get("q") || "").trim();

@@ -57,6 +57,16 @@ function editDistance(left, right) {
 /** @param {string} queryToken @param {string} candidateToken */
 function tokenSimilarity(queryToken, candidateToken) {
   if (queryToken === candidateToken) return 1;
+  // A very common mobile/keyboard mistake is submitting the search one letter
+  // early ("gib" instead of "gibi"). Keep this deliberately one-way and to a
+  // single trailing character so short, unrelated words still do not match.
+  if (
+    queryToken.length >= 3
+    && candidateToken.length === queryToken.length + 1
+    && candidateToken.startsWith(queryToken)
+  ) {
+    return queryToken.length / candidateToken.length;
+  }
   const longest = Math.max(queryToken.length, candidateToken.length);
   const shortest = Math.min(queryToken.length, candidateToken.length);
   if (shortest <= 3 || Math.abs(queryToken.length - candidateToken.length) > 2) return 0;

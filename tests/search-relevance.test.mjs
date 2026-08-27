@@ -16,6 +16,7 @@ test("yazım hatalarını ve komşu harflerin yer değiştirmesini tolere eder",
   assert.ok(searchMatchScore("Drma Koprusu", ["Drama Köprüsü"]));
   assert.ok(searchMatchScore("Dumna Bu Aksam", ["Duman Bu Akşam"]));
   assert.ok(searchMatchScore("Colley", ["Cooley's"]));
+  assert.ok(searchMatchScore("Ahmet Kaya Kum Gib", ["Ahmet Kaya Kum Gibi Melodika Notaları"]));
 });
 
 test("kısa kelimelerde gürültülü fuzzy eşleşme yapmaz", () => {
