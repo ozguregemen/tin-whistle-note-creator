@@ -15,6 +15,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "docs/**",
     "next-env.d.ts",
+    "public/audio/tin-whistle/0780_GeneralUserGS_sf2_file.js",
   ]),
   eslint.configs.recommended,
   ...tseslint.configs.recommended,

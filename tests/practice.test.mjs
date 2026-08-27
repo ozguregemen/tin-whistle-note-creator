@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { parseAbcScore } from "../app/abc.mjs";
 import { buildPhraseRanges, buildPlaybackPlan, frequencyForNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "../app/practice.mjs";
-import { midiForNote, playbackRateForMidi, sampleZoneForMidi } from "../app/whistle-sampler.mjs";
+import { base64AudioBuffer, midiForNote, playbackRateForMidi, sampleZoneForMidi, soundfontLoopForZone, soundfontZoneForMidi } from "../app/whistle-sampler.mjs";
 
 test("ABC nota uzunluklarını perde dizisiyle birlikte okur", () => {
   const score = parseAbcScore("D2 E/2 F3/2 ^G", "D");
@@ -69,4 +69,16 @@ test("tin whistle örnek bölgesini seçer ve hedef perde hızını hesaplar", (
   assert.equal(sampleZoneForMidi(84).rootMidi, 85);
   assert.equal(playbackRateForMidi(81, 81), 1);
   assert.ok(Math.abs(playbackRateForMidi(69, 81) - 0.5) < 0.0001);
+});
+
+test("Irish tin-whistle ses bankası yakın perde bölgesini ve döngüsünü kullanır", () => {
+  const zones = [
+    { originalPitch: 6400, keyRangeLow: 0, keyRangeHigh: 78, loopStart: 6431, loopEnd: 11603, sampleRate: 22050, coarseTune: 0, fineTune: 0 },
+    { originalPitch: 7400, keyRangeLow: 86, keyRangeHigh: 89, loopStart: 2781, loopEnd: 5578, sampleRate: 22050, coarseTune: 0, fineTune: -20 },
+  ];
+  assert.equal(soundfontZoneForMidi(62, zones), zones[0]);
+  assert.equal(soundfontZoneForMidi(90, zones), null);
+  assert.ok(Math.abs(playbackRateForMidi(62, zones[0]) - 2 ** ((6200 - 6400) / 1200)) < 0.0001);
+  assert.deepEqual(soundfontLoopForZone(zones[0]), { start: 6431 / 22050, end: 11603 / 22050 });
+  assert.deepEqual(Array.from(new Uint8Array(base64AudioBuffer("AQID"))), [1, 2, 3]);
 });

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { runInNewContext } from "node:vm";
 import test from "node:test";
 
 async function render() {
@@ -44,6 +45,19 @@ test("tin whistle örnekleri beklenen lisans ve dosya özetiyle paketlenir", asy
   assert.equal(createHash("sha256").update(lowSample).digest("hex"), "80fc297682730f42a7370ce5ee599ec8304e9043f6d63d9b94c2c9b994a02b87");
   assert.equal(createHash("sha256").update(highSample).digest("hex"), "33b41f1eb7bed926a1b61c71c62a3e75d43e66175e16b7ea7a437f055d2fbc71");
   assert.match(attribution, /Creative Commons Attribution-ShareAlike 4\.0/);
+});
+
+test("çoklu örnekli Irish tin-whistle ses bankası paketlenir", async () => {
+  const soundfont = await readFile(new URL("../public/audio/tin-whistle/0780_GeneralUserGS_sf2_file.js", import.meta.url));
+  const attribution = await readFile(new URL("../public/audio/tin-whistle/ATTRIBUTION.md", import.meta.url), "utf8");
+  const context = { console: { log() {} } };
+  runInNewContext(soundfont.toString("utf8"), context);
+  const preset = context._tone_0780_GeneralUserGS_sf2_file;
+  assert.equal(createHash("sha256").update(soundfont).digest("hex"), "e60df94eba01026614e68f93cc808e98a612ce94bc9d5efa06fa30b2b3b6c396");
+  assert.equal(preset.zones.length, 5);
+  assert.deepEqual(Array.from(preset.zones, (zone) => zone.originalPitch), [6400, 6900, 7100, 7400, 8100]);
+  assert.match(attribution, /GeneralUser GS/);
+  assert.match(attribution, /WebAudioFont/);
 });
 
 test("temel D tin whistle parmak eşlemelerini içerir", async () => {

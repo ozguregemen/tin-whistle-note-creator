@@ -5,7 +5,7 @@ import { parseAbcScore } from "./abc.mjs";
 import { adaptPhrasesToDWhistle } from "./fingerings.mjs";
 import { buildPhraseRanges, buildPlaybackPlan, frequencyForNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "./practice.mjs";
 import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
-import { midiForNote, playbackRateForMidi, sampleZoneForMidi, WHISTLE_SAMPLE_ZONES } from "./whistle-sampler.mjs";
+import { base64AudioBuffer, midiForNote, playbackRateForMidi, sampleZoneForMidi, soundfontLoopForZone, soundfontZoneForMidi, WHISTLE_SAMPLE_ZONES, WHISTLE_SOUNDFONT } from "./whistle-sampler.mjs";
 
 type Language = "en" | "tr";
 type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "discoveryFound" | "queueing" | "processing" | "needsReview" | "liveFound" | "sourceUnavailable";
@@ -84,6 +84,21 @@ type MetronomePhase = {
 type SoundStatus = "idle" | "loading" | "ready" | "fallback";
 type TempoStatus = "idle" | "loading" | "resolved" | "unavailable";
 
+type WhistleSoundfontZone = {
+  file: string;
+  originalPitch: number;
+  keyRangeLow: number;
+  keyRangeHigh: number;
+  loopStart: number;
+  loopEnd: number;
+  coarseTune: number;
+  fineTune: number;
+  sampleRate: number;
+  buffer?: AudioBuffer;
+};
+
+type WhistleSoundfontPreset = { zones: WhistleSoundfontZone[] };
+
 const COPY = {
   en: {
     languageAction: "Türkçe",
@@ -139,8 +154,10 @@ const COPY = {
     loadingSound: "Loading tin whistle sound…",
     whistleSound: "Tin whistle sound",
     referenceSound: "Reference tone fallback",
-    sampleCredit: "Tin whistle samples: Wikimedia Commons contributors · sample pack by AEmotionStudio",
-    samplePack: "source pack",
+    sampleCredit: "Irish tin whistle sound",
+    soundBank: "GeneralUser GS sound bank",
+    soundConversion: "WebAudioFont conversion",
+    fallbackSamples: "CC fallback samples",
     scoreRhythm: "Score rhythm",
     estimatedRhythm: "Estimated equal beats",
     progress: "Progress",
@@ -232,8 +249,10 @@ const COPY = {
     loadingSound: "Tin whistle sesi yükleniyor…",
     whistleSound: "Tin whistle sesi",
     referenceSound: "Yedek referans sesi",
-    sampleCredit: "Tin whistle örnekleri: Wikimedia Commons katkıcıları · örnek paketi AEmotionStudio",
-    samplePack: "kaynak paket",
+    sampleCredit: "Irish tin whistle sesi",
+    soundBank: "GeneralUser GS ses bankası",
+    soundConversion: "WebAudioFont dönüşümü",
+    fallbackSamples: "CC yedek örnekler",
     scoreRhythm: "Nota kaynağındaki ritim",
     estimatedRhythm: "Tahmini eşit vuruşlar",
     progress: "İlerleme",
@@ -387,6 +406,7 @@ export default function Home() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioScheduledSourceNode | null>(null);
   const gainRef = useRef<GainNode | null>(null);
+  const whistleSoundfontZonesRef = useRef<WhistleSoundfontZone[]>([]);
   const whistleBuffersRef = useRef<Map<number, AudioBuffer>>(new Map());
   const whistleLoadPromiseRef = useRef<Promise<boolean> | null>(null);
   const t = COPY[language];
@@ -564,8 +584,8 @@ export default function Home() {
         const now = context.currentTime;
         gain.gain.cancelScheduledValues(now);
         gain.gain.setValueAtTime(Math.max(0.0001, gain.gain.value), now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.015);
-        source.stop(now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.035);
+        source.stop(now + 0.04);
       } else {
         source.stop();
       }
@@ -583,28 +603,71 @@ export default function Home() {
     return context;
   }
 
+  function loadedWhistleSoundfont() {
+    const globals = window as unknown as Record<string, WhistleSoundfontPreset | undefined>;
+    return globals[WHISTLE_SOUNDFONT.globalName];
+  }
+
+  function loadWhistleSoundfont() {
+    const loaded = loadedWhistleSoundfont();
+    if (loaded) return Promise.resolve(loaded);
+    const source = new URL(WHISTLE_SOUNDFONT.file, document.baseURI).href;
+    return new Promise<WhistleSoundfontPreset>((resolve, reject) => {
+      const finish = () => {
+        const preset = loadedWhistleSoundfont();
+        if (preset?.zones?.length) resolve(preset);
+        else reject(new Error("Whistle soundfont did not register its preset"));
+      };
+      const existing = Array.from(document.scripts).find((script) => script.src === source);
+      if (existing) {
+        existing.addEventListener("load", finish, { once: true });
+        existing.addEventListener("error", () => reject(new Error("Whistle soundfont failed to load")), { once: true });
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = source;
+      script.async = true;
+      script.dataset.twncWhistleSoundfont = "true";
+      script.addEventListener("load", finish, { once: true });
+      script.addEventListener("error", () => reject(new Error("Whistle soundfont failed to load")), { once: true });
+      document.head.append(script);
+    });
+  }
+
   async function prepareWhistleSamples() {
     const context = ensureAudioContext();
     if (!context) { setSoundStatus("fallback"); return false; }
-    if (whistleBuffersRef.current.size === WHISTLE_SAMPLE_ZONES.length) {
+    if (whistleSoundfontZonesRef.current.length > 0 || whistleBuffersRef.current.size === WHISTLE_SAMPLE_ZONES.length) {
       setSoundStatus("ready");
       return true;
     }
     if (whistleLoadPromiseRef.current) return whistleLoadPromiseRef.current;
 
     setSoundStatus("loading");
-    const loadPromise = Promise.all(WHISTLE_SAMPLE_ZONES.map(async (zone) => {
-      const response = await fetch(new URL(zone.file, document.baseURI));
-      if (!response.ok) throw new Error(`Whistle sample returned ${response.status}`);
-      const buffer = await context.decodeAudioData(await response.arrayBuffer());
-      return [zone.rootMidi, buffer] as const;
-    })).then((entries) => {
-      whistleBuffersRef.current = new Map(entries);
+    const loadPromise = loadWhistleSoundfont().then(async (preset) => {
+      const zones = await Promise.all(preset.zones.map(async (zone) => {
+        const encoded = base64AudioBuffer(zone.file);
+        if (!encoded) throw new Error("Whistle soundfont zone is empty");
+        return { ...zone, buffer: await context.decodeAudioData(encoded) };
+      }));
+      whistleSoundfontZonesRef.current = zones;
       setSoundStatus("ready");
       return true;
-    }).catch(() => {
-      setSoundStatus("fallback");
-      return false;
+    }).catch(async () => {
+      try {
+        const entries = await Promise.all(WHISTLE_SAMPLE_ZONES.map(async (zone) => {
+          const response = await fetch(new URL(zone.file, document.baseURI));
+          if (!response.ok) throw new Error(`Whistle sample returned ${response.status}`);
+          const buffer = await context.decodeAudioData(await response.arrayBuffer());
+          return [zone.rootMidi, buffer] as const;
+        }));
+        whistleBuffersRef.current = new Map(entries);
+        setSoundStatus("ready");
+        return true;
+      } catch {
+        setSoundStatus("fallback");
+        return false;
+      }
     }).finally(() => {
       whistleLoadPromiseRef.current = null;
     });
@@ -620,13 +683,28 @@ export default function Home() {
     const now = context.currentTime;
 
     const midi = midiForNote(note.pitch, note.octave);
-    const zone = sampleZoneForMidi(midi);
-    const sampleBuffer = zone ? whistleBuffersRef.current.get(zone.rootMidi) : undefined;
+    const soundfontZone = soundfontZoneForMidi(midi, whistleSoundfontZonesRef.current) as WhistleSoundfontZone | null;
+    const legacyZone = sampleZoneForMidi(midi);
+    const legacyBuffer = legacyZone ? whistleBuffersRef.current.get(legacyZone.rootMidi) : undefined;
     let source: AudioScheduledSourceNode;
-    if (sampleBuffer && zone && midi !== null) {
+    if (soundfontZone?.buffer && midi !== null) {
       const sampleSource = context.createBufferSource();
-      sampleSource.buffer = sampleBuffer;
-      sampleSource.playbackRate.setValueAtTime(playbackRateForMidi(midi, zone.rootMidi), now);
+      const loop = soundfontLoopForZone(soundfontZone);
+      sampleSource.buffer = soundfontZone.buffer;
+      sampleSource.playbackRate.setValueAtTime(playbackRateForMidi(midi, soundfontZone), now);
+      if (loop) {
+        sampleSource.loop = true;
+        sampleSource.loopStart = loop.start;
+        sampleSource.loopEnd = loop.end;
+      }
+      sampleSource.connect(gain);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.58, now + 0.018);
+      source = sampleSource;
+    } else if (legacyBuffer && legacyZone && midi !== null) {
+      const sampleSource = context.createBufferSource();
+      sampleSource.buffer = legacyBuffer;
+      sampleSource.playbackRate.setValueAtTime(playbackRateForMidi(midi, legacyZone.rootMidi), now);
       sampleSource.connect(gain);
       gain.gain.setValueAtTime(0.0001, now);
       gain.gain.exponentialRampToValueAtTime(0.72, now + 0.025);
@@ -1103,7 +1181,7 @@ export default function Home() {
             <label className="phrase-select" htmlFor="loop-phrase"><span>{t.selectPhrase}</span><select id="loop-phrase" value={selectedPhraseIndex} onChange={(event) => changeSelectedPhrase(Number(event.target.value))} disabled={!loopEnabled}>{phrases.map((_, index) => <option value={index} key={index}>{t.phrase} {String(index + 1).padStart(2, "0")}</option>)}</select></label>
           </div>
         </section>
-        <p className="audio-credit">{t.sampleCredit} · <a href="https://huggingface.co/AEmotionStudio/windstudio-tin-whistle-samples" target="_blank" rel="noreferrer">{t.samplePack}</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a> · {t.bpmCredit}: <a href="https://getsongbpm.com" target="_blank" rel="noreferrer">GetSongBPM.com</a></p>
+        <p className="audio-credit">{t.sampleCredit}: <a href="https://github.com/mrbumpy409/GeneralUser-GS" target="_blank" rel="noreferrer">{t.soundBank}</a> · <a href="https://github.com/surikov/webaudiofontdata" target="_blank" rel="noreferrer">{t.soundConversion}</a> · <a href="https://huggingface.co/AEmotionStudio/windstudio-tin-whistle-samples" target="_blank" rel="noreferrer">{t.fallbackSamples}</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a> · {t.bpmCredit}: <a href="https://getsongbpm.com" target="_blank" rel="noreferrer">GetSongBPM.com</a></p>
         {unsupported.length > 0 && <div className="warning" role="alert"><strong>{unsupported.length} {t.warningStart}</strong> {t.warningEnd}</div>}
         <div className="phrases">
           {phrases.map((phrase, phraseIndex) => (
