@@ -51,21 +51,61 @@ function candidateArtistNames(candidate) {
 }
 
 function candidateScore(identity, candidate) {
-  const titleScore = searchMatchScore(identity.title, [candidate?.title || candidate?.song_title || ""]);
+  const candidateTitle = candidate?.title || candidate?.song_title || "";
+  const titleScore = searchMatchScore(identity.title, [candidateTitle]);
   const artistNames = candidateArtistNames(candidate);
   const artistScore = identity.artist ? searchMatchScore(identity.artist, artistNames) : 100;
-  const combinedCandidates = artistNames.map((name) => `${name} ${candidate?.title || candidate?.song_title || ""}`);
-  const queryScore = identity.query ? searchMatchScore(identity.query, [...combinedCandidates, candidate?.title || ""]) : 100;
-  if (titleScore < 78 || artistScore < 78 || (identity.artist && identity.query && queryScore < 58)) return null;
-  return Math.round(titleScore * 0.58 + artistScore * 0.32 + queryScore * 0.1);
+  const combinedCandidates = artistNames.map((name) => `${name} ${candidateTitle}`);
+  const queryScore = identity.query ? searchMatchScore(identity.query, [...combinedCandidates, candidateTitle]) : 100;
+  const effectiveTitleScore = identity.artist
+    ? titleScore
+    : Math.max(titleScore, searchMatchScore(identity.title, combinedCandidates));
+  if (effectiveTitleScore < 78 || artistScore < 78 || (identity.artist && identity.query && queryScore < 58)) return null;
+  return Math.round(effectiveTitleScore * 0.58 + artistScore * 0.32 + queryScore * 0.1);
+}
+
+function inferredIdentityVariants(identity) {
+  if (identity.artist) return [];
+  const words = compact(identity.title).split(/\s+/).filter(Boolean);
+  if (words.length < 3) return [];
+
+  // Two-word artist names are especially common in the Turkish catalogue. If
+  // that split fails, try one and three words while keeping the request count
+  // bounded. Successful results are persisted in D1, so these retries only
+  // happen on the first lookup.
+  return [2, 1, 3]
+    .filter((artistWordCount) => artistWordCount < words.length)
+    .map((artistWordCount) => ({
+      artist: words.slice(0, artistWordCount).join(" "),
+      title: words.slice(artistWordCount).join(" "),
+      query: identity.query || identity.title,
+    }));
 }
 
 async function readLimitedJson(response) {
   const declaredLength = Number(response.headers.get("Content-Length") || 0);
   if (declaredLength > MAX_PROVIDER_BYTES) throw new Error("BPM provider response is too large");
-  const text = await response.text();
-  if (new TextEncoder().encode(text).byteLength > MAX_PROVIDER_BYTES) throw new Error("BPM provider response is too large");
-  return JSON.parse(text);
+  if (!response.body) return {};
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_PROVIDER_BYTES) {
+      await reader.cancel();
+      throw new Error("BPM provider response is too large");
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return JSON.parse(new TextDecoder().decode(bytes));
 }
 
 async function readCachedTempo(db, lookupKey) {
@@ -120,7 +160,7 @@ async function writeCachedTempo(db, lookupKey, result) {
   }
 }
 
-async function searchGetSongBpm(identity, apiKey, fetchFn) {
+async function searchGetSongBpmOnce(identity, apiKey, fetchFn) {
   if (!apiKey || !identity.title) return null;
   const url = new URL("https://api.getsong.co/search/");
   url.searchParams.set("type", identity.artist ? "both" : "song");
@@ -155,6 +195,17 @@ async function searchGetSongBpm(identity, apiKey, fetchFn) {
   };
 }
 
+async function searchGetSongBpm(identity, apiKey, fetchFn) {
+  const directResult = await searchGetSongBpmOnce(identity, apiKey, fetchFn);
+  if (directResult) return directResult;
+
+  for (const inferredIdentity of inferredIdentityVariants(identity)) {
+    const result = await searchGetSongBpmOnce(inferredIdentity, apiKey, fetchFn);
+    if (result) return result;
+  }
+  return null;
+}
+
 export async function resolveTempo(input, env, fetchFn = fetch) {
   const identity = parseSongIdentity(input);
   if (!normalizeSearchText(identity.title)) return null;
@@ -170,6 +221,10 @@ export async function resolveTempo(input, env, fetchFn = fetch) {
   }
   if (!result) return null;
   await writeCachedTempo(env?.BPM_DB, lookupKey, result);
+  const canonicalLookupKey = tempoLookupKey(result);
+  if (canonicalLookupKey !== lookupKey) {
+    await writeCachedTempo(env?.BPM_DB, canonicalLookupKey, result);
+  }
   return result;
 }
 

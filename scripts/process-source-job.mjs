@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import {
   addEstimatedOctaves, extractScoreAssets, extractTextPhrases, mergeSongIntoCatalog,
-  musicXmlToTimedPhrases, phrasesToString, plainTitle, slugify,
+  musicXmlToTimedPhrases, phrasesToString, plainTitle, slugify, stripLeadingArtist,
 } from "./source-processing.mjs";
 import { documentNoteCountIsPlausible, getDocumentSource } from "../worker/document-sources.mjs";
 
@@ -70,10 +70,7 @@ function buildSong(payload, post, notes, confidence, rhythm) {
     .replace(/\s+(?:do\s+re\s+mi|melodika|gitar|nota|tab).*$/i, "")
     .replace(/\s+[–—-]\s*$/u, "")
     .trim();
-  const titleParts = title.split(/\s+[–—-]\s+/u).map((part) => part.trim()).filter(Boolean);
-  if (artist && titleParts.length >= 2 && titleParts[0].localeCompare(artist, "tr", { sensitivity: "base" }) === 0) {
-    title = titleParts.slice(1).join(" – ");
-  }
+  title = stripLeadingArtist(title, artist);
   return {
     id: `${payload.sourceId}-${payload.documentId || payload.postId}-${slugify(title)}`,
     title,

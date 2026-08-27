@@ -34,6 +34,18 @@ test("uzun kelimelerdeki yazım hatasını kaynak sonuçlarında tolere eder", a
   assert.equal(result.results[0].postId, 7352);
 });
 
+test("son harfi eksik kısa kelimeyi kaynak sonucuyla güvenli biçimde eşleştirir", async () => {
+  const fetchMock = async (input) => {
+    const url = new URL(input);
+    return url.hostname === "www.notalar.net"
+      ? response([{ id: 1280, title: "Ahmet Kaya Kum Gibi Melodika Notaları", url: "https://www.notalar.net/ahmet-kaya-kum-gibi-melodika-notalari/" }])
+      : response([]);
+  };
+  const result = await searchAllSources("Ahmet Kaya Kum Gib", fetchMock);
+  assert.equal(result.results[0].postId, 1280);
+  assert.equal(result.results[0].sourceId, "notalar");
+});
+
 test("bir kaynak bozulduğunda diğer kaynak sonuç vermeye devam eder", async () => {
   const fetchMock = async (input) => {
     const url = new URL(input);
