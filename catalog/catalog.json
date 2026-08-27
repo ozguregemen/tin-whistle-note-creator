@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-27T20:58:54.235Z",
+  "generatedAt": "2026-08-27T21:00:37.428Z",
   "songs": [
     {
       "id": "duman-bu-aksam",
@@ -2649,6 +2649,184 @@
         {
           "name": "Gitaregitim.net",
           "url": "https://www.gitaregitim.net/donence-nota-tab-baris-manco/",
+          "role": "note-source"
+        }
+      ]
+    },
+    {
+      "id": "gitaregitim-7352-cok-uzaklarda-caddelerde-ruzgar",
+      "title": "Çok Uzaklarda Caddelerde Rüzgar",
+      "aliases": [
+        "Nilüfer Caddelerde Rüzgar",
+        "Çok Uzaklarda Caddelerde Rüzgar Nota Tab"
+      ],
+      "subtitle": {
+        "en": "Live score source · machine-read notation",
+        "tr": "Canlı nota kaynağı · makineyle okunan notasyon"
+      },
+      "difficulty": {
+        "en": "Source arrangement",
+        "tr": "Kaynak düzeni"
+      },
+      "notes": "E5 E5 E5 E5 E5 E5 E5 A5 D5 D5 D5 D5 D5 D5 D5 E5 | C5 C5 C5 C5 C5 C5 C5 D5 B4 B4 B4 B4 B4 B4 C5 | A4 A4 D5 D5 D5 D5 D5 D5 D5 A5 | E5 E5 E5 F5 C5 C5 C5 D5 B4 B4 B4 B4 E5 D5 C5 B4 | C5 C5 A4 A4",
+      "rhythm": {
+        "bpm": 90,
+        "source": "score",
+        "tempoSource": "default",
+        "tempoConfidence": 0,
+        "durations": [
+          [
+            1,
+            1,
+            1,
+            1,
+            0.5,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            0.5,
+            1,
+            1,
+            1
+          ],
+          [
+            1,
+            1,
+            1,
+            1,
+            0.5,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          [
+            4,
+            4,
+            1,
+            1,
+            1,
+            1,
+            0.5,
+            1,
+            1,
+            1
+          ],
+          [
+            0.5,
+            1,
+            1,
+            1,
+            0.5,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            0.5,
+            1,
+            1
+          ],
+          [
+            4,
+            4,
+            4,
+            4
+          ]
+        ],
+        "gaps": [
+          [
+            0,
+            0,
+            0,
+            0,
+            0.5,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0.5,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0.5,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0.5,
+            0,
+            0,
+            0
+          ],
+          [
+            0.5,
+            0,
+            0,
+            0,
+            0.5,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0.5,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      },
+      "sourceStatus": "live",
+      "sourceConfidence": "omr-unreviewed",
+      "sources": [
+        {
+          "name": "Gitaregitim.net",
+          "url": "https://www.gitaregitim.net/cok-uzaklarda-caddelerde-ruzgar-nota-tab/",
           "role": "note-source"
         }
       ]
