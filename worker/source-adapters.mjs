@@ -93,6 +93,20 @@ function queryVariants(query) {
   return [...new Set(variants.filter((value) => normalizeSearchText(value).length >= 3))].slice(0, 5);
 }
 
+function titleQueryVariants(query) {
+  const variants = [query];
+  const meaningfulWords = meaningfulSearchTokens(query);
+  // A source often omits the artist from its page title. For a query with at
+  // least three meaningful words, also score title-only suffixes containing
+  // two or more words (for example, “Nilüfer Caddelerde Rüzgar” →
+  // “Caddelerde Rüzgar”). Single-word suffixes are intentionally excluded so
+  // an artist + one-word title cannot turn into a noisy title-only match.
+  for (let start = 1; start <= meaningfulWords.length - 2; start += 1) {
+    variants.push(meaningfulWords.slice(start).join(" "));
+  }
+  return [...new Set(variants)];
+}
+
 async function fetchWordPressResults(adapter, query, fetchFn) {
   const variants = queryVariants(query);
   const responses = await Promise.all(variants.map(async (variant) => {
@@ -114,8 +128,8 @@ async function fetchWordPressResults(adapter, query, fetchFn) {
     if (!Number.isInteger(item?.id) || typeof item?.title !== "string" || typeof item?.url !== "string") continue;
     const title = decodeHtml(item.title);
     const cleanedTitle = usefulTitle(title);
-    const fullScore = searchMatchScore(query, [title, cleanedTitle]);
-    const score = fullScore;
+    const score = titleQueryVariants(query)
+      .reduce((best, variant) => Math.max(best, searchMatchScore(variant, [title, cleanedTitle])), 0);
     if (score < 58) continue;
 
     const candidate = {
