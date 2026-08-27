@@ -38,6 +38,7 @@ h1 em { color:var(--green); font-weight:400; }
 .source-result span { color:var(--muted); font-size:11px; }
 .source-result a { color:var(--green); font-size:11px; font-weight:700; }
 .source-result button { border:0; border-radius:8px; padding:9px 11px; background:var(--green); color:#fff; font-size:11px; font-weight:700; }
+.source-review { color:var(--muted); font-size:11px; font-weight:700; }
 textarea { width:100%; resize:vertical; min-height:90px; border:1px solid #b8beb8; border-radius:12px; padding:14px 16px; outline:none; background:#fff; color:var(--ink); line-height:1.6; }
 textarea:focus,.search-row:focus-within { border-color:var(--green); box-shadow:0 0 0 3px rgba(31,90,67,.1); }
 .paste-actions { display:flex; justify-content:space-between; align-items:center; gap:16px; padding-top:12px; color:var(--muted); font-size:12px; }

@@ -1,3 +1,9 @@
+export const SEARCH_QUALIFIERS = new Set([
+  "akor", "akorlar", "akorlari", "akorlarini", "do", "gitar", "gitari", "gitarini",
+  "lyrics", "melodika", "music", "nota", "notalar", "notasi", "notalari", "notalarini", "piano",
+  "piyano", "re", "sheet", "sarki", "sarkinin", "sarkisi", "tab", "tabs",
+]);
+
 /** @param {string} value */
 export function normalizeSearchText(value) {
   return value
@@ -10,6 +16,16 @@ export function normalizeSearchText(value) {
     .replaceAll("ç", "c")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+/** @param {string} value */
+export function meaningfulSearchTokens(value) {
+  return normalizeSearchText(value).split(" ").filter((token) => token && !SEARCH_QUALIFIERS.has(token));
+}
+
+/** @param {string} value */
+export function meaningfulSearchText(value) {
+  return meaningfulSearchTokens(value).join(" ");
 }
 
 /** @param {string} left @param {string} right */
@@ -82,7 +98,7 @@ function fuzzyTokenScore(queryTokens, candidateTokens) {
  * @param {string[]} candidates
  */
 export function searchMatchScore(query, candidates) {
-  const normalizedQuery = normalizeSearchText(query);
+  const normalizedQuery = meaningfulSearchText(query);
   if (!normalizedQuery) return 0;
   const queryTokens = normalizedQuery.split(" ");
 
