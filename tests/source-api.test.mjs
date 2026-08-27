@@ -11,7 +11,7 @@ test("Worker sağlık ve CORS uç noktalarını sunar", async () => {
   const response = await handle(new Request("https://worker.test/health", { headers: { Origin: "https://ozguregemen.github.io" } }));
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("access-control-allow-origin"), "https://ozguregemen.github.io");
-  assert.deepEqual((await response.json()).adapters, ["notalar", "gitaregitim"]);
+  assert.deepEqual((await response.json()).adapters, ["notalar", "gitaregitim", "academic-pdf"]);
 });
 
 test("Worker yalnızca desteklenen kaynakları GitHub Actions kuyruğuna gönderir", async () => {
@@ -34,10 +34,31 @@ test("Worker yalnızca desteklenen kaynakları GitHub Actions kuyruğuna gönder
   assert.equal(dispatchBody.event_type, "source-conversion-request");
   assert.equal(dispatchBody.client_payload.postId, 22205);
 
+  const documentResponse = await handle(new Request("https://worker.test/api/jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sourceId: "academic-pdf",
+      documentId: "ohu-tarkan-kuzu-kuzu",
+      query: "Kuzu Kuzu",
+      title: "Tarkan – Kuzu Kuzu",
+    }),
+  }));
+  assert.equal(documentResponse.status, 202);
+  assert.equal(dispatchBody.client_payload.documentId, "ohu-tarkan-kuzu-kuzu");
+  assert.equal("postId" in dispatchBody.client_payload, false);
+
   const rejected = await handle(new Request("https://worker.test/api/jobs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sourceId: "evil", postId: 1 }),
   }));
   assert.equal(rejected.status, 400);
+
+  const unknownDocument = await handle(new Request("https://worker.test/api/jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sourceId: "academic-pdf", documentId: "unknown" }),
+  }));
+  assert.equal(unknownDocument.status, 400);
 });

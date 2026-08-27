@@ -1,4 +1,5 @@
 import { meaningfulSearchText, meaningfulSearchTokens, normalizeSearchText, SEARCH_QUALIFIERS, searchMatchScore } from "../app/search-relevance.mjs";
+import { DOCUMENT_SOURCE_ADAPTER, DOCUMENT_SOURCES } from "./document-sources.mjs";
 
 const GENERIC_TITLE_WORDS = new Set([
   "akor", "akorlari", "do", "gitar", "gitari", "jpg", "melodika", "mi", "nota", "notasi", "notalari",
@@ -8,23 +9,54 @@ const GENERIC_TITLE_WORDS = new Set([
 const DISCOVERY_SOURCES = new Map([
   ["musescore.com", { name: "MuseScore", role: "score" }],
   ["kolaynota.com", { name: "Kolay Nota", role: "text" }],
-  ["sarkinotalari.com", { name: "Şarkı Notaları", role: "text" }],
 ]);
+
+const MAX_WORDPRESS_BYTES = 256 * 1024;
+const MAX_DISCOVERY_BYTES = 512 * 1024;
 
 export const SOURCE_ADAPTERS = {
   notalar: {
     id: "notalar",
     name: "Notalar.net",
+    kind: "wordpress",
     origin: "https://www.notalar.net",
     processingMode: "text",
   },
   gitaregitim: {
     id: "gitaregitim",
     name: "Gitaregitim.net",
+    kind: "wordpress",
     origin: "https://www.gitaregitim.net",
     processingMode: "omr",
   },
+  academicPdf: DOCUMENT_SOURCE_ADAPTER,
 };
+
+async function readLimitedText(response, maxBytes) {
+  const declaredLength = Number(response.headers.get("Content-Length") || 0);
+  if (declaredLength > maxBytes) throw new Error(`Source response exceeds ${maxBytes} bytes`);
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new Error(`Source response exceeds ${maxBytes} bytes`);
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
 
 export function decodeHtml(value) {
   return value
@@ -73,7 +105,7 @@ async function fetchWordPressResults(adapter, query, fetchFn) {
       signal: AbortSignal.timeout(8000),
     });
     if (!response.ok) throw new Error(`${adapter.name} returned HTTP ${response.status}`);
-    const items = await response.json();
+    const items = JSON.parse(await readLimitedText(response, MAX_WORDPRESS_BYTES));
     return Array.isArray(items) ? items.map((item) => ({ item, variant })) : [];
   }));
 
@@ -100,6 +132,23 @@ async function fetchWordPressResults(adapter, query, fetchFn) {
     if (!existing || existing.score < score) unique.set(candidate.id, candidate);
   }
   return [...unique.values()];
+}
+
+function searchDocumentSources(query) {
+  return Object.values(DOCUMENT_SOURCES).flatMap((document) => {
+    const score = searchMatchScore(query, [document.title, ...document.aliases]);
+    if (score < 58) return [];
+    return [{
+      id: `${document.sourceId}:${document.id}`,
+      sourceId: document.sourceId,
+      sourceName: document.sourceName,
+      documentId: document.id,
+      title: document.title,
+      url: document.url,
+      processingMode: document.processingMode,
+      score,
+    }];
+  });
 }
 
 function decodeDiscoveryUrl(value) {
@@ -148,7 +197,7 @@ async function searchWebDiscovery(query, fetchFn) {
       signal: AbortSignal.timeout(8000),
     });
     if (!response.ok) throw new Error(`Web discovery returned HTTP ${response.status}`);
-    return response.text();
+    return readLimitedText(response, MAX_DISCOVERY_BYTES);
   }));
   const htmlDocuments = responses.filter((result) => result.status === "fulfilled").map((result) => result.value);
   if (htmlDocuments.length === 0) throw new Error("Web discovery returned no usable response");
@@ -179,13 +228,14 @@ async function searchWebDiscovery(query, fetchFn) {
 
 export async function searchAllSources(query, fetchFn = fetch) {
   if (!normalizeSearchText(query)) return { results: [], unavailableSources: [] };
+  const wordpressAdapters = Object.values(SOURCE_ADAPTERS).filter((adapter) => adapter.kind === "wordpress");
   const settled = await Promise.allSettled(
-    Object.values(SOURCE_ADAPTERS).map((adapter) => fetchWordPressResults(adapter, query, fetchFn)),
+    wordpressAdapters.map((adapter) => fetchWordPressResults(adapter, query, fetchFn)),
   );
-  const results = [];
+  const results = searchDocumentSources(query);
   const unavailableSources = [];
   settled.forEach((result, index) => {
-    const adapter = Object.values(SOURCE_ADAPTERS)[index];
+    const adapter = wordpressAdapters[index];
     if (result.status === "fulfilled") results.push(...result.value);
     else unavailableSources.push(adapter.id);
   });
@@ -201,5 +251,5 @@ export async function searchAllSources(query, fetchFn = fetch) {
 }
 
 export function getSourceAdapter(sourceId) {
-  return SOURCE_ADAPTERS[sourceId];
+  return Object.values(SOURCE_ADAPTERS).find((adapter) => adapter.id === sourceId);
 }
