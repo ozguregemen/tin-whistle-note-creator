@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-27T18:55:34.517Z",
+  "generatedAt": "2026-08-27T18:57:02.837Z",
   "songs": [
     {
       "id": "duman-bu-aksam",
@@ -419,6 +419,32 @@
         {
           "name": "Notalar.net",
           "url": "https://www.notalar.net/tuna-nehri-akmam-diyor-sani-buyuk-osman-pasa-notalari/",
+          "role": "note-source"
+        }
+      ]
+    },
+    {
+      "id": "notalar-166-deniz-ustu-kopurur",
+      "title": "Deniz Üstü Köpürür",
+      "aliases": [
+        "deniz üstü köpürür",
+        "Deniz Üstü Köpürür Do Re Mi Notaları"
+      ],
+      "subtitle": {
+        "en": "Live text source · octave register estimated",
+        "tr": "Canlı metin kaynağı · oktav bölgesi tahmini"
+      },
+      "difficulty": {
+        "en": "Source arrangement",
+        "tr": "Kaynak düzeni"
+      },
+      "notes": "D5 E5 E5 D5 G5 A5 B5 A5 D6 B5 A5 G5 A5 A5 G5 F#5 E5 E5 F#5 F#5 D5 | B4 C5 C5 B4 B4 A4 F#4 A4 A4 F#4 E4 D4 E4 E4 E4 E4",
+      "sourceStatus": "live",
+      "sourceConfidence": "estimated",
+      "sources": [
+        {
+          "name": "Notalar.net",
+          "url": "https://www.notalar.net/deniz-ustu-kopurur-do-re-mi-notalari/",
           "role": "note-source"
         }
       ]
