@@ -72,6 +72,8 @@ h2 { margin:7px 0 5px; font:600 clamp(30px,4vw,44px)/1.1 Georgia,serif; letter-s
 .practice-controls output { min-width:58px; color:var(--ink); font-size:12px; font-weight:800; }
 .practice-progress { display:flex; flex-direction:column; align-items:flex-end; gap:3px; color:var(--muted); font-size:9px; text-transform:uppercase; letter-spacing:.08em; }
 .practice-progress strong { color:var(--ink); font-size:13px; letter-spacing:0; }
+.audio-credit { margin:7px 4px 0; color:var(--muted); font-size:9px; text-align:right; }
+.audio-credit a { color:var(--green); text-underline-offset:2px; }
 .empty-workspace { min-height:300px; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; }
 .empty-workspace p { max-width:620px; margin:5px 0 24px; color:var(--muted); line-height:1.6; }
 .request-button { display:inline-block; padding:12px 16px; border-radius:9px; background:var(--green); color:#fff; font-size:13px; font-weight:700; text-decoration:none; }
@@ -112,6 +114,7 @@ h2 { margin:7px 0 5px; font:600 clamp(30px,4vw,44px)/1.1 Georgia,serif; letter-s
   .practice-panel { grid-template-columns:1fr; gap:14px; }
   .practice-controls { justify-content:flex-start; flex-wrap:wrap; }
   .practice-progress { align-items:flex-start; }
+  .audio-credit { text-align:left; }
   .notes-grid { grid-template-columns:repeat(4,1fr); }
   .how { grid-template-columns:1fr; gap:30px; }
 }

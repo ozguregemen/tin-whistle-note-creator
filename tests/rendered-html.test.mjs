@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
@@ -28,10 +29,21 @@ test("Tin Whistle Note Creator ana sayfasını sunucu tarafında oluşturur", as
   assert.match(html, /Cross-checked/);
   assert.match(html, /Paste notes/);
   assert.match(html, /Practice mode/);
+  assert.match(html, /Tin whistle sound/);
+  assert.match(html, /CC BY-SA 4\.0/);
   assert.match(html, /90(?:<!-- -->)? BPM/);
   assert.match(html, /aria-pressed="false"/);
   assert.match(html, /Türkçe/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|Your site is taking shape/i);
+});
+
+test("tin whistle örnekleri beklenen lisans ve dosya özetiyle paketlenir", async () => {
+  const lowSample = await readFile(new URL("../public/audio/tin-whistle/81_v0-127_rr1.wav", import.meta.url));
+  const highSample = await readFile(new URL("../public/audio/tin-whistle/85_v0-127_rr1.wav", import.meta.url));
+  const attribution = await readFile(new URL("../public/audio/tin-whistle/ATTRIBUTION.md", import.meta.url), "utf8");
+  assert.equal(createHash("sha256").update(lowSample).digest("hex"), "80fc297682730f42a7370ce5ee599ec8304e9043f6d63d9b94c2c9b994a02b87");
+  assert.equal(createHash("sha256").update(highSample).digest("hex"), "33b41f1eb7bed926a1b61c71c62a3e75d43e66175e16b7ea7a437f055d2fbc71");
+  assert.match(attribution, /Creative Commons Attribution-ShareAlike 4\.0/);
 });
 
 test("temel D tin whistle parmak eşlemelerini içerir", async () => {

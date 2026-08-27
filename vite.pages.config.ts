@@ -3,6 +3,7 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   root: "static-pages",
+  publicDir: "../public",
   base: "/tin-whistle-note-creator/",
   plugins: [react()],
   build: {

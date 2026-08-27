@@ -5,6 +5,7 @@ import { parseAbcScore } from "./abc.mjs";
 import { adaptPhrasesToDWhistle } from "./fingerings.mjs";
 import { buildPlaybackPlan, frequencyForNote, remainingBeatsAfterElapsed } from "./practice.mjs";
 import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
+import { midiForNote, playbackRateForMidi, sampleZoneForMidi, WHISTLE_SAMPLE_ZONES } from "./whistle-sampler.mjs";
 
 type Language = "en" | "tr";
 type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "queueing" | "processing" | "needsReview" | "liveFound" | "sourceUnavailable";
@@ -70,6 +71,8 @@ type PlaybackPhase = {
   bpm: number;
 };
 
+type SoundStatus = "idle" | "loading" | "ready" | "fallback";
+
 const COPY = {
   en: {
     languageAction: "Türkçe",
@@ -112,6 +115,11 @@ const COPY = {
     pause: "Pause",
     stop: "Stop",
     tempo: "Tempo",
+    loadingSound: "Loading tin whistle sound…",
+    whistleSound: "Tin whistle sound",
+    referenceSound: "Reference tone fallback",
+    sampleCredit: "Tin whistle samples: Wikimedia Commons contributors · sample pack by AEmotionStudio",
+    samplePack: "source pack",
     scoreRhythm: "Score rhythm",
     estimatedRhythm: "Estimated equal beats",
     progress: "Progress",
@@ -188,6 +196,11 @@ const COPY = {
     pause: "Duraklat",
     stop: "Durdur",
     tempo: "Tempo",
+    loadingSound: "Tin whistle sesi yükleniyor…",
+    whistleSound: "Tin whistle sesi",
+    referenceSound: "Yedek referans sesi",
+    sampleCredit: "Tin whistle örnekleri: Wikimedia Commons katkıcıları · örnek paketi AEmotionStudio",
+    samplePack: "kaynak paket",
     scoreRhythm: "Nota kaynağındaki ritim",
     estimatedRhythm: "Tahmini eşit vuruşlar",
     progress: "İlerleme",
@@ -319,14 +332,17 @@ export default function Home() {
   const [status, setStatus] = useState<StatusKey>("catalogPrepared");
   const [bpm, setBpm] = useState(90);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [soundStatus, setSoundStatus] = useState<SoundStatus>("idle");
   const [activeNoteIndex, setActiveNoteIndex] = useState(-1);
   const playbackCursorRef = useRef(0);
   const playbackTimerRef = useRef<number | null>(null);
   const playbackPhaseRef = useRef<PlaybackPhase | null>(null);
   const bpmRef = useRef(90);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const oscillatorRef = useRef<OscillatorNode | null>(null);
+  const audioSourceRef = useRef<AudioScheduledSourceNode | null>(null);
   const gainRef = useRef<GainNode | null>(null);
+  const whistleBuffersRef = useRef<Map<number, AudioBuffer>>(new Map());
+  const whistleLoadPromiseRef = useRef<Promise<boolean> | null>(null);
   const t = COPY[language];
 
   useEffect(() => {
@@ -387,8 +403,8 @@ export default function Home() {
 
   useEffect(() => {
     if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
-    oscillatorRef.current?.stop();
-    oscillatorRef.current = null;
+    audioSourceRef.current?.stop();
+    audioSourceRef.current = null;
     gainRef.current = null;
     playbackCursorRef.current = 0;
     playbackPhaseRef.current = null;
@@ -403,13 +419,13 @@ export default function Home() {
 
   useEffect(() => () => {
     if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
-    oscillatorRef.current?.stop();
+    audioSourceRef.current?.stop();
     void audioContextRef.current?.close();
   }, []);
 
   function stopTone() {
-    if (!oscillatorRef.current) return;
-    const oscillator = oscillatorRef.current;
+    if (!audioSourceRef.current) return;
+    const source = audioSourceRef.current;
     const gain = gainRef.current;
     const context = audioContextRef.current;
     try {
@@ -418,36 +434,88 @@ export default function Home() {
         gain.gain.cancelScheduledValues(now);
         gain.gain.setValueAtTime(Math.max(0.0001, gain.gain.value), now);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.015);
-        oscillator.stop(now + 0.02);
+        source.stop(now + 0.02);
       } else {
-        oscillator.stop();
+        source.stop();
       }
     } catch { /* The oscillator may already have stopped. */ }
-    oscillatorRef.current = null;
+    audioSourceRef.current = null;
     gainRef.current = null;
   }
 
-  function playTone(note: ParsedNote) {
+  function ensureAudioContext() {
     const AudioContextConstructor = window.AudioContext;
-    if (!AudioContextConstructor) return;
+    if (!AudioContextConstructor) return null;
     const context = audioContextRef.current ?? new AudioContextConstructor();
     audioContextRef.current = context;
     void context.resume();
+    return context;
+  }
+
+  async function prepareWhistleSamples() {
+    const context = ensureAudioContext();
+    if (!context) { setSoundStatus("fallback"); return false; }
+    if (whistleBuffersRef.current.size === WHISTLE_SAMPLE_ZONES.length) {
+      setSoundStatus("ready");
+      return true;
+    }
+    if (whistleLoadPromiseRef.current) return whistleLoadPromiseRef.current;
+
+    setSoundStatus("loading");
+    const loadPromise = Promise.all(WHISTLE_SAMPLE_ZONES.map(async (zone) => {
+      const response = await fetch(new URL(zone.file, document.baseURI));
+      if (!response.ok) throw new Error(`Whistle sample returned ${response.status}`);
+      const buffer = await context.decodeAudioData(await response.arrayBuffer());
+      return [zone.rootMidi, buffer] as const;
+    })).then((entries) => {
+      whistleBuffersRef.current = new Map(entries);
+      setSoundStatus("ready");
+      return true;
+    }).catch(() => {
+      setSoundStatus("fallback");
+      return false;
+    }).finally(() => {
+      whistleLoadPromiseRef.current = null;
+    });
+    whistleLoadPromiseRef.current = loadPromise;
+    return loadPromise;
+  }
+
+  function playTone(note: ParsedNote) {
+    const context = ensureAudioContext();
+    if (!context) return;
     stopTone();
-    const oscillator = context.createOscillator();
     const gain = context.createGain();
     const now = context.currentTime;
-    oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(frequencyForNote(note.pitch, note.octave), now);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.16, now + 0.015);
-    oscillator.connect(gain).connect(context.destination);
-    oscillator.start(now);
-    oscillatorRef.current = oscillator;
+
+    const midi = midiForNote(note.pitch, note.octave);
+    const zone = sampleZoneForMidi(midi);
+    const sampleBuffer = zone ? whistleBuffersRef.current.get(zone.rootMidi) : undefined;
+    let source: AudioScheduledSourceNode;
+    if (sampleBuffer && zone && midi !== null) {
+      const sampleSource = context.createBufferSource();
+      sampleSource.buffer = sampleBuffer;
+      sampleSource.playbackRate.setValueAtTime(playbackRateForMidi(midi, zone.rootMidi), now);
+      sampleSource.connect(gain);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.72, now + 0.025);
+      source = sampleSource;
+    } else {
+      const oscillator = context.createOscillator();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(frequencyForNote(note.pitch, note.octave), now);
+      oscillator.connect(gain);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.16, now + 0.015);
+      source = oscillator;
+    }
+    gain.connect(context.destination);
+    source.start(now);
+    audioSourceRef.current = source;
     gainRef.current = gain;
-    oscillator.addEventListener("ended", () => {
-      if (oscillatorRef.current === oscillator) {
-        oscillatorRef.current = null;
+    source.addEventListener("ended", () => {
+      if (audioSourceRef.current === source) {
+        audioSourceRef.current = null;
         gainRef.current = null;
       }
     }, { once: true });
@@ -512,7 +580,7 @@ export default function Home() {
     );
   }
 
-  function togglePractice() {
+  async function togglePractice() {
     if (isPlaying) {
       if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
       playbackTimerRef.current = null;
@@ -529,6 +597,7 @@ export default function Home() {
       setIsPlaying(false);
       return;
     }
+    await prepareWhistleSamples();
     setIsPlaying(true);
     const pausedPhase = playbackPhaseRef.current;
     if (pausedPhase) {
@@ -751,14 +820,15 @@ export default function Home() {
         <section className="practice-panel" aria-label={t.practice}>
           <div className="practice-title"><span className="section-kicker">{t.practice}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : t.estimatedRhythm}</strong></div>
           <div className="practice-controls">
-            <button type="button" className="practice-play" onClick={togglePractice} disabled={!playbackPlan.length} aria-pressed={isPlaying}><span aria-hidden="true">{isPlaying ? "Ⅱ" : "▶"}</span> {isPlaying ? t.pause : t.play}</button>
+            <button type="button" className="practice-play" onClick={togglePractice} disabled={!playbackPlan.length || soundStatus === "loading"} aria-pressed={isPlaying}><span aria-hidden="true">{isPlaying ? "Ⅱ" : "▶"}</span> {soundStatus === "loading" ? "…" : isPlaying ? t.pause : t.play}</button>
             <button type="button" className="practice-stop" onClick={stopPractice} disabled={!isPlaying && activeNoteIndex < 0}><span aria-hidden="true">■</span> {t.stop}</button>
             <label htmlFor="practice-bpm">{t.tempo}</label>
             <input id="practice-bpm" type="range" min="40" max="180" step="5" value={bpm} onChange={(event) => changeTempo(Number(event.target.value))} />
             <output htmlFor="practice-bpm">{bpm} BPM</output>
           </div>
-          <div className="practice-progress" aria-live="polite"><span>{t.progress}</span><strong>{activeNoteIndex < 0 ? 0 : activeNoteIndex + 1} / {allNotes.length}</strong></div>
+          <div className="practice-progress" aria-live="polite"><span>{soundStatus === "loading" ? t.loadingSound : soundStatus === "fallback" ? t.referenceSound : t.whistleSound}</span><strong>{activeNoteIndex < 0 ? 0 : activeNoteIndex + 1} / {allNotes.length}</strong></div>
         </section>
+        <p className="audio-credit">{t.sampleCredit} · <a href="https://huggingface.co/AEmotionStudio/windstudio-tin-whistle-samples" target="_blank" rel="noreferrer">{t.samplePack}</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a></p>
         {unsupported.length > 0 && <div className="warning" role="alert"><strong>{unsupported.length} {t.warningStart}</strong> {t.warningEnd}</div>}
         <div className="phrases">
           {phrases.map((phrase, phraseIndex) => (
