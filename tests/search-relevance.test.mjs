@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeSearchText, searchMatchScore } from "../app/search-relevance.mjs";
+import { meaningfulSearchText, normalizeSearchText, searchMatchScore } from "../app/search-relevance.mjs";
 
 test("Türkçe karakterleri arama için güvenli biçimde normalleştirir", () => {
   assert.equal(normalizeSearchText("Drama Köprüsü"), "drama koprusu");
@@ -26,4 +26,10 @@ test("kısa kelimelerde gürültülü fuzzy eşleşme yapmaz", () => {
 test("tek kelimeli ve sanatçı-artı-başlık aramalarını korur", () => {
   assert.ok(searchMatchScore("Cooley", ["Cooley's"]));
   assert.ok(searchMatchScore("Duman Bu Akşam", ["Duman Bu Akşam"]));
+});
+
+test("nota ve enstrüman niteleyicilerini şarkı aramasından ayırır", () => {
+  assert.equal(meaningfulSearchText("Tarkan Kuzu Kuzu notaları"), "tarkan kuzu kuzu");
+  assert.ok(searchMatchScore("Tarkan Dudu notaları", ["Tarkan – Dudu – Gitar Tab"]));
+  assert.ok(searchMatchScore("Kuzu Kuzu", ["Kuzu Kuzu Notaları ve Akorları"]));
 });

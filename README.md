@@ -14,6 +14,7 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 - İlk gerçek ve kaynaklı kayıt: Duman — Bu Akşam
 - The Session’ın CORS-açık API’sinde ziyaret anında canlı ABC nota araması
 - Cloudflare Worker üzerinden Notalar.net ve Gitaregitim.net üzerinde canlı, paralel kaynak araması
+- Onaylı kaynaklarda eşleşme yoksa nota odaklı web keşfi (MuseScore, Kolay Nota ve Şarkı Notaları); doğrulanmamış sonuçlar içe aktarılmadan önce açıkça işaretlenir
 - Seçilen kaynağı güvenli `repository_dispatch` çağrısıyla GitHub Actions işleme kuyruğuna gönderme
 - Metin notalarını otomatik çıkarma; PDF/JPG portelerini Audiveris OMR ile MusicXML'e dönüştürme
 - Uzun süren kaynak işlerini sayfa yenilense bile takip edip tamamlanan sonucu otomatik açma
@@ -72,6 +73,8 @@ npm run preview:pages
 GitHub Pages yalnızca arayüzü sunar. `worker/source-api.mjs` içindeki Cloudflare Worker canlı kaynak aramasını, özel GitHub kataloğuna erişimi ve Actions iş tetiklemesini yürütür. Desteklenen ilk adaptörler Notalar.net ve Gitaregitim.net'tir.
 
 Canlı API: `https://tin-whistle-note-source-api.ozguregemenbusiness.workers.dev`
+
+Onaylı WordPress adaptörlerinde eşleşme bulunamazsa Worker, yalnızca nota odaklı izinli alan adlarında (MuseScore, Kolay Nota ve Şarkı Notaları) arama motoru keşfi yapar. Bu sonuçlar güvenilirlik kontrolü için bağlantı olarak gösterilir; otomatik nota içe aktarma yalnızca onaylı adaptörlerde kullanılabilir.
 
 Worker'ı kontrol etmek ve yayımlamak için:
 

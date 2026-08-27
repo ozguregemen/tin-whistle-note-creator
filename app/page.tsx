@@ -8,7 +8,7 @@ import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
 import { midiForNote, playbackRateForMidi, sampleZoneForMidi, WHISTLE_SAMPLE_ZONES } from "./whistle-sampler.mjs";
 
 type Language = "en" | "tr";
-type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "queueing" | "processing" | "needsReview" | "liveFound" | "sourceUnavailable";
+type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "discoveryFound" | "queueing" | "processing" | "needsReview" | "liveFound" | "sourceUnavailable";
 
 type SongSource = {
   name: string;
@@ -39,12 +39,12 @@ type Catalog = { songs: Song[] };
 
 type SourceCandidate = {
   id: string;
-  sourceId: "notalar" | "gitaregitim";
+  sourceId: "notalar" | "gitaregitim" | "web";
   sourceName: string;
-  postId: number;
+  postId?: number;
   title: string;
   url: string;
-  processingMode: "text" | "omr";
+  processingMode: "text" | "omr" | "review";
   score: number;
 };
 
@@ -103,6 +103,7 @@ const COPY = {
     catalogFound: "Found in the web-sourced catalog",
     searching: "Searching live note sources…",
     sourceFound: "Matching score sources found. Choose the right result.",
+    discoveryFound: "Web results found. Review the source before importing notes.",
     queueing: "Sending the selected score for processing…",
     processing: "Reading the selected score. This may take a few minutes…",
     needsReview: "The source was found, but automatic score reading needs review.",
@@ -161,6 +162,8 @@ const COPY = {
     processSource: "Read this score",
     textSource: "Text notes · fast",
     scoreSource: "PDF / image score · OMR",
+    reviewSource: "Open and review",
+    webSource: "Web discovery · unverified",
     emptyTitle: "No note sheet selected",
     emptyBody: "We did not leave the previous song on screen. Only reviewed source matches are shown here.",
     sourceCaveat: "Pitch sequence is sourced; rhythm and note durations are not included yet.",
@@ -188,6 +191,7 @@ const COPY = {
     catalogFound: "İnternet kaynaklı katalogda bulundu",
     searching: "Canlı nota kaynaklarında aranıyor…",
     sourceFound: "Eşleşen nota kaynakları bulundu. Doğru sonucu seç.",
+    discoveryFound: "Web sonuçları bulundu. Notayı içe aktarmadan önce kaynağı kontrol et.",
     queueing: "Seçilen nota işlenmek üzere gönderiliyor…",
     processing: "Seçilen nota okunuyor. Bu işlem birkaç dakika sürebilir…",
     needsReview: "Kaynak bulundu ancak otomatik nota okuma sonucunun kontrol edilmesi gerekiyor.",
@@ -246,6 +250,8 @@ const COPY = {
     processSource: "Bu notayı oku",
     textSource: "Metin notası · hızlı",
     scoreSource: "PDF / görsel nota · OMR",
+    reviewSource: "Aç ve kontrol et",
+    webSource: "Web keşfi · doğrulanmadı",
     emptyTitle: "Nota sayfası seçilmedi",
     emptyBody: "Önceki şarkıyı ekranda bırakmadık. Burada yalnızca incelenmiş kaynak eşleşmeleri gösterilir.",
     sourceCaveat: "Ses dizisi kaynaklıdır; ritim ve nota süreleri henüz dahil değildir.",
@@ -820,10 +826,10 @@ export default function Home() {
       if (api) {
         const sourceResponse = await fetch(`${api}/api/search?q=${encodeURIComponent(query.trim())}`);
         if (!sourceResponse.ok) throw new Error(`Source API returned ${sourceResponse.status}`);
-        const sourceData = await sourceResponse.json() as { results?: SourceCandidate[] };
+        const sourceData = await sourceResponse.json() as { results?: SourceCandidate[]; discoveryOnly?: boolean };
         if (sourceData.results?.length) {
           setSourceCandidates(sourceData.results);
-          setStatus("sourceFound");
+          setStatus(sourceData.discoveryOnly ? "discoveryFound" : "sourceFound");
           return;
         }
       }
@@ -866,6 +872,7 @@ export default function Home() {
   }
 
   async function processSource(candidate: SourceCandidate) {
+    if (candidate.processingMode === "review" || candidate.postId === undefined) return;
     const api = sourceApiUrl();
     if (!api) { setStatus("sourceUnavailable"); return; }
     setStatus("queueing");
@@ -956,11 +963,11 @@ export default function Home() {
                 {sourceCandidates.map((candidate) => <article className="source-result" key={candidate.id}>
                   <div>
                     <strong>{candidate.title}</strong>
-                    <span>{candidate.sourceName} · {candidate.processingMode === "text" ? t.textSource : t.scoreSource}</span>
+                    <span>{candidate.sourceName} · {candidate.processingMode === "text" ? t.textSource : candidate.processingMode === "review" ? t.webSource : t.scoreSource}</span>
                   </div>
                   <div>
                     <a href={candidate.url} target="_blank" rel="noreferrer">{t.primarySource}</a>
-                    <button type="button" onClick={() => processSource(candidate)}>{t.processSource} →</button>
+                    {candidate.processingMode === "review" ? <span className="source-review">{t.reviewSource}</span> : <button type="button" onClick={() => processSource(candidate)}>{t.processSource} →</button>}
                   </div>
                 </article>)}
               </div>}
