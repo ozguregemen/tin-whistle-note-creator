@@ -10,6 +10,14 @@
     "enabled": true,
     "head_sampling_rate": 1
   },
+  "d1_databases": [
+    {
+      "binding": "BPM_DB",
+      "database_name": "tin-whistle-note-tempos",
+      "database_id": "6867e22d-28be-40d1-9fde-8499fde9bd6d",
+      "migrations_dir": "migrations"
+    }
+  ],
   "vars": {
     "ALLOWED_ORIGINS": "https://ozguregemen.github.io",
     "GITHUB_REPOSITORY": "ozguregemen/tin-whistle-note-creator",

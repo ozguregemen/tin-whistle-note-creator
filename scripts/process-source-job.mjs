@@ -28,6 +28,14 @@ function requestPayload() {
   const document = source?.kind === "document" ? getDocumentSource(documentId) : null;
   const validWordPressPost = source?.kind === "wordpress" && Number.isInteger(postId) && postId > 0;
   const validDocument = source?.kind === "document" && document?.sourceId === sourceId;
+  const resolvedBpm = Number(process.env.SOURCE_BPM);
+  const tempo = Number.isFinite(resolvedBpm) && resolvedBpm >= 40 && resolvedBpm <= 220 ? {
+    bpm: Math.round(resolvedBpm),
+    provider: (process.env.SOURCE_BPM_PROVIDER || "database").slice(0, 40),
+    sourceUrl: (process.env.SOURCE_BPM_URL || "").slice(0, 500),
+    confidence: Math.min(100, Math.max(0, Number(process.env.SOURCE_BPM_CONFIDENCE) || 0)),
+    artist: (process.env.SOURCE_ARTIST || "").slice(0, 120),
+  } : null;
   if (!source || (!validWordPressPost && !validDocument)) throw new Error("Invalid source job payload");
   return {
     requestId: /^[0-9a-f-]{36}$/i.test(process.env.REQUEST_ID || "") ? process.env.REQUEST_ID : randomUUID(),
@@ -36,6 +44,8 @@ function requestPayload() {
     ...(validDocument ? { documentId, document } : {}),
     query: (process.env.SOURCE_QUERY || "").slice(0, 160),
     requestedTitle: (process.env.SOURCE_TITLE || "").slice(0, 200),
+    requestedArtist: (process.env.SOURCE_ARTIST || "").slice(0, 120),
+    ...(tempo ? { tempo } : {}),
     source,
   };
 }
@@ -55,11 +65,19 @@ async function writeJob(job) {
 }
 
 function buildSong(payload, post, notes, confidence, rhythm) {
-  const title = plainTitle(post.title?.rendered || post.title || payload.requestedTitle || `Source ${payload.postId}`)
-    .replace(/\s+(?:do\s+re\s+mi|melodika|gitar|nota|tab).*$/i, "").trim();
+  const artist = payload.requestedArtist || payload.tempo?.artist || "";
+  let title = plainTitle(post.title?.rendered || post.title || payload.requestedTitle || `Source ${payload.postId}`)
+    .replace(/\s+(?:do\s+re\s+mi|melodika|gitar|nota|tab).*$/i, "")
+    .replace(/\s+[–—-]\s*$/u, "")
+    .trim();
+  const titleParts = title.split(/\s+[–—-]\s+/u).map((part) => part.trim()).filter(Boolean);
+  if (artist && titleParts.length >= 2 && titleParts[0].localeCompare(artist, "tr", { sensitivity: "base" }) === 0) {
+    title = titleParts.slice(1).join(" – ");
+  }
   return {
     id: `${payload.sourceId}-${payload.documentId || payload.postId}-${slugify(title)}`,
     title,
+    ...(artist ? { artist } : {}),
     aliases: [payload.query, payload.requestedTitle].filter(Boolean),
     subtitle: {
       en: confidence === "estimated" ? "Live text source · octave register estimated" : "Live score source · machine-read notation",
@@ -144,7 +162,15 @@ async function prepare() {
 
   if (payload.source.mode === "text") {
     const pitchPhrases = extractTextPhrases(post.content?.rendered || "");
-    await complete(payload, post, addEstimatedOctaves(pitchPhrases), "estimated");
+    const rhythm = payload.tempo ? {
+      bpm: payload.tempo.bpm,
+      source: "estimated",
+      tempoSource: "database",
+      tempoConfidence: payload.tempo.confidence,
+      ...(payload.tempo.sourceUrl ? { tempoUrl: payload.tempo.sourceUrl } : {}),
+      durations: [],
+    } : undefined;
+    await complete(payload, post, addEstimatedOctaves(pitchPhrases), "estimated", rhythm);
     await emitOutput("mode", "complete");
     await emitOutput("request_id", payload.requestId);
     return;
@@ -178,16 +204,27 @@ async function finalize() {
   const { payload, post } = JSON.parse(await readFile(new URL("context.json", WORK_DIRECTORY), "utf8"));
   const workPath = fileURLToPath(WORK_DIRECTORY);
   const xmlFiles = (await findFiles(workPath)).filter((path) => /\.(?:musicxml|xml)$/i.test(path) && !/container\.xml$/i.test(path));
-  let bestScore = { phrases: [], durations: [], gaps: [], tempo: 90 };
+  let bestScore = { phrases: [], durations: [], gaps: [], tempo: null };
   for (const path of xmlFiles) {
     const score = musicXmlToTimedPhrases(await readFile(path, "utf8"));
     if (score.phrases.flat().length > bestScore.phrases.flat().length) bestScore = score;
   }
   const noteCount = bestScore.phrases.flat().length;
   if (documentNoteCountIsPlausible(payload.document, noteCount)) {
+    const bpm = payload.document?.bpm || bestScore.tempo || payload.tempo?.bpm || 90;
+    const tempoSource = payload.document?.bpm
+      ? "curated"
+      : bestScore.tempo
+        ? "score"
+        : payload.tempo?.bpm
+          ? "database"
+          : "default";
     await complete(payload, post, bestScore.phrases, "omr-unreviewed", {
-      bpm: payload.document?.bpm || bestScore.tempo,
+      bpm,
       source: "score",
+      tempoSource,
+      tempoConfidence: payload.document?.bpm || bestScore.tempo ? 100 : payload.tempo?.confidence || 0,
+      ...(payload.tempo?.sourceUrl && tempoSource === "database" ? { tempoUrl: payload.tempo.sourceUrl } : {}),
       durations: bestScore.durations,
       gaps: bestScore.gaps,
     });

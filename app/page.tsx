@@ -27,6 +27,9 @@ type Song = {
   rhythm?: {
     bpm: number;
     source: "score" | "estimated";
+    tempoSource?: "score" | "curated" | "database" | "default";
+    tempoConfidence?: number;
+    tempoUrl?: string;
     durations: number[][];
     gaps?: number[][];
   };
@@ -79,6 +82,7 @@ type MetronomePhase = {
 };
 
 type SoundStatus = "idle" | "loading" | "ready" | "fallback";
+type TempoStatus = "idle" | "loading" | "resolved" | "unavailable";
 
 const COPY = {
   en: {
@@ -123,6 +127,11 @@ const COPY = {
     pause: "Pause",
     stop: "Stop",
     tempo: "Tempo",
+    tempoSearching: "Finding original BPM…",
+    originalTempo: "Original tempo · BPM database",
+    scoreTempo: "Tempo from score",
+    defaultTempo: "90 BPM practice default · original tempo not found",
+    bpmCredit: "BPM data",
     metronome: "Metronome",
     followNotes: "Follow active note",
     loopPhrase: "Loop phrase",
@@ -211,6 +220,11 @@ const COPY = {
     pause: "Duraklat",
     stop: "Durdur",
     tempo: "Tempo",
+    tempoSearching: "Orijinal BPM aranıyor…",
+    originalTempo: "Orijinal tempo · BPM veritabanı",
+    scoreTempo: "Nota kaynağındaki tempo",
+    defaultTempo: "90 BPM pratik varsayılanı · orijinal tempo bulunamadı",
+    bpmCredit: "BPM verisi",
     metronome: "Metronom",
     followNotes: "Aktif notayı takip et",
     loopPhrase: "Cümleyi döngüle",
@@ -352,6 +366,7 @@ export default function Home() {
   const [sourceCandidates, setSourceCandidates] = useState<SourceCandidate[]>([]);
   const [status, setStatus] = useState<StatusKey>("catalogPrepared");
   const [bpm, setBpm] = useState(90);
+  const [tempoStatus, setTempoStatus] = useState<TempoStatus>("idle");
   const [isPlaying, setIsPlaying] = useState(false);
   const [soundStatus, setSoundStatus] = useState<SoundStatus>("idle");
   const [activeNoteIndex, setActiveNoteIndex] = useState(-1);
@@ -368,12 +383,14 @@ export default function Home() {
   const loopEnabledRef = useRef(false);
   const selectedPhraseRef = useRef(0);
   const bpmRef = useRef(90);
+  const isPlayingRef = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioScheduledSourceNode | null>(null);
   const gainRef = useRef<GainNode | null>(null);
   const whistleBuffersRef = useRef<Map<number, AudioBuffer>>(new Map());
   const whistleLoadPromiseRef = useRef<Promise<boolean> | null>(null);
   const t = COPY[language];
+  isPlayingRef.current = isPlaying;
 
   useEffect(() => {
     const saved = window.localStorage.getItem("twnc-language");
@@ -473,7 +490,62 @@ export default function Home() {
     const initialBpm = song?.rhythm?.bpm ?? 90;
     bpmRef.current = initialBpm;
     setBpm(initialBpm);
-  }, [song?.id, song?.rhythm?.bpm]);
+    // Tempo discovery updates the current song in place and must not restart transport.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [song?.id]);
+
+  useEffect(() => {
+    const api = sourceApiUrl();
+    const tempoSource = song?.rhythm?.tempoSource;
+    const alreadyResolved = tempoSource === "score" || tempoSource === "curated" || tempoSource === "database";
+    if (!song || song.sourceStatus === "manual" || alreadyResolved) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTempoStatus(alreadyResolved ? "resolved" : "idle");
+      return;
+    }
+    if (!api) {
+      setTempoStatus("unavailable");
+      return;
+    }
+
+    const controller = new AbortController();
+    const selectedSongId = song.id;
+    setTempoStatus("loading");
+    const params = new URLSearchParams({ title: song.title });
+    if (song.artist) params.set("artist", song.artist);
+    fetch(`${api}/api/tempo?${params}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (response.status === 404) return null;
+        if (!response.ok) throw new Error(`Tempo API returned ${response.status}`);
+        return response.json() as Promise<{ bpm: number; confidence: number; sourceUrl?: string }>;
+      })
+      .then((tempo) => {
+        if (!tempo) { setTempoStatus("unavailable"); return; }
+        const resolvedBpm = Math.min(220, Math.max(40, Math.round(Number(tempo.bpm))));
+        if (!Number.isFinite(resolvedBpm)) { setTempoStatus("unavailable"); return; }
+        setSong((current) => current?.id === selectedSongId ? {
+          ...current,
+          rhythm: {
+            bpm: resolvedBpm,
+            source: current.rhythm?.source ?? "estimated",
+            tempoSource: "database",
+            tempoConfidence: Number(tempo.confidence) || 0,
+            ...(tempo.sourceUrl ? { tempoUrl: tempo.sourceUrl } : {}),
+            durations: current.rhythm?.durations ?? [],
+            ...(current.rhythm?.gaps ? { gaps: current.rhythm.gaps } : {}),
+          },
+        } : current);
+        changeTempo(resolvedBpm);
+        setTempoStatus("resolved");
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setTempoStatus("unavailable");
+      });
+    return () => controller.abort();
+    // BPM lookup is keyed by stable song identity; query text edits must not retrigger it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [song?.artist, song?.id, song?.rhythm?.tempoSource, song?.sourceStatus, song?.title]);
 
   useEffect(() => () => {
     if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
@@ -749,15 +821,16 @@ export default function Home() {
 
   function changeTempo(nextBpm: number) {
     const phase = playbackPhaseRef.current;
-    const remainingBeats = phase && isPlaying ? remainingPhaseBeats(phase) : 0;
+    const playing = isPlayingRef.current;
+    const remainingBeats = phase && playing ? remainingPhaseBeats(phase) : 0;
     const metronomePhase = metronomePhaseRef.current;
-    const remainingMetronomeBeats = metronomePhase && isPlaying
+    const remainingMetronomeBeats = metronomePhase && playing
       ? remainingBeatsAfterElapsed(metronomePhase.remainingBeats, window.performance.now() - metronomePhase.startedAt, metronomePhase.bpm)
       : 0;
     bpmRef.current = nextBpm;
     setBpm(nextBpm);
 
-    if (!phase || !isPlaying) return;
+    if (!phase || !playing) return;
     if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
     playbackTimerRef.current = null;
     schedulePlaybackPhase(phase.index, phase.kind, remainingBeats, phase.kind === "note");
@@ -1008,8 +1081,19 @@ export default function Home() {
             <button type="button" className="practice-play" onClick={togglePractice} disabled={!playbackPlan.length || soundStatus === "loading"} aria-pressed={isPlaying}><span aria-hidden="true">{isPlaying ? "Ⅱ" : "▶"}</span> {soundStatus === "loading" ? "…" : isPlaying ? t.pause : t.play}</button>
             <button type="button" className="practice-stop" onClick={stopPractice} disabled={!isPlaying && activeNoteIndex < 0}><span aria-hidden="true">■</span> {t.stop}</button>
             <label htmlFor="practice-bpm">{t.tempo}</label>
-            <input id="practice-bpm" type="range" min="40" max="180" step="5" value={bpm} onChange={(event) => changeTempo(Number(event.target.value))} />
+            <input id="practice-bpm" type="range" min="40" max="220" step="1" value={bpm} onChange={(event) => changeTempo(Number(event.target.value))} />
             <output htmlFor="practice-bpm">{bpm} BPM</output>
+            <span className={`tempo-origin ${tempoStatus}`}>
+              {tempoStatus === "loading"
+                ? t.tempoSearching
+                : song.rhythm?.tempoSource === "database"
+                  ? song.rhythm.tempoUrl
+                    ? <a href={song.rhythm.tempoUrl} target="_blank" rel="noreferrer">{t.originalTempo}</a>
+                    : t.originalTempo
+                  : song.rhythm?.tempoSource === "score" || song.rhythm?.tempoSource === "curated"
+                    ? t.scoreTempo
+                    : t.defaultTempo}
+            </span>
           </div>
           <div className="practice-progress" aria-live="polite"><span>{soundStatus === "loading" ? t.loadingSound : soundStatus === "fallback" ? t.referenceSound : t.whistleSound}</span><strong>{progressCurrent} / {progressTotal}</strong></div>
           <div className="practice-options">
@@ -1019,7 +1103,7 @@ export default function Home() {
             <label className="phrase-select" htmlFor="loop-phrase"><span>{t.selectPhrase}</span><select id="loop-phrase" value={selectedPhraseIndex} onChange={(event) => changeSelectedPhrase(Number(event.target.value))} disabled={!loopEnabled}>{phrases.map((_, index) => <option value={index} key={index}>{t.phrase} {String(index + 1).padStart(2, "0")}</option>)}</select></label>
           </div>
         </section>
-        <p className="audio-credit">{t.sampleCredit} · <a href="https://huggingface.co/AEmotionStudio/windstudio-tin-whistle-samples" target="_blank" rel="noreferrer">{t.samplePack}</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a></p>
+        <p className="audio-credit">{t.sampleCredit} · <a href="https://huggingface.co/AEmotionStudio/windstudio-tin-whistle-samples" target="_blank" rel="noreferrer">{t.samplePack}</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a> · {t.bpmCredit}: <a href="https://getsongbpm.com" target="_blank" rel="noreferrer">GetSongBPM.com</a></p>
         {unsupported.length > 0 && <div className="warning" role="alert"><strong>{unsupported.length} {t.warningStart}</strong> {t.warningEnd}</div>}
         <div className="phrases">
           {phrases.map((phrase, phraseIndex) => (

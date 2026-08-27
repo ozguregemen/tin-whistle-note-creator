@@ -63,7 +63,8 @@
     },
     {
       "id": "gitaregitim-11556-delikanlim",
-      "title": "Delikanlım –",
+      "title": "Delikanlım",
+      "artist": "Yıldız Tilbe",
       "aliases": [
         "delikanlım",
         "Delikanlım – Gitar – Nota – Tab"
@@ -78,8 +79,11 @@
       },
       "notes": "B4 C5 G4 E4 E4 D4 B4 C5 G4 A4 B4 C5 | A4 E4 A4 G4 A4 G4 G4 F4 F4 E4 A4 G4 A4 G4 | B4 A4 A4 G4 A4 G4 A4 G4 G4 F4 E4 A4 G4 A4 G4 | C5 B4 C5 E5 D5 C5 C5 B4 A4 G4 A4 G4 G4 | G4 F4 E4 F4 G4 G4 C5 B4 C5 E5 A4 G4 A4 G4 | G4 F4 F4 E4 E5 D5 D5 C5 E5 D5 D5 C5 B5 B5 G5 E5 E5 | B5 B5 G5 E5 E5 B5 A5 C6 B5 G5 A5 B5 A5 G5 A5 A5 G5 A5 A5 | A5 A5 G5 F5 A5 G5 F5 G5 G5 F5 E5 F5 G5 F5 E5 F5",
       "rhythm": {
-        "bpm": 90,
+        "bpm": 140,
         "source": "score",
+        "tempoSource": "database",
+        "tempoConfidence": 100,
+        "tempoUrl": "https://getsongbpm.com/song/delikanlim/kzNkN",
         "durations": [
           [
             1.5,

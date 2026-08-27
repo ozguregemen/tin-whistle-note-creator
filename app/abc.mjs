@@ -15,7 +15,16 @@ function durationFromSuffix(suffix) {
   return Number(suffix) || 1;
 }
 
+function tempoFromAbc(abc) {
+  const tempoLine = abc.match(/(?:^|\n)\s*Q:\s*([^\r\n]+)/i)?.[1]?.trim() || "";
+  const explicitBeat = Number(tempoLine.match(/=\s*(\d{2,3})(?:\s|$)/)?.[1]);
+  const bareTempo = Number(tempoLine.match(/^(\d{2,3})(?:\s|$)/)?.[1]);
+  const tempo = [explicitBeat, bareTempo].find((value) => Number.isFinite(value) && value >= 30 && value <= 240);
+  return tempo ?? null;
+}
+
 export function parseAbcScore(abc, key) {
+  const tempo = tempoFromAbc(abc);
   const cleaned = abc
     .replace(/"[^"]*"/g, "")
     .replace(/\{[^}]*\}/g, "")
@@ -55,6 +64,12 @@ export function parseAbcScore(abc, key) {
 
   return {
     notes: phrases.map((phrase) => phrase.join(" ")).join(" | "),
-    rhythm: { bpm: 90, source: "score", durations },
+    rhythm: {
+      bpm: tempo ?? 90,
+      source: "score",
+      tempoSource: tempo ? "score" : "default",
+      tempoConfidence: tempo ? 100 : 0,
+      durations,
+    },
   };
 }

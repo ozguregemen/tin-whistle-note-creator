@@ -83,10 +83,18 @@ Worker'ı kontrol etmek ve yayımlamak için:
 npm run worker:check
 npx wrangler login
 npx wrangler secret put GITHUB_TOKEN --config wrangler.source-api.jsonc
+npx wrangler secret put GETSONGBPM_API_KEY --config wrangler.source-api.jsonc
+npx wrangler d1 migrations apply tin-whistle-note-tempos --remote --config wrangler.source-api.jsonc
 npm run worker:deploy
 ```
 
 `GITHUB_TOKEN`, yalnızca bu depoya erişebilen ve repository dispatch oluşturup katalog sonuçlarını okuyabilen dar kapsamlı bir GitHub token'ı olmalıdır. Token hiçbir zaman GitHub Pages paketine eklenmez.
+
+### BPM çözümleme ve önbellek
+
+Worker tempo için şu sırayı kullanır: nota dosyasındaki açık tempo, `BPM_DB` D1 önbelleği, katı sanatçı/şarkı eşleşmesiyle GetSongBPM API ve son olarak açıkça “pratik varsayılanı” diye işaretlenen 90 BPM. Varsayılan değer veritabanına kaydedilmez. Böylece geçici bir kaynak hatası yanlış bir BPM'i kalıcılaştırmaz.
+
+GetSongBPM anahtarı ücretsiz olarak [GetSongBPM API sayfasından](https://getsongbpm.com/api) alınır ve yalnızca Worker secret'ı olarak saklanır. Sağlayıcının zorunlu kaynak bağlantısı uygulamanın pratik panelinde gösterilir. D1 şeması `migrations/0001_create_song_tempos.sql` dosyasındadır; aranan ve güçlü eşleşme alan sonuçlar `song_tempos` tablosuna yazılır. Spotify Audio Features uç noktası artık deprecated olduğu ve yeni geliştirme modu kısıtlarına tabi olduğu için ana BPM bağımlılığı olarak kullanılmaz.
 
 Wrangler'ın verdiği `workers.dev` adresi Pages derlemesine aktarılır:
 
@@ -128,6 +136,7 @@ Worker arama sonucunu hemen döndürür. Kullanıcı bir kaynağı seçince `.gi
 - Tamamlandı: oynatmayı sıfırlamadan dinamik BPM değişimi ve kaldığı yerden hassas devam
 - Tamamlandı: CC BY-SA lisanslı gerçek tin whistle örnekleriyle sample tabanlı ses motoru
 - Tamamlandı: oynatmayla senkron metronom ve seçili cümleyi kesintisiz döngüye alma
+- Tamamlandı: kaynak tempo / D1 önbelleği / BPM sağlayıcısı / açık 90 BPM varsayılanı ayrımı
 - Tamamlandı: aktif notayı ekranda tutan takip modu, sabit pratik kontrolleri ve cümle içi ilerleme
 - Öncelik: kaynak doğruluğunu güçlendiren müzisyen onayı ve kullanıcı düzeltme akışı
 - Daha sonra: mikrofonla perde takibi, daha geniş çoklu örnek seti, artikülasyonlar ve backing track senkronizasyonu
