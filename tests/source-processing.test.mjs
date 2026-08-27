@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  addEstimatedOctaves, extractScoreAssets, extractTextPhrases, musicXmlToPhrases, musicXmlToTimedPhrases, phrasesToString,
+  addEstimatedOctaves, extractScoreAssets, extractTextPhrases, extractTextTimedPhrases, musicXmlToPhrases, musicXmlToTimedPhrases, phrasesToString,
   stripLeadingArtist,
 } from "../scripts/source-processing.mjs";
 
@@ -16,6 +16,23 @@ test("Notalar.net metin bloklarından yalnızca nota satırlarını çıkarır",
   const phrases = extractTextPhrases(html);
   assert.deepEqual(phrases, [["A", "E", "D", "C", "D"], ["B", "C", "D", "B", "A"]]);
   assert.equal(phrasesToString(addEstimatedOctaves(phrases)), "A4 E5 D5 C5 D5 | B4 C5 D5 B4 A4");
+});
+
+test("alt çizgili metin notalarındaki süre ve esleri ritme aktarır", () => {
+  const html = `<h3>Ölçü Birimi: 4/4 Açıklama: Her nota ismi ve alt tireyi yarım vuruş olarak düşünün.</h3><p>mi mi mi mi fa_ mi_ | es do___</p>`;
+  const parsed = extractTextTimedPhrases(html);
+  assert.deepEqual(parsed.phrases, [["E", "E", "E", "E", "F", "E", "C"]]);
+  assert.deepEqual(parsed.durations, [[0.5, 0.5, 0.5, 0.5, 1, 1, 2]]);
+  assert.deepEqual(parsed.gaps, [[0, 0, 0, 0, 0, 0, 0.5]]);
+  assert.equal(parsed.hasRhythm, true);
+  assert.equal(parsed.beatUnit, 0.5);
+});
+
+test("ritim işareti olmayan metin notaları eşit vuruş fallbackine bırakılır", () => {
+  const parsed = extractTextTimedPhrases("<p>la si do re | mi fa sol la</p>");
+  assert.equal(parsed.hasRhythm, false);
+  assert.deepEqual(parsed.durations, []);
+  assert.deepEqual(parsed.gaps, []);
 });
 
 test("Gitaregitim sayfasındaki PDF, görsel ve MuseScore varlıklarını tanır", () => {
