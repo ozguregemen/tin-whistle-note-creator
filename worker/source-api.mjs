@@ -1,4 +1,5 @@
-import { getSourceAdapter, searchAllSources } from "./source-adapters.mjs";
+import { getSourceAdapter, searchAllSources, SOURCE_ADAPTERS } from "./source-adapters.mjs";
+import { getDocumentSource } from "./document-sources.mjs";
 
 const DEFAULT_REPOSITORY = "ozguregemen/tin-whistle-note-creator";
 
@@ -70,7 +71,11 @@ async function queueJob(request, env, fetchFn) {
   if (contentLength > 4096) return { response: { error: "Request body is too large" }, status: 413 };
   const body = await request.json().catch(() => null);
   const adapter = getSourceAdapter(body?.sourceId);
-  if (!adapter || !Number.isInteger(body?.postId) || body.postId < 1) {
+  const postId = Number.isInteger(body?.postId) && body.postId > 0 ? body.postId : null;
+  const documentId = typeof body?.documentId === "string" ? body.documentId : "";
+  const document = adapter?.kind === "document" ? getDocumentSource(documentId) : null;
+  const candidateIsValid = adapter?.kind === "wordpress" ? postId !== null : Boolean(document && document.sourceId === adapter?.id);
+  if (!adapter || !candidateIsValid) {
     return { response: { error: "Invalid or unsupported source candidate" }, status: 400 };
   }
   const query = typeof body.query === "string" ? body.query.trim().slice(0, 160) : "";
@@ -81,7 +86,14 @@ async function queueJob(request, env, fetchFn) {
     method: "POST",
     body: JSON.stringify({
       event_type: "source-conversion-request",
-      client_payload: { requestId, sourceId: adapter.id, postId: body.postId, query, title },
+      client_payload: {
+        requestId,
+        sourceId: adapter.id,
+        ...(postId !== null ? { postId } : {}),
+        ...(document ? { documentId: document.id } : {}),
+        query,
+        title,
+      },
     }),
   });
   if (!dispatch.ok) throw new Error(`GitHub dispatch returned HTTP ${dispatch.status}`);
@@ -97,7 +109,7 @@ export function createSourceApi(env, fetchFn = fetch) {
 
     try {
       if (request.method === "GET" && url.pathname === "/health") {
-        return json({ ok: true, adapters: ["notalar", "gitaregitim"] }, 200, cors);
+        return json({ ok: true, adapters: Object.values(SOURCE_ADAPTERS).map((adapter) => adapter.id) }, 200, cors);
       }
       if (request.method === "GET" && url.pathname === "/api/search") {
         const query = (url.searchParams.get("q") || "").trim();

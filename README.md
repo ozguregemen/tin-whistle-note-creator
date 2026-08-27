@@ -14,7 +14,8 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 - İlk gerçek ve kaynaklı kayıt: Duman — Bu Akşam
 - The Session’ın CORS-açık API’sinde ziyaret anında canlı ABC nota araması
 - Cloudflare Worker üzerinden Notalar.net ve Gitaregitim.net üzerinde canlı, paralel kaynak araması
-- Onaylı kaynaklarda eşleşme yoksa nota odaklı web keşfi (MuseScore, Kolay Nota ve Şarkı Notaları); doğrulanmamış sonuçlar içe aktarılmadan önce açıkça işaretlenir
+- Onaylı kaynaklarda eşleşme yoksa nota odaklı web keşfi (MuseScore ve Kolay Nota); doğrulanmamış sonuçlar içe aktarılmadan önce açıkça işaretlenir
+- Küratörlü akademik PDF kaynağında yalnızca belirlenmiş porte sayfalarını OMR ile okuma ve beklenen nota sayısıyla otomatik doğrulama
 - Seçilen kaynağı güvenli `repository_dispatch` çağrısıyla GitHub Actions işleme kuyruğuna gönderme
 - Metin notalarını otomatik çıkarma; PDF/JPG portelerini Audiveris OMR ile MusicXML'e dönüştürme
 - Uzun süren kaynak işlerini sayfa yenilense bile takip edip tamamlanan sonucu otomatik açma
@@ -70,11 +71,11 @@ npm run preview:pages
 
 ## Canlı kaynak API'si
 
-GitHub Pages yalnızca arayüzü sunar. `worker/source-api.mjs` içindeki Cloudflare Worker canlı kaynak aramasını, özel GitHub kataloğuna erişimi ve Actions iş tetiklemesini yürütür. Desteklenen ilk adaptörler Notalar.net ve Gitaregitim.net'tir.
+GitHub Pages yalnızca arayüzü sunar. `worker/source-api.mjs` içindeki Cloudflare Worker canlı kaynak aramasını, özel GitHub kataloğuna erişimi ve Actions iş tetiklemesini yürütür. Desteklenen adaptörler Notalar.net, Gitaregitim.net ve küratörlü akademik nota PDF'leridir.
 
 Canlı API: `https://tin-whistle-note-source-api.ozguregemenbusiness.workers.dev`
 
-Onaylı WordPress adaptörlerinde eşleşme bulunamazsa Worker, yalnızca nota odaklı izinli alan adlarında (MuseScore, Kolay Nota ve Şarkı Notaları) arama motoru keşfi yapar. Bu sonuçlar güvenilirlik kontrolü için bağlantı olarak gösterilir; otomatik nota içe aktarma yalnızca onaylı adaptörlerde kullanılabilir.
+Onaylı adaptörlerde eşleşme bulunamazsa Worker, yalnızca nota odaklı izinli alan adlarında (MuseScore ve Kolay Nota) arama motoru keşfi yapar. Bu sonuçlar güvenilirlik kontrolü için bağlantı olarak gösterilir; otomatik nota içe aktarma yalnızca onaylı WordPress veya küratörlü belge adaptörlerinde kullanılabilir. Belge adaptörleri tam internet taraması yapmaz: kaynak URL'si, nota sayfaları ve beklenen nota aralığı kodda izinli listeyle sınırlandırılır.
 
 Worker'ı kontrol etmek ve yayımlamak için:
 
@@ -94,7 +95,7 @@ $env:VITE_SOURCE_API_URL="https://<worker-adresi>.workers.dev"
 npm run build:pages
 ```
 
-Worker arama sonucunu hemen döndürür. Kullanıcı bir kaynağı seçince `.github/workflows/process-source-request.yml` çalışır; sonuç `catalog/jobs/<request-id>.json` dosyasına ve başarı halinde ana kataloğa yazılır. Gitaregitim PDF/JPG sonuçları otomatik okunamazsa yanlış nota yayımlamak yerine `needs-review` durumuna geçer.
+Worker arama sonucunu hemen döndürür. Kullanıcı bir kaynağı seçince `.github/workflows/process-source-request.yml` çalışır; sonuç `catalog/jobs/<request-id>.json` dosyasına ve başarı halinde ana kataloğa yazılır. Gitaregitim PDF/JPG sonuçları veya küratörlü PDF sayfaları güvenilir biçimde okunamazsa yanlış nota yayımlamak yerine `needs-review` durumuna geçer.
 
 ## Ürün planı
 

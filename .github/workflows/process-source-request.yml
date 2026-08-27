@@ -6,13 +6,17 @@ on:
   workflow_dispatch:
     inputs:
       source_id:
-        description: Source adapter ID (notalar or gitaregitim)
+        description: Source adapter ID
         required: true
         type: choice
-        options: [notalar, gitaregitim]
+        options: [notalar, gitaregitim, academic-pdf]
       post_id:
         description: WordPress post ID
-        required: true
+        required: false
+        type: string
+      document_id:
+        description: Curated document ID
+        required: false
         type: string
       query:
         description: Original song search
@@ -38,6 +42,7 @@ jobs:
       REQUEST_ID: ${{ github.event.client_payload.requestId }}
       SOURCE_ID: ${{ github.event.client_payload.sourceId || inputs.source_id }}
       POST_ID: ${{ github.event.client_payload.postId || inputs.post_id }}
+      DOCUMENT_ID: ${{ github.event.client_payload.documentId || inputs.document_id }}
       SOURCE_QUERY: ${{ github.event.client_payload.query || inputs.query }}
       SOURCE_TITLE: ${{ github.event.client_payload.title || inputs.title }}
     steps:
@@ -56,7 +61,7 @@ jobs:
         run: node scripts/process-source-job.mjs prepare
 
       - name: Extract Audiveris 5.11
-        if: steps.prepare.outputs.mode == 'omr'
+        if: steps.prepare.outputs.mode == 'omr' || steps.prepare.outputs.mode == 'pdf-pages'
         run: |
           curl --fail --location --output audiveris.deb https://github.com/Audiveris/audiveris/releases/download/5.11.0/Audiveris-5.11.0-ubuntu24.04-x86_64.deb
           echo "f20113aaa33b3149ec8d6a09b2a7963360e65fafd92d69389987a85bbc3ec7a3  audiveris.deb" | sha256sum --check
@@ -64,8 +69,25 @@ jobs:
           dpkg-deb --extract audiveris.deb .source-job/audiveris
           test -x .source-job/audiveris/opt/audiveris/bin/Audiveris
 
+      - name: Render selected PDF pages
+        if: steps.prepare.outputs.mode == 'pdf-pages'
+        run: |
+          if ! command -v pdftoppm >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y poppler-utils
+          fi
+          mkdir -p .source-job/input
+          pdftoppm \
+            -f "${{ steps.prepare.outputs.page_start }}" \
+            -l "${{ steps.prepare.outputs.page_end }}" \
+            -r 300 \
+            -png \
+            .source-job/document.pdf \
+            .source-job/input/page
+          find .source-job/input -type f -name '*.png' -print -quit | grep -q .
+
       - name: Read score images and PDFs
-        if: steps.prepare.outputs.mode == 'omr'
+        if: steps.prepare.outputs.mode == 'omr' || steps.prepare.outputs.mode == 'pdf-pages'
         continue-on-error: true
         run: |
           mkdir -p .source-job/omr
@@ -80,7 +102,7 @@ jobs:
           done
 
       - name: Finalize machine-read score
-        if: always() && steps.prepare.outputs.mode == 'omr'
+        if: always() && (steps.prepare.outputs.mode == 'omr' || steps.prepare.outputs.mode == 'pdf-pages')
         run: node scripts/process-source-job.mjs finalize
 
       - name: Commit result and catalog update

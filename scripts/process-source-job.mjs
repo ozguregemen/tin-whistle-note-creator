@@ -6,25 +6,34 @@ import {
   addEstimatedOctaves, extractScoreAssets, extractTextPhrases, mergeSongIntoCatalog,
   musicXmlToTimedPhrases, phrasesToString, plainTitle, slugify,
 } from "./source-processing.mjs";
+import { documentNoteCountIsPlausible, getDocumentSource } from "../worker/document-sources.mjs";
 
 const CATALOG_FILE = new URL("../catalog/catalog.json", import.meta.url);
 const JOB_DIRECTORY = new URL("../catalog/jobs/", import.meta.url);
 const WORK_DIRECTORY = new URL("../.source-job/", import.meta.url);
 
 const SOURCES = {
-  notalar: { name: "Notalar.net", origin: "https://www.notalar.net", mode: "text" },
-  gitaregitim: { name: "Gitaregitim.net", origin: "https://www.gitaregitim.net", mode: "omr" },
+  notalar: { name: "Notalar.net", kind: "wordpress", origin: "https://www.notalar.net", mode: "text" },
+  gitaregitim: { name: "Gitaregitim.net", kind: "wordpress", origin: "https://www.gitaregitim.net", mode: "omr" },
+  "academic-pdf": { name: "Academic score PDF", kind: "document", mode: "omr" },
 };
+
+const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
 
 function requestPayload() {
   const sourceId = process.env.SOURCE_ID;
   const postId = Number(process.env.POST_ID);
+  const documentId = (process.env.DOCUMENT_ID || "").slice(0, 120);
   const source = SOURCES[sourceId];
-  if (!source || !Number.isInteger(postId) || postId < 1) throw new Error("Invalid source job payload");
+  const document = source?.kind === "document" ? getDocumentSource(documentId) : null;
+  const validWordPressPost = source?.kind === "wordpress" && Number.isInteger(postId) && postId > 0;
+  const validDocument = source?.kind === "document" && document?.sourceId === sourceId;
+  if (!source || (!validWordPressPost && !validDocument)) throw new Error("Invalid source job payload");
   return {
     requestId: /^[0-9a-f-]{36}$/i.test(process.env.REQUEST_ID || "") ? process.env.REQUEST_ID : randomUUID(),
     sourceId,
-    postId,
+    ...(validWordPressPost ? { postId } : {}),
+    ...(validDocument ? { documentId, document } : {}),
     query: (process.env.SOURCE_QUERY || "").slice(0, 160),
     requestedTitle: (process.env.SOURCE_TITLE || "").slice(0, 200),
     source,
@@ -49,7 +58,7 @@ function buildSong(payload, post, notes, confidence, rhythm) {
   const title = plainTitle(post.title?.rendered || post.title || payload.requestedTitle || `Source ${payload.postId}`)
     .replace(/\s+(?:do\s+re\s+mi|melodika|gitar|nota|tab).*$/i, "").trim();
   return {
-    id: `${payload.sourceId}-${payload.postId}-${slugify(title)}`,
+    id: `${payload.sourceId}-${payload.documentId || payload.postId}-${slugify(title)}`,
     title,
     aliases: [payload.query, payload.requestedTitle].filter(Boolean),
     subtitle: {
@@ -90,16 +99,48 @@ async function downloadAssets(urls) {
   return files;
 }
 
+async function downloadDocument(document) {
+  const response = await fetch(document.url, {
+    headers: { Accept: "application/pdf", "User-Agent": "tin-whistle-note-creator/0.2" },
+  });
+  if (!response.ok) throw new Error(`Academic score PDF returned HTTP ${response.status}`);
+  const declaredLength = Number(response.headers.get("Content-Length") || 0);
+  if (declaredLength > MAX_DOCUMENT_BYTES) throw new Error("Academic score PDF is too large");
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength > MAX_DOCUMENT_BYTES) throw new Error("Academic score PDF is too large");
+  if (new TextDecoder().decode(bytes.slice(0, 5)) !== "%PDF-") throw new Error("Academic score source did not return a PDF");
+  await writeFile(new URL("document.pdf", WORK_DIRECTORY), bytes);
+}
+
 async function prepare() {
   const payload = requestPayload();
   await mkdir(WORK_DIRECTORY, { recursive: true });
-  const postUrl = new URL(`/wp-json/wp/v2/posts/${payload.postId}`, payload.source.origin);
-  postUrl.searchParams.set("_fields", "title,link,content,modified");
-  const response = await fetch(postUrl, { headers: { Accept: "application/json", "User-Agent": "tin-whistle-note-creator/0.2" } });
-  if (!response.ok) throw new Error(`${payload.source.name} returned HTTP ${response.status}`);
-  const post = await response.json();
+  let post;
+  if (payload.source.kind === "document") {
+    await downloadDocument(payload.document);
+    post = {
+      title: { rendered: payload.document.title },
+      link: payload.document.url,
+      content: { rendered: "" },
+      modified: null,
+    };
+  } else {
+    const postUrl = new URL(`/wp-json/wp/v2/posts/${payload.postId}`, payload.source.origin);
+    postUrl.searchParams.set("_fields", "title,link,content,modified");
+    const response = await fetch(postUrl, { headers: { Accept: "application/json", "User-Agent": "tin-whistle-note-creator/0.2" } });
+    if (!response.ok) throw new Error(`${payload.source.name} returned HTTP ${response.status}`);
+    post = await response.json();
+  }
   const context = { payload, post };
   await writeFile(new URL("context.json", WORK_DIRECTORY), `${JSON.stringify(context, null, 2)}\n`);
+
+  if (payload.source.kind === "document") {
+    await emitOutput("mode", "pdf-pages");
+    await emitOutput("page_start", payload.document.pageStart);
+    await emitOutput("page_end", payload.document.pageEnd);
+    await emitOutput("request_id", payload.requestId);
+    return;
+  }
 
   if (payload.source.mode === "text") {
     const pitchPhrases = extractTextPhrases(post.content?.rendered || "");
@@ -142,19 +183,24 @@ async function finalize() {
     const score = musicXmlToTimedPhrases(await readFile(path, "utf8"));
     if (score.phrases.flat().length > bestScore.phrases.flat().length) bestScore = score;
   }
-  if (bestScore.phrases.flat().length >= 4) {
+  const noteCount = bestScore.phrases.flat().length;
+  if (documentNoteCountIsPlausible(payload.document, noteCount)) {
     await complete(payload, post, bestScore.phrases, "omr-unreviewed", {
-      bpm: bestScore.tempo,
+      bpm: payload.document?.bpm || bestScore.tempo,
       source: "score",
       durations: bestScore.durations,
       gaps: bestScore.gaps,
     });
   } else {
-    const assets = JSON.parse(await readFile(new URL("assets.json", WORK_DIRECTORY), "utf8"));
+    const assets = payload.document
+      ? { pdfs: [post.link], images: [], musescore: [] }
+      : JSON.parse(await readFile(new URL("assets.json", WORK_DIRECTORY), "utf8"));
     await writeJob({
       requestId: payload.requestId,
       status: "needs-review",
-      reason: "The score was found, but OMR did not produce a usable melody",
+      reason: payload.document
+        ? `The academic score contains about ${payload.document.expectedNotes.min}-${payload.document.expectedNotes.max} notes, but OMR read ${noteCount}`
+        : "The score was found, but OMR did not produce a usable melody",
       sourceUrl: post.link,
       assets: { pdfs: assets.pdfs, images: assets.images, musescore: assets.musescore },
     });

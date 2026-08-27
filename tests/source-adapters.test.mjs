@@ -45,25 +45,33 @@ test("bir kaynak bozulduğunda diğer kaynak sonuç vermeye devam eder", async (
   assert.deepEqual(result.unavailableSources, ["gitaregitim"]);
 });
 
+test("küratörlü akademik PDF kaynağını sanatçı olmadan da bulur", async () => {
+  const fetchMock = async () => response([]);
+  const result = await searchAllSources("Kuzu Kuzu", fetchMock);
+  assert.equal(result.results.length, 1);
+  assert.equal(result.results[0].sourceId, "academic-pdf");
+  assert.equal(result.results[0].documentId, "ohu-tarkan-kuzu-kuzu");
+  assert.equal(result.results[0].processingMode, "omr");
+});
+
 test("onaylı kaynaklarda sonuç yoksa nota odaklı web keşfi sunar", async () => {
   const discoveryQueries = [];
   const fetchMock = async (input) => {
     const url = new URL(input);
     if (url.hostname === "html.duckduckgo.com") {
       discoveryQueries.push(url.searchParams.get("q"));
-      if (url.searchParams.get("q")?.startsWith("tarkan kuzu kuzu")) return new Response("", { status: 200 });
       return new Response(`
-        <a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.sarkinotalari.com%2Fkuzu-kuzu-notalari-ve-akorlari%2F&amp;rut=test">Kuzu Kuzu Notaları ve Akorları - Şarkı Notaları</a>
-        <a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.repertuarim.com%2Fakor%2Ftarkan-kuzu-kuzu&amp;rut=test">Tarkan - Kuzu Kuzu Akor</a>
+        <a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fmusescore.com%2Fsong%2Fbilinmeyen_melodi-123&amp;rut=test">Bilinmeyen Melodi sheet music | MuseScore.com</a>
+        <a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.repertuarim.com%2Fakor%2Fbilinmeyen-melodi&amp;rut=test">Bilinmeyen Melodi Akor</a>
       `, { status: 200, headers: { "Content-Type": "text/html" } });
     }
     return response([]);
   };
-  const result = await searchAllSources("Tarkan Kuzu Kuzu notaları", fetchMock);
+  const result = await searchAllSources("Bilinmeyen Melodi notaları", fetchMock);
   assert.equal(result.discoveryOnly, true);
   assert.equal(result.results.length, 1);
   assert.equal(result.results[0].sourceId, "web");
   assert.equal(result.results[0].processingMode, "review");
-  assert.match(result.results[0].url, /sarkinotalari\.com/);
-  assert.deepEqual(discoveryQueries, ["tarkan kuzu kuzu nota", "kuzu kuzu nota"]);
+  assert.match(result.results[0].url, /musescore\.com/);
+  assert.deepEqual(discoveryQueries, ["bilinmeyen melodi nota"]);
 });

@@ -39,9 +39,10 @@ type Catalog = { songs: Song[] };
 
 type SourceCandidate = {
   id: string;
-  sourceId: "notalar" | "gitaregitim" | "web";
+  sourceId: "notalar" | "gitaregitim" | "academic-pdf" | "web";
   sourceName: string;
   postId?: number;
+  documentId?: string;
   title: string;
   url: string;
   processingMode: "text" | "omr" | "review";
@@ -872,7 +873,7 @@ export default function Home() {
   }
 
   async function processSource(candidate: SourceCandidate) {
-    if (candidate.processingMode === "review" || candidate.postId === undefined) return;
+    if (candidate.processingMode === "review" || (candidate.postId === undefined && candidate.documentId === undefined)) return;
     const api = sourceApiUrl();
     if (!api) { setStatus("sourceUnavailable"); return; }
     setStatus("queueing");
@@ -880,7 +881,13 @@ export default function Home() {
       const response = await fetch(`${api}/api/jobs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: candidate.sourceId, postId: candidate.postId, query, title: candidate.title }),
+        body: JSON.stringify({
+          sourceId: candidate.sourceId,
+          ...(candidate.postId !== undefined ? { postId: candidate.postId } : {}),
+          ...(candidate.documentId !== undefined ? { documentId: candidate.documentId } : {}),
+          query,
+          title: candidate.title,
+        }),
       });
       if (!response.ok) throw new Error(`Source job returned ${response.status}`);
       const queued = await response.json() as SourceJob;
