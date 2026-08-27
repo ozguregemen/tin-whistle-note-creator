@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-27T16:21:03.834Z",
+  "generatedAt": "2026-08-27T18:52:51.920Z",
   "songs": [
     {
       "id": "duman-bu-aksam",
@@ -367,6 +367,32 @@
         {
           "name": "Gitaregitim.net",
           "url": "https://www.gitaregitim.net/delikanlim-nota-tab/",
+          "role": "note-source"
+        }
+      ]
+    },
+    {
+      "id": "notalar-2664-drama-koprusu",
+      "title": "Drama Köprüsü",
+      "aliases": [
+        "drama köprüsü",
+        "Drama Köprüsü Melodika Notaları"
+      ],
+      "subtitle": {
+        "en": "Live text source · octave register estimated",
+        "tr": "Canlı metin kaynağı · oktav bölgesi tahmini"
+      },
+      "difficulty": {
+        "en": "Source arrangement",
+        "tr": "Kaynak düzeni"
+      },
+      "notes": "E4 D4 C5 E5 | D5 C5 B4 D5 | C5 B4 A4 C5 | B4 A4 G4 | A4 B4 C5 B4 | C5 D5 B4 A4 A4 | A4 E5 E5 D5 C5 D5 | E5 D5 C5 E5 | D5 C5 B4 D5 | C5 B4 A4 C5 | B4 A4 G4 | A4 B4 C5 B4 | C5 D5 B4 A4 A4 | A4 A4 A4 G4 A4",
+      "sourceStatus": "live",
+      "sourceConfidence": "estimated",
+      "sources": [
+        {
+          "name": "Notalar.net",
+          "url": "https://www.notalar.net/drama-koprusu-melodika-notalari/",
           "role": "note-source"
         }
       ]
