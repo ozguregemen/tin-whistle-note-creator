@@ -122,8 +122,9 @@ Worker arama sonucunu hemen döndürür. Kullanıcı bir kaynağı seçince `.gi
 - Tamamlandı: temel sesli oynatma, BPM ayarı ve hareketli nota vurgusu
 - Tamamlandı: ABC/MusicXML nota süreleri ve MusicXML es/tempo aktarımı
 - Tamamlandı: oynatmayı sıfırlamadan dinamik BPM değişimi ve kaldığı yerden hassas devam
-- Sırada: gerçek tin whistle örnekleriyle sample tabanlı ses motoru
-- Daha sonra: metronom, seçili cümleyi döngüye alma ve backing track senkronizasyonu
+- Tamamlandı: CC BY-SA lisanslı gerçek tin whistle örnekleriyle sample tabanlı ses motoru
+- Sırada: metronom ve seçili cümleyi döngüye alma
+- Daha sonra: daha geniş çoklu örnek seti, artikülasyonlar ve backing track senkronizasyonu
 
 ## Teknik yön
 

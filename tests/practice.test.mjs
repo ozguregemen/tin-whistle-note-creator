@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { parseAbcScore } from "../app/abc.mjs";
 import { buildPlaybackPlan, frequencyForNote, remainingBeatsAfterElapsed } from "../app/practice.mjs";
+import { midiForNote, playbackRateForMidi, sampleZoneForMidi } from "../app/whistle-sampler.mjs";
 
 test("ABC nota uzunluklarını perde dizisiyle birlikte okur", () => {
   const score = parseAbcScore("D2 E/2 F3/2 ^G", "D");
@@ -33,4 +34,12 @@ test("ritim verisi olmayan eski katalog kayıtlarına eşit vuruş uygular", () 
 test("tempo değişirken geçen süreyi vuruş cinsinden korur", () => {
   assert.equal(remainingBeatsAfterElapsed(2, 500, 120), 1);
   assert.equal(remainingBeatsAfterElapsed(1, 2000, 120), 0);
+});
+
+test("tin whistle örnek bölgesini seçer ve hedef perde hızını hesaplar", () => {
+  assert.equal(midiForNote("D", 4), 62);
+  assert.equal(sampleZoneForMidi(62).rootMidi, 81);
+  assert.equal(sampleZoneForMidi(84).rootMidi, 85);
+  assert.equal(playbackRateForMidi(81, 81), 1);
+  assert.ok(Math.abs(playbackRateForMidi(69, 81) - 0.5) < 0.0001);
 });
