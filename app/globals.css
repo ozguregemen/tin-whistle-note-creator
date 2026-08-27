@@ -65,13 +65,16 @@ h2 { margin:7px 0 5px; font:600 clamp(30px,4vw,44px)/1.1 Georgia,serif; letter-s
 .practice-title { display:flex; flex-direction:column; gap:4px; }
 .practice-title .section-kicker { font-size:9px; }
 .practice-title strong { color:var(--ink); font:700 13px Georgia,serif; }
-.practice-controls { display:flex; align-items:center; justify-content:center; gap:10px; }
+.practice-controls { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:10px; }
 .practice-controls button { min-width:82px; padding:9px 12px; border:1px solid #c9c4b8; border-radius:8px; background:#fff; color:var(--ink); font-size:12px; font-weight:800; }
 .practice-controls button:disabled { cursor:not-allowed; opacity:.45; }
 .practice-controls .practice-play { border-color:var(--green); background:var(--green); color:#fff; }
 .practice-controls label { margin-left:8px; color:var(--muted); font-size:11px; font-weight:700; }
 .practice-controls input[type="range"] { width:min(150px,16vw); accent-color:var(--accent); }
 .practice-controls output { min-width:58px; color:var(--ink); font-size:12px; font-weight:800; }
+.tempo-origin { flex-basis:100%; color:var(--muted); font-size:9px; line-height:1.35; text-align:center; }
+.tempo-origin.loading { color:var(--green); }
+.tempo-origin a { color:var(--green); font-weight:700; text-decoration-thickness:1px; text-underline-offset:2px; }
 .practice-progress { display:flex; flex-direction:column; align-items:flex-end; gap:3px; color:var(--muted); font-size:9px; text-transform:uppercase; letter-spacing:.08em; }
 .practice-progress strong { color:var(--ink); font-size:13px; letter-spacing:0; }
 .practice-options { grid-column:1/-1; display:flex; align-items:center; justify-content:flex-end; gap:10px 18px; padding-top:12px; border-top:1px solid #ded8cb; }

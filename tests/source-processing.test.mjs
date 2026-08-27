@@ -33,3 +33,10 @@ test("MusicXML içindeki üst porte melodisini ölçü gruplarıyla okur", () =>
     tempo: 120,
   });
 });
+
+test("MusicXML tempo içermiyorsa 90'ı kaynak temposu gibi üretmez", () => {
+  const xml = `<?xml version="1.0"?><score-partwise><part id="P1"><measure number="1">
+    <note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration></note>
+  </measure></part></score-partwise>`;
+  assert.equal(musicXmlToTimedPhrases(xml).tempo, null);
+});

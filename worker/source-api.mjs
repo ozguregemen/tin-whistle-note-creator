@@ -1,5 +1,6 @@
 import { getSourceAdapter, searchAllSources, SOURCE_ADAPTERS } from "./source-adapters.mjs";
 import { getDocumentSource } from "./document-sources.mjs";
+import { resolveTempo } from "./bpm-resolver.mjs";
 
 const DEFAULT_REPOSITORY = "ozguregemen/tin-whistle-note-creator";
 
@@ -80,6 +81,8 @@ async function queueJob(request, env, fetchFn) {
   }
   const query = typeof body.query === "string" ? body.query.trim().slice(0, 160) : "";
   const title = typeof body.title === "string" ? body.title.trim().slice(0, 200) : "";
+  const artist = typeof body.artist === "string" ? body.artist.trim().slice(0, 120) : "";
+  const tempo = await resolveTempo({ title, artist, query }, env, fetchFn);
   const requestId = crypto.randomUUID();
   const repository = env.GITHUB_REPOSITORY || DEFAULT_REPOSITORY;
   const dispatch = await githubRequest(`/repos/${repository}/dispatches`, env, fetchFn, {
@@ -93,6 +96,8 @@ async function queueJob(request, env, fetchFn) {
         ...(document ? { documentId: document.id } : {}),
         query,
         title,
+        ...(artist ? { artist } : {}),
+        ...(tempo ? { tempo } : {}),
       },
     }),
   });
@@ -109,7 +114,21 @@ export function createSourceApi(env, fetchFn = fetch) {
 
     try {
       if (request.method === "GET" && url.pathname === "/health") {
-        return json({ ok: true, adapters: Object.values(SOURCE_ADAPTERS).map((adapter) => adapter.id) }, 200, cors);
+        return json({
+          ok: true,
+          adapters: Object.values(SOURCE_ADAPTERS).map((adapter) => adapter.id),
+          bpm: { cache: Boolean(env.BPM_DB), provider: Boolean(env.GETSONGBPM_API_KEY) },
+        }, 200, cors);
+      }
+      if (request.method === "GET" && url.pathname === "/api/tempo") {
+        const title = (url.searchParams.get("title") || "").trim().slice(0, 200);
+        const artist = (url.searchParams.get("artist") || "").trim().slice(0, 120);
+        const query = (url.searchParams.get("q") || "").trim().slice(0, 160);
+        if (title.length < 2) return json({ error: "Title must contain at least 2 characters" }, 400, cors);
+        const tempo = await resolveTempo({ title, artist, query }, env, fetchFn);
+        return tempo
+          ? json(tempo, 200, { ...cors, "Cache-Control": "public, max-age=3600" })
+          : json({ found: false }, 404, { ...cors, "Cache-Control": "public, max-age=300" });
       }
       if (request.method === "GET" && url.pathname === "/api/search") {
         const query = (url.searchParams.get("q") || "").trim();

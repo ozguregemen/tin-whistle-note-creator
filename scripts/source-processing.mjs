@@ -163,7 +163,7 @@ export function musicXmlToTimedPhrases(xml) {
 
   const soundTempo = Number(xml.match(/<sound\b[^>]*\btempo=["']([^"']+)["']/i)?.[1]);
   const metronomeTempo = Number(tagValue(xml, "per-minute"));
-  const tempo = [soundTempo, metronomeTempo].find((value) => Number.isFinite(value) && value > 0) || 90;
+  const tempo = [soundTempo, metronomeTempo].find((value) => Number.isFinite(value) && value >= 30 && value <= 240) ?? null;
   return { phrases, durations, gaps, tempo };
 }
 

@@ -62,3 +62,44 @@ test("Worker yalnızca desteklenen kaynakları GitHub Actions kuyruğuna gönder
   }));
   assert.equal(unknownDocument.status, 400);
 });
+
+test("Worker BPM sonucunu sunar ve kaynak işine aktarır", async () => {
+  let dispatchBody;
+  const fetchMock = async (input, init = {}) => {
+    const url = String(input);
+    if (url.startsWith("https://api.getsong.co/")) {
+      return jsonResponse({ search: [{
+        title: "Dudu", tempo: "90", uri: "https://getsongbpm.com/song/dudu/example", artist: { name: "Tarkan" },
+      }] });
+    }
+    if (url.includes("/dispatches")) {
+      dispatchBody = JSON.parse(init.body);
+      return new Response(null, { status: 204 });
+    }
+    return jsonResponse([]);
+  };
+  const env = { GITHUB_TOKEN: "secret", GITHUB_REPOSITORY: "owner/repo", GETSONGBPM_API_KEY: "bpm-key" };
+  const handle = createSourceApi(env, fetchMock);
+
+  const tempoResponse = await handle(new Request("https://worker.test/api/tempo?title=Dudu&artist=Tarkan"));
+  assert.equal(tempoResponse.status, 200);
+  assert.deepEqual(await tempoResponse.json(), {
+    found: true,
+    bpm: 90,
+    artist: "Tarkan",
+    title: "Dudu",
+    provider: "getsongbpm",
+    sourceUrl: "https://getsongbpm.com/song/dudu/example",
+    confidence: 100,
+    cached: false,
+  });
+
+  const jobResponse = await handle(new Request("https://worker.test/api/jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sourceId: "gitaregitim", postId: 22205, query: "Tarkan Dudu", title: "Tarkan – Dudu – Gitar Tab" }),
+  }));
+  assert.equal(jobResponse.status, 202);
+  assert.equal(dispatchBody.client_payload.tempo.bpm, 90);
+  assert.equal(dispatchBody.client_payload.tempo.provider, "getsongbpm");
+});

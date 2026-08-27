@@ -45,6 +45,11 @@ jobs:
       DOCUMENT_ID: ${{ github.event.client_payload.documentId || inputs.document_id }}
       SOURCE_QUERY: ${{ github.event.client_payload.query || inputs.query }}
       SOURCE_TITLE: ${{ github.event.client_payload.title || inputs.title }}
+      SOURCE_ARTIST: ${{ github.event.client_payload.artist }}
+      SOURCE_BPM: ${{ github.event.client_payload.tempo.bpm }}
+      SOURCE_BPM_PROVIDER: ${{ github.event.client_payload.tempo.provider }}
+      SOURCE_BPM_URL: ${{ github.event.client_payload.tempo.sourceUrl }}
+      SOURCE_BPM_CONFIDENCE: ${{ github.event.client_payload.tempo.confidence }}
     steps:
       - name: Check out the default branch
         uses: actions/checkout@v6

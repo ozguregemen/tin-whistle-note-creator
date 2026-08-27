@@ -9,6 +9,13 @@ test("ABC nota uzunluklarını perde dizisiyle birlikte okur", () => {
   const score = parseAbcScore("D2 E/2 F3/2 ^G", "D");
   assert.equal(score.notes, "D4 E4 F#4 G#4");
   assert.deepEqual(score.rhythm.durations, [[2, 0.5, 1.5, 1]]);
+  assert.equal(score.rhythm.tempoSource, "default");
+});
+
+test("ABC Q alanındaki gerçek tempoyu okur", () => {
+  const score = parseAbcScore("Q:1/4=126\nD E F G", "D");
+  assert.equal(score.rhythm.bpm, 126);
+  assert.equal(score.rhythm.tempoSource, "score");
 });
 
 test("pratik planı gerçek süreleri ve nota öncesi esleri milisaniyeye çevirir", () => {
