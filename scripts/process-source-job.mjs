@@ -3,7 +3,7 @@ import { extname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import {
-  addEstimatedOctaves, extractScoreAssets, extractTextPhrases, mergeSongIntoCatalog,
+  addEstimatedOctaves, extractScoreAssets, extractTextTimedPhrases, mergeSongIntoCatalog,
   musicXmlToTimedPhrases, phrasesToString, plainTitle, slugify, stripLeadingArtist,
 } from "./source-processing.mjs";
 import { documentNoteCountIsPlausible, getDocumentSource } from "../worker/document-sources.mjs";
@@ -158,16 +158,22 @@ async function prepare() {
   }
 
   if (payload.source.mode === "text") {
-    const pitchPhrases = extractTextPhrases(post.content?.rendered || "");
-    const rhythm = payload.tempo ? {
-      bpm: payload.tempo.bpm,
-      source: "estimated",
-      tempoSource: "database",
-      tempoConfidence: payload.tempo.confidence,
-      ...(payload.tempo.sourceUrl ? { tempoUrl: payload.tempo.sourceUrl } : {}),
-      durations: [],
+    const parsedText = extractTextTimedPhrases(post.content?.rendered || "");
+    const rhythm = parsedText.hasRhythm || payload.tempo ? {
+      bpm: payload.tempo?.bpm || 90,
+      source: parsedText.hasRhythm ? "text" : "estimated",
+      ...(payload.tempo ? {
+        tempoSource: "database",
+        tempoConfidence: payload.tempo.confidence,
+        ...(payload.tempo.sourceUrl ? { tempoUrl: payload.tempo.sourceUrl } : {}),
+      } : {
+        tempoSource: "default",
+        tempoConfidence: 0,
+      }),
+      durations: parsedText.hasRhythm ? parsedText.durations : [],
+      ...(parsedText.hasRhythm ? { gaps: parsedText.gaps } : {}),
     } : undefined;
-    await complete(payload, post, addEstimatedOctaves(pitchPhrases), "estimated", rhythm);
+    await complete(payload, post, addEstimatedOctaves(parsedText.phrases), "estimated", rhythm);
     await emitOutput("mode", "complete");
     await emitOutput("request_id", payload.requestId);
     return;

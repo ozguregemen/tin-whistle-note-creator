@@ -96,6 +96,10 @@ Worker tempo için şu sırayı kullanır: nota dosyasındaki açık tempo, `BPM
 
 GetSongBPM anahtarı ücretsiz olarak [GetSongBPM API sayfasından](https://getsongbpm.com/api) alınır ve yalnızca Worker secret'ı olarak saklanır. Sağlayıcının zorunlu kaynak bağlantısı uygulamanın pratik panelinde gösterilir. D1 şeması `migrations/0001_create_song_tempos.sql` dosyasındadır; aranan ve güçlü eşleşme alan sonuçlar `song_tempos` tablosuna yazılır. Spotify Audio Features uç noktası artık deprecated olduğu ve yeni geliştirme modu kısıtlarına tabi olduğu için ana BPM bağımlılığı olarak kullanılmaz.
 
+### Ritim aktarımı
+
+MusicXML/ABC kaynaklarında ölçü, nota süresi ve esler doğrudan korunur. Düz metin kaynaklarında ise yalnızca kaynağın açıkça verdiği alt çizgi (`_`) süre işaretleri ile `es`/`sus` esleri aktarılır; bu işaretler yoksa nota dizisi bilinçli olarak eşit vuruş fallback'i ile çalınır. Metin notasyonunda alt çizgi ve vuruş açıklaması kullanımı için [örnek kaynak açıklamasına](https://www.gitaregitim.net/nota-isimleriyle-sarkilar/) bakılabilir.
+
 Wrangler'ın verdiği `workers.dev` adresi Pages derlemesine aktarılır:
 
 ```powershell
@@ -127,18 +131,20 @@ Worker arama sonucunu hemen döndürür. Kullanıcı bir kaynağı seçince `.gi
 - Yarım delik ve temel cross-fingering seçenekleri
 - Oktav uyarlamasına ek olarak ton bazlı transpoze önerisi
 - Farklı tin whistle tonları (C, D, Eb vb.)
-- Müzisyen onayı ve kullanıcı düzeltme akışı
+- Kaynak metnindeki alt çizgi ve `es` işaretlerinden nota süreleri/es aktarımı ([notasyon açıklaması](https://www.gitaregitim.net/nota-isimleriyle-sarkilar/))
+- Uzman doğrulaması ve kaynaklar arası karşılaştırma
 
 ### 4. Pratik modu
 
 - Tamamlandı: temel sesli oynatma, BPM ayarı ve hareketli nota vurgusu
 - Tamamlandı: ABC/MusicXML nota süreleri ve MusicXML es/tempo aktarımı
+- Tamamlandı: alt çizgili do-re-mi metinlerindeki süre ve es işaretlerinin pratik moduna aktarımı
 - Tamamlandı: oynatmayı sıfırlamadan dinamik BPM değişimi ve kaldığı yerden hassas devam
 - Tamamlandı: CC BY-SA lisanslı gerçek tin whistle örnekleriyle sample tabanlı ses motoru
 - Tamamlandı: oynatmayla senkron metronom ve seçili cümleyi kesintisiz döngüye alma
 - Tamamlandı: kaynak tempo / D1 önbelleği / BPM sağlayıcısı / açık 90 BPM varsayılanı ayrımı
 - Tamamlandı: aktif notayı ekranda tutan takip modu, sabit pratik kontrolleri ve cümle içi ilerleme
-- Öncelik: kaynak doğruluğunu güçlendiren müzisyen onayı ve kullanıcı düzeltme akışı
+- Öncelik: kaynak ölçülerini koruyan daha kapsamlı ritim/ölçü aktarımı ve doğrulama
 - Daha sonra: mikrofonla perde takibi, daha geniş çoklu örnek seti, artikülasyonlar ve backing track senkronizasyonu
 
 ## Teknik yön

@@ -44,8 +44,8 @@ function pitchFromToken(raw) {
   return pitch;
 }
 
-export function extractTextPhrases(html) {
-  const lines = decodeEntities(html)
+function textLines(html) {
+  return decodeEntities(html)
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|div|li|h[1-6])>/gi, "\n")
     .replace(/<[^>]+>/g, " ")
@@ -53,11 +53,77 @@ export function extractTextPhrases(html) {
     .map((line) => line.trim().replace(/\s+/g, " "))
     .filter(Boolean);
 
-  return lines.map((line) => {
+}
+
+function isRestToken(raw) {
+  const normalized = raw.toLocaleLowerCase("tr-TR").replace(/[^a-zçğıöşü]/gi, "");
+  return normalized === "es" || normalized === "sus";
+}
+
+function textBeatUnit(html) {
+  const plain = decodeEntities(html).replace(/<[^>]+>/g, " ").toLocaleLowerCase("tr-TR");
+  if (/(?:yarım|half|0[,.]?5)\s*vuruş/.test(plain)) return 0.5;
+  if (/(?:bir|one|1)\s*vuruş/.test(plain)) return 1;
+  // Plain do-re-mi pages use one note/underscore as a half-beat unit when no
+  // explanatory line is present. Pages without markers remain equal-beat data.
+  return 0.5;
+}
+
+function textTokenDuration(raw, beatUnit) {
+  const markerCount = (raw.match(/_/g) || []).length;
+  return (1 + markerCount) * beatUnit;
+}
+
+export function extractTextTimedPhrases(html) {
+  const lines = textLines(html);
+  const beatUnit = textBeatUnit(html);
+  const phrases = [];
+  const durations = [];
+  const gaps = [];
+  let hasRhythm = false;
+
+  for (const line of lines) {
     const tokens = line.split(/\s+/).filter(Boolean);
-    const notes = tokens.map(pitchFromToken).filter(Boolean);
-    return notes.length >= 3 && notes.length / tokens.length >= 0.6 ? notes : [];
-  }).filter((notes) => notes.length > 0);
+    const noteLikeTokens = tokens.filter((token) => pitchFromToken(token) || isRestToken(token));
+    if (noteLikeTokens.length < 3 || noteLikeTokens.length / tokens.length < 0.6) continue;
+
+    const notes = [];
+    const noteDurations = [];
+    const noteGaps = [];
+    let pendingGap = 0;
+    for (const token of noteLikeTokens) {
+      const duration = textTokenDuration(token, beatUnit);
+      if (isRestToken(token)) {
+        pendingGap += duration;
+        hasRhythm = true;
+        continue;
+      }
+      const pitch = pitchFromToken(token);
+      if (!pitch) continue;
+      if (token.includes("_")) hasRhythm = true;
+      notes.push(pitch);
+      noteDurations.push(duration);
+      noteGaps.push(pendingGap);
+      pendingGap = 0;
+    }
+    if (notes.length > 0) {
+      phrases.push(notes);
+      durations.push(noteDurations);
+      gaps.push(noteGaps);
+    }
+  }
+
+  return {
+    phrases,
+    durations: hasRhythm ? durations : [],
+    gaps: hasRhythm ? gaps : [],
+    hasRhythm,
+    beatUnit,
+  };
+}
+
+export function extractTextPhrases(html) {
+  return extractTextTimedPhrases(html).phrases;
 }
 
 function midiCandidates(pitch) {

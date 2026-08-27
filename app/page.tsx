@@ -26,7 +26,7 @@ type Song = {
   notes: string;
   rhythm?: {
     bpm: number;
-    source: "score" | "estimated";
+    source: "score" | "text" | "estimated";
     tempoSource?: "score" | "curated" | "database" | "default";
     tempoConfidence?: number;
     tempoUrl?: string;
@@ -159,6 +159,7 @@ const COPY = {
     soundConversion: "WebAudioFont conversion",
     fallbackSamples: "CC fallback samples",
     scoreRhythm: "Score rhythm",
+    textRhythm: "Rhythm markers from source",
     estimatedRhythm: "Estimated equal beats",
     progress: "Progress",
     warningStart: "note(s) sit outside the supported D whistle range.",
@@ -254,6 +255,7 @@ const COPY = {
     soundConversion: "WebAudioFont dönüşümü",
     fallbackSamples: "CC yedek örnekler",
     scoreRhythm: "Nota kaynağındaki ritim",
+    textRhythm: "Kaynağın ritim işaretleri",
     estimatedRhythm: "Tahmini eşit vuruşlar",
     progress: "İlerleme",
     warningStart: "nota desteklenen D whistle aralığının dışında.",
@@ -1150,11 +1152,11 @@ export default function Home() {
           </div>
         </div>
         {song.sourceStatus !== "manual" && <div className="source-panel">
-          <div><strong>✓ {song.sourceStatus === "live" ? t.liveSource : t.verified}</strong><span>{song.rhythm?.source === "score" ? t.scoreRhythm : t.sourceCaveat}</span></div>
+            <div><strong>✓ {song.sourceStatus === "live" ? t.liveSource : t.verified}</strong><span>{song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : t.sourceCaveat}</span></div>
           <div className="source-links"><span>{t.sources}:</span>{song.sources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.url}>{source.name} <small>({source.role === "note-source" ? t.primarySource : t.crossCheck})</small></a>)}</div>
         </div>}
         <section className={`practice-panel${isPlaying ? " playing" : ""}`} aria-label={t.practice}>
-          <div className="practice-title"><span className="section-kicker">{t.practice}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : t.estimatedRhythm}</strong></div>
+          <div className="practice-title"><span className="section-kicker">{t.practice}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : t.estimatedRhythm}</strong></div>
           <div className="practice-controls">
             <button type="button" className="practice-play" onClick={togglePractice} disabled={!playbackPlan.length || soundStatus === "loading"} aria-pressed={isPlaying}><span aria-hidden="true">{isPlaying ? "Ⅱ" : "▶"}</span> {soundStatus === "loading" ? "…" : isPlaying ? t.pause : t.play}</button>
             <button type="button" className="practice-stop" onClick={stopPractice} disabled={!isPlaying && activeNoteIndex < 0}><span aria-hidden="true">■</span> {t.stop}</button>
@@ -1194,7 +1196,7 @@ export default function Home() {
             </article>
           ))}
         </div>
-        <footer className="score-footer"><span>{allNotes.length} {t.notes} · {phrases.length} {t.phrases}</span><span>Tin Whistle Note Creator MVP · {song.rhythm?.source === "score" ? t.scoreRhythm : t.estimatedRhythm}</span></footer>
+        <footer className="score-footer"><span>{allNotes.length} {t.notes} · {phrases.length} {t.phrases}</span><span>Tin Whistle Note Creator MVP · {song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : t.estimatedRhythm}</span></footer>
       </section> : <section className="workspace empty-workspace shell" aria-live="polite">
         <span className="section-kicker">{t.guide}</span>
         <h2>{t.emptyTitle}</h2>

@@ -1,36 +1,8 @@
 import { readFile, writeFile } from "node:fs/promises";
+import { extractTextTimedPhrases } from "./source-processing.mjs";
 
 const SOURCE_FILE = new URL("../catalog/sources.json", import.meta.url);
 const OUTPUT_FILE = new URL("../catalog/catalog.json", import.meta.url);
-
-const SOLFEGE = new Map([
-  ["do", "C"], ["re", "D"], ["ré", "D"], ["mi", "E"],
-  ["fa", "F"], ["sol", "G"], ["la", "A"], ["si", "B"],
-]);
-
-function decodeHtml(value) {
-  return value
-    .replaceAll("&#8211;", "–")
-    .replaceAll("&#8217;", "’")
-    .replaceAll("&amp;", "&")
-    .replaceAll("&nbsp;", " ");
-}
-
-function extractPhrases(html) {
-  const text = decodeHtml(html)
-    .replace(/<br\s*\/?>/gi, " | ")
-    .replace(/<\/p>/gi, " | ")
-    .replace(/<[^>]+>/g, " ");
-
-  return text
-    .split("|")
-    .map((line) => line
-      .trim()
-      .split(/\s+/)
-      .map((token) => SOLFEGE.get(token.toLocaleLowerCase("tr-TR")))
-      .filter(Boolean))
-    .filter((phrase) => phrase.length > 0);
-}
 
 function applyOctaves(phrases, octaves) {
   const notes = phrases.flat();
@@ -51,11 +23,21 @@ async function syncSong(config) {
   const posts = await response.json();
   if (!Array.isArray(posts) || posts.length !== 1) throw new Error(`Expected one source post for ${config.id}`);
 
-  const phrases = extractPhrases(posts[0].content.rendered);
+  const parsed = extractTextTimedPhrases(posts[0].content.rendered);
+  const phrases = parsed.phrases;
   const lengths = phrases.map((phrase) => phrase.length);
   if (JSON.stringify(lengths) !== JSON.stringify(config.phraseLengths)) {
     throw new Error(`Phrase structure changed for ${config.id}: ${lengths.join(", ")}`);
   }
+
+  const rhythm = parsed.hasRhythm ? {
+    bpm: 90,
+    source: "text",
+    tempoSource: "default",
+    tempoConfidence: 0,
+    durations: parsed.durations,
+    gaps: parsed.gaps,
+  } : undefined;
 
   return {
     id: config.id,
@@ -68,6 +50,7 @@ async function syncSong(config) {
     },
     difficulty: config.difficulty,
     notes: applyOctaves(phrases, config.octaves),
+    ...(rhythm ? { rhythm } : {}),
     sourceStatus: "cross-checked",
     sourceModifiedAt: posts[0].modified,
     sources: [
