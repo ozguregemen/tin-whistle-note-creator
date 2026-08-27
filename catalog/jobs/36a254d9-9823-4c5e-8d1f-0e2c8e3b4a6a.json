@@ -1,0 +1,31 @@
+{
+  "requestId": "36a254d9-9823-4c5e-8d1f-0e2c8e3b4a6a",
+  "status": "completed",
+  "confidence": "estimated",
+  "song": {
+    "id": "notalar-1280-ahmet-kaya-kum-gibi",
+    "title": "Ahmet Kaya Kum Gibi",
+    "aliases": [
+      "ahmet kaya kum gibi",
+      "Ahmet Kaya Kum Gibi Melodika Notaları"
+    ],
+    "subtitle": {
+      "en": "Live text source · octave register estimated",
+      "tr": "Canlı metin kaynağı · oktav bölgesi tahmini"
+    },
+    "difficulty": {
+      "en": "Source arrangement",
+      "tr": "Kaynak düzeni"
+    },
+    "notes": "G4 G4 G4 G4 A4 G4 A4 A#4 | A#4 A4 G4 A4 G4 F#4 F#4 | A4 G4 F#4 A4 G4 F#4 A#4 A4 G4 F#4 | G4 F#4 G4 F#4 | G4 F#4 G4 F#4 | A4 G4 F#4 D4",
+    "sourceStatus": "live",
+    "sourceConfidence": "estimated",
+    "sources": [
+      {
+        "name": "Notalar.net",
+        "url": "https://www.notalar.net/ahmet-kaya-kum-gibi-melodika-notalari/",
+        "role": "note-source"
+      }
+    ]
+  }
+}
