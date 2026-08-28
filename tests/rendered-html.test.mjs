@@ -70,7 +70,8 @@ test("temel D tin whistle parmak eşlemelerini içerir", async () => {
   assert.match(fingerings, /"F#": "111100"/);
   assert.match(fingerings, /C: "011000"/);
   assert.match(fingerings, /"C#": "000000"/);
-  assert.match(page, /adaptPhrasesToDWhistle/);
+  assert.match(page, /arrangePhrasesForDWhistle/);
+  assert.match(page, /estimateDWhistleRegisters/);
   assert.match(page, /function parsePhrases/);
   assert.match(page, /parseAbcScore/);
   assert.match(page, /buildPlaybackPlan/);

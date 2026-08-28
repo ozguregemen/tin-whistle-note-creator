@@ -15,7 +15,7 @@ test("Notalar.net metin bloklarından yalnızca nota satırlarını çıkarır",
   const html = `<h3>İçerim Ben Bu Akşam Melodika Notaları</h3><p>La mi re do re<br>Si do re si la</p><p>Bu açıklama nota değildir.</p>`;
   const phrases = extractTextPhrases(html);
   assert.deepEqual(phrases, [["A", "E", "D", "C", "D"], ["B", "C", "D", "B", "A"]]);
-  assert.equal(phrasesToString(addEstimatedOctaves(phrases)), "A4 E5 D5 C5 D5 | B4 C5 D5 B4 A4");
+  assert.equal(phrasesToString(addEstimatedOctaves(phrases)), "A5 E5 D5 C5 D5 | B4 C5 D5 B4 A4");
 });
 
 test("alt çizgili metin notalarındaki süre ve esleri ritme aktarır", () => {

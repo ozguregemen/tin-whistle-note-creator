@@ -28,7 +28,7 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 - Do/Re/Mi veya C/D/E biçiminde elle nota girişi
 - `|` işaretiyle müzik cümlelerini ayırma
 - Clarke D chromatic fingering referansına göre tam, yarım ve açık delikli parmak şemaları
-- Melodiyi aralıklarını değiştirmeden çalınabilir D whistle oktavına otomatik taşıma
+- Melodinin bütün aralıklarını koruyan tek parça, rahat D whistle registerına otomatik transpozisyon
 - Desteklenen kromatik aralığın dışındaki sesler için uyarı
 - Play/Pause/Stop, aktif nota takibi ve ayarlanabilir BPM içeren Pratik Modu v1
 - ABC ve MusicXML kaynaklarından nota süresi, tempo ve es bilgisi okuma
@@ -36,6 +36,12 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 - Mobil uyumlu görünüm ve yazdırma/PDF çıktısı
 
 > ABC ve MusicXML kaynaklarında ritim bilgisi varsa korunur. Yalnız perde sırası sunan metin kaynakları eşit vuruş tahminiyle çalınır; arayüz hangi yöntemin kullanıldığını açıkça gösterir.
+
+### D whistle oktavı ve otomatik düzenleme
+
+Uygulamadaki `D4–C#5` etiketleri D whistle için **yazılı perdeyi** gösterir. İnce D whistle gerçekte bir oktav yukarıdan duyulur; örneğin yazılı `E4`, duyulan `E5` sesidir. İkinci register yazılı `D5` ile başlar ve daha güçlü hava ister.
+
+Kaynak yalnızca nota adlarını veriyorsa uygulama, ezginin tamamındaki hareketi birlikte değerlendirerek registerları tahmin eder. Ardından bütün melodiye tek bir sabit yarım ses aktarımı uygular. Böylece ezginin aralıkları ve yönü korunurken gereksiz üst-register kullanımı azaltılır. Tek tek yüksek notaları bir oktav aşağı katlamak kullanılmaz; bu yöntem melodiyi değiştirirdi.
 
 ## Çalıştırma
 
@@ -135,7 +141,7 @@ Arayüz kaynak güvenini tek bir “doğrulandı” işareti olarak sunmaz. Ezgi
 ### 3. Müzikal dönüştürme
 
 - Yarım delik ve temel cross-fingering seçenekleri
-- Oktav uyarlamasına ek olarak ton bazlı transpoze önerisi
+- Tamamlandı: rahat D whistle registerı için aralıkları koruyan sabit yarım ses transpozisyonu
 - Farklı tin whistle tonları (C, D, Eb vb.)
 - Kaynak metnindeki alt çizgi ve `es` işaretlerinden nota süreleri/es aktarımı ([notasyon açıklaması](https://www.gitaregitim.net/nota-isimleriyle-sarkilar/))
 - Uzman doğrulaması ve kaynaklar arası karşılaştırma

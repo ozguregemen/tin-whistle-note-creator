@@ -19,6 +19,11 @@ export function midiForNote(pitch, octave) {
   return (octave + 1) * 12 + pitchClass;
 }
 
+export function midiForWhistleNote(pitch, writtenOctave) {
+  const writtenMidi = midiForNote(pitch, writtenOctave);
+  return writtenMidi === null ? null : writtenMidi + 12;
+}
+
 export function sampleZoneForMidi(midi) {
   if (!Number.isFinite(midi)) return null;
   return WHISTLE_SAMPLE_ZONES.find((zone) => midi >= zone.lowMidi && midi <= zone.highMidi)

@@ -10,6 +10,13 @@ export function frequencyForNote(pitch, octave) {
   return 440 * (2 ** ((midi - 69) / 12));
 }
 
+// Soprano/high-D whistle notation is conventionally written one octave below
+// the concert pitch it produces. Keep the generic helper above for notation
+// data and use this helper for audible whistle playback.
+export function frequencyForWhistleNote(pitch, writtenOctave) {
+  return frequencyForNote(pitch, writtenOctave + 1);
+}
+
 function safeBeat(value, fallback, allowZero) {
   const number = Number(value);
   return Number.isFinite(number) && (allowZero ? number >= 0 : number > 0) ? number : fallback;

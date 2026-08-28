@@ -3,10 +3,10 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { parseAbcScore } from "./abc.mjs";
 import { assessSongQuality } from "./catalog-quality.mjs";
-import { adaptPhrasesToDWhistle } from "./fingerings.mjs";
-import { buildPhraseRanges, buildPlaybackPlan, frequencyForNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "./practice.mjs";
+import { arrangePhrasesForDWhistle, estimateDWhistleRegisters, isUpperWhistleRegister } from "./fingerings.mjs";
+import { buildPhraseRanges, buildPlaybackPlan, frequencyForWhistleNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "./practice.mjs";
 import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
-import { base64AudioBuffer, midiForNote, playbackRateForMidi, sampleZoneForMidi, soundfontLoopForZone, soundfontZoneForMidi, WHISTLE_SAMPLE_ZONES, WHISTLE_SOUNDFONT } from "./whistle-sampler.mjs";
+import { base64AudioBuffer, midiForWhistleNote, playbackRateForMidi, sampleZoneForMidi, soundfontLoopForZone, soundfontZoneForMidi, WHISTLE_SAMPLE_ZONES, WHISTLE_SOUNDFONT } from "./whistle-sampler.mjs";
 
 type Language = "en" | "tr";
 type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "discoveryFound" | "queueing" | "processing" | "needsReview" | "liveFound" | "sourceUnavailable";
@@ -66,6 +66,11 @@ type ParsedNote = {
   pitch: string;
   octave: number;
   holes?: string;
+};
+
+type WhistleArrangement = {
+  phrases: ParsedNote[][];
+  semitoneShift: number;
 };
 
 type PlaybackPhase = {
@@ -206,6 +211,16 @@ const COPY = {
     emptyTitle: "No note sheet selected",
     emptyBody: "We did not leave the previous song on screen. Only reviewed source matches are shown here.",
     sourceCaveat: "Pitch sequence is sourced; rhythm and note durations are not included yet.",
+    arrangementTitle: "D-whistle arrangement",
+    arrangementOriginal: "The source range already sits in the comfortable register.",
+    arrangementDown: "Transposed down",
+    arrangementUp: "Transposed up",
+    semitones: "semitones",
+    intervalsPreserved: "The same shift is applied to every note, so the melody intervals stay intact.",
+    whistleOctaveHelp: "Whistle notation is written one octave below the sound: written E4 sounds as E5 on a high-D whistle.",
+    lowRegister: "low register",
+    highRegister: "high register",
+    writtenPitch: "written",
   },
   tr: {
     languageAction: "English",
@@ -312,6 +327,16 @@ const COPY = {
     emptyTitle: "Nota sayfası seçilmedi",
     emptyBody: "Önceki şarkıyı ekranda bırakmadık. Burada yalnızca incelenmiş kaynak eşleşmeleri gösterilir.",
     sourceCaveat: "Ses dizisi kaynaklıdır; ritim ve nota süreleri henüz dahil değildir.",
+    arrangementTitle: "D-whistle düzeni",
+    arrangementOriginal: "Kaynak ses aralığı zaten rahat registerda.",
+    arrangementDown: "Aşağı aktarıldı",
+    arrangementUp: "Yukarı aktarıldı",
+    semitones: "yarım ses",
+    intervalsPreserved: "Bütün notalara aynı aktarım uygulandığı için ezginin aralıkları korunur.",
+    whistleOctaveHelp: "Whistle notası duyulan sesten bir oktav aşağı yazılır: yazılı Mi4, ince D whistle’da Mi5 olarak duyulur.",
+    lowRegister: "alt register",
+    highRegister: "üst register",
+    writtenPitch: "yazılı",
   },
 } as const;
 
@@ -382,26 +407,37 @@ function normalizeNote(raw: string): ParsedNote | null {
   return { token: raw, pitch, octave, display: NOTE_NAMES[pitch] ?? pitch };
 }
 
-function parsePhrases(source: string): ParsedNote[][] {
-  const phrases = source.split("|")
+function parseArrangement(source: string, estimateRegisters = false): WhistleArrangement {
+  let phrases = source.split("|")
     .map((phrase) => phrase.split(/[\s,;]+/).map(normalizeNote).filter((note): note is ParsedNote => note !== null))
     .filter((phrase) => phrase.length > 0);
-  return adaptPhrasesToDWhistle(phrases) as ParsedNote[][];
+  if (estimateRegisters) phrases = estimateDWhistleRegisters(phrases) as ParsedNote[][];
+  return arrangePhrasesForDWhistle(phrases) as WhistleArrangement;
+}
+
+function parsePhrases(source: string, estimateRegisters = false): ParsedNote[][] {
+  return parseArrangement(source, estimateRegisters).phrases;
 }
 
 function Fingering({ note, index, globalIndex, active, language }: { note: ParsedNote; index: number; globalIndex: number; active: boolean; language: Language }) {
   const playable = Boolean(note.holes);
+  const upperRegister = isUpperWhistleRegister(note.pitch, note.octave);
+  const register = language === "en" ? (upperRegister ? "high register" : "low register") : (upperRegister ? "üst register" : "alt register");
+  // Transposition changes pitch but the source-facing display label is retained for provenance.
+  // Always derive the visible localized name from the arranged pitch so labels cannot go stale.
+  const displayPitch = language === "en" ? note.pitch : NOTE_NAMES[note.pitch] ?? note.pitch;
+  const writtenPitch = `${displayPitch}${note.octave}`;
   return (
-    <div className={`fingering ${playable ? "" : "unsupported"} ${active ? "active" : ""}`} aria-current={active ? "step" : undefined} data-note-index={globalIndex} aria-label={`${language === "en" ? note.pitch : note.display} ${note.octave}`}>
-      {note.octave >= 5 && <span className="octave-mark" title="Upper octave">•</span>}
+    <div className={`fingering ${playable ? "" : "unsupported"} ${active ? "active" : ""}`} aria-current={active ? "step" : undefined} data-note-index={globalIndex} aria-label={`${displayPitch} ${note.octave}`}>
+      {upperRegister && <span className="octave-mark" title={register}>•</span>}
       <span className="note-order">{String(index + 1).padStart(2, "0")}</span>
       <div className="whistle-holes" aria-hidden="true">
         {(note.holes ?? "??????").split("").map((state, holeIndex) => (
           <span className={`hole ${state === "1" ? "closed" : state === "0" ? "open" : state === "h" ? "half" : "unknown"}`} key={holeIndex} />
         ))}
       </div>
-      <strong>{language === "en" ? note.pitch : note.display}</strong>
-      <small>{language === "en" ? `${note.pitch}${note.octave}` : `${note.display}${note.octave}`}</small>
+      <strong>{displayPitch}</strong>
+      <small>{writtenPitch} · {register}</small>
     </div>
   );
 }
@@ -492,7 +528,11 @@ export default function Home() {
     return () => { active = false; };
   }, []);
 
-  const phrases = useMemo(() => parsePhrases(song?.notes ?? ""), [song]);
+  const arrangement = useMemo(
+    () => parseArrangement(song?.notes ?? "", song?.sourceConfidence === "estimated"),
+    [song],
+  );
+  const phrases = arrangement.phrases;
   const allNotes = phrases.flat();
   const unsupported = allNotes.filter((note) => !note.holes);
   const playbackPlan = useMemo(() => buildPlaybackPlan(phrases, song?.rhythm, bpm), [phrases, song?.rhythm, bpm]);
@@ -714,7 +754,7 @@ export default function Home() {
     const gain = context.createGain();
     const now = context.currentTime;
 
-    const midi = midiForNote(note.pitch, note.octave);
+    const midi = midiForWhistleNote(note.pitch, note.octave);
     const soundfontZone = soundfontZoneForMidi(midi, whistleSoundfontZonesRef.current) as WhistleSoundfontZone | null;
     const legacyZone = sampleZoneForMidi(midi);
     const legacyBuffer = legacyZone ? whistleBuffersRef.current.get(legacyZone.rootMidi) : undefined;
@@ -744,7 +784,7 @@ export default function Home() {
     } else {
       const oscillator = context.createOscillator();
       oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(frequencyForNote(note.pitch, note.octave), now);
+      oscillator.frequency.setValueAtTime(frequencyForWhistleNote(note.pitch, note.octave), now);
       oscillator.connect(gain);
       gain.gain.setValueAtTime(0.0001, now);
       gain.gain.exponentialRampToValueAtTime(0.16, now + 0.015);
@@ -1193,6 +1233,13 @@ export default function Home() {
           </div>
           <div className="source-links"><span>{t.sources}:</span>{song.sources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.url}>{source.name} <small>({source.role === "note-source" ? t.primarySource : t.crossCheck})</small></a>)}</div>
         </div>}
+        <div className="arrangement-panel">
+          <strong>{t.arrangementTitle}</strong>
+          <span>{arrangement.semitoneShift === 0
+            ? t.arrangementOriginal
+            : `${arrangement.semitoneShift < 0 ? t.arrangementDown : t.arrangementUp} ${Math.abs(arrangement.semitoneShift)} ${t.semitones}. ${t.intervalsPreserved}`}</span>
+          <small>{t.whistleOctaveHelp}</small>
+        </div>
         <section className={`practice-panel${isPlaying ? " playing" : ""}`} aria-label={t.practice}>
           <div className="practice-title"><span className="section-kicker">{t.practice}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : t.estimatedRhythm}</strong></div>
           <div className="practice-controls">

@@ -1,4 +1,5 @@
-const PITCH_CLASS = { C: 0, "C#": 1, D: 2, "D#": 3, E: 4, F: 5, "F#": 6, G: 7, "G#": 8, A: 9, "A#": 10, B: 11 };
+import { estimateDWhistleRegisters } from "../app/fingerings.mjs";
+
 const SOLFEGE = new Map([
   ["do", "C"], ["do#", "C#"], ["re", "D"], ["re#", "D#"], ["ré", "D"],
   ["mi", "E"], ["fa", "F"], ["fa#", "F#"], ["sol", "G"], ["sol#", "G#"],
@@ -126,32 +127,10 @@ export function extractTextPhrases(html) {
   return extractTextTimedPhrases(html).phrases;
 }
 
-function midiCandidates(pitch) {
-  const pitchClass = PITCH_CLASS[pitch];
-  if (pitchClass === undefined) return [];
-  const candidates = [];
-  for (let octave = 4; octave <= 6; octave += 1) {
-    const midi = 12 * (octave + 1) + pitchClass;
-    if (midi >= 62 && midi <= 86) candidates.push({ midi, octave });
-  }
-  return candidates;
-}
-
 export function addEstimatedOctaves(phrases) {
-  let previousMidi = null;
-  return phrases.map((phrase) => phrase.map((pitch) => {
-    const candidates = midiCandidates(pitch);
-    if (!candidates.length) return `${pitch}4`;
-    const selected = candidates.reduce((best, candidate) => {
-      const anchor = previousMidi ?? 69;
-      const movement = Math.abs(candidate.midi - anchor);
-      const downwardPenalty = previousMidi !== null && candidate.midi < previousMidi ? 3 : 0;
-      const score = movement + downwardPenalty;
-      return !best || score < best.score ? { ...candidate, score } : best;
-    }, null);
-    previousMidi = selected.midi;
-    return `${pitch}${selected.octave}`;
-  }));
+  return estimateDWhistleRegisters(
+    phrases.map((phrase) => phrase.map((pitch) => ({ pitch }))),
+  ).map((phrase) => phrase.map((note) => `${note.pitch}${note.octave}`));
 }
 
 export function phrasesToString(phrases) {

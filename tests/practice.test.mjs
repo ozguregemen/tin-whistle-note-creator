@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { parseAbcScore } from "../app/abc.mjs";
-import { buildPhraseRanges, buildPlaybackPlan, frequencyForNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "../app/practice.mjs";
-import { base64AudioBuffer, midiForNote, playbackRateForMidi, sampleZoneForMidi, soundfontLoopForZone, soundfontZoneForMidi } from "../app/whistle-sampler.mjs";
+import { buildPhraseRanges, buildPlaybackPlan, frequencyForNote, frequencyForWhistleNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "../app/practice.mjs";
+import { base64AudioBuffer, midiForNote, midiForWhistleNote, playbackRateForMidi, sampleZoneForMidi, soundfontLoopForZone, soundfontZoneForMidi } from "../app/whistle-sampler.mjs";
 
 test("ABC nota uzunluklarını perde dizisiyle birlikte okur", () => {
   const score = parseAbcScore("D2 E/2 F3/2 ^G", "D");
@@ -65,6 +65,8 @@ test("aktif nota görünür çalışma alanının dışına çıkınca takip ist
 
 test("tin whistle örnek bölgesini seçer ve hedef perde hızını hesaplar", () => {
   assert.equal(midiForNote("D", 4), 62);
+  assert.equal(midiForWhistleNote("D", 4), 74);
+  assert.ok(Math.abs(frequencyForWhistleNote("A", 4) - 880) < 0.001);
   assert.equal(sampleZoneForMidi(62).rootMidi, 81);
   assert.equal(sampleZoneForMidi(84).rootMidi, 85);
   assert.equal(playbackRateForMidi(81, 81), 1);
