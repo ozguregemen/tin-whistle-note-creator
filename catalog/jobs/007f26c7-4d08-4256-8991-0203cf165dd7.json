@@ -1,0 +1,31 @@
+{
+  "requestId": "007f26c7-4d08-4256-8991-0203cf165dd7",
+  "status": "completed",
+  "confidence": "estimated",
+  "song": {
+    "id": "notalar-1847-arkadasim-esek-flut",
+    "title": "Arkadaşım Eşek Flüt",
+    "aliases": [
+      "arkadaşım eşek",
+      "Arkadaşım Eşek Flüt Notaları"
+    ],
+    "subtitle": {
+      "en": "Live text source · first register assumed",
+      "tr": "Canlı metin kaynağı · ilk register varsayıldı"
+    },
+    "difficulty": {
+      "en": "Source arrangement",
+      "tr": "Kaynak düzeni"
+    },
+    "notes": "D4 D4 A4 A4 A#4 A#4 A4 | G4 G4 A#4 A#4 A4 | G4 G4 A#4 A#4 A4 G4 F4 | E4 E4 F4 E4 D4 | D4 D4 A4 A4 A#4 A#4 A4 | G4 G4 A#4 A#4 A4 | G4 G4 A#4 A#4 A4 G4 F4 | E4 E4 F4 E4 D4 | D4 E4 F4 D4 C5 | D4 E4 F4 D4 C5 | D4 E4 F4 D4 C5 | D4 E4 F4 D4 C5 | D4 E4 F4 D4 C5 | D4 E4 F4 D4 C5 | D4 D4 A4 A4 A#4 A#4 A4 | G4 G4 A#4 A#4 A4 | G4 G4 A#4 A#4 A4 G4 F4 | E4 E4 F4 E4 D4 | D4 D4 A4 A4 A#4 A#4 A4 | G4 G4 A#4 A#4 A4 | G4 G4 A#4 A#4 A4 G4 F4 | E4 E4 F4 E4 D4 | D4 E4 F4 D4 C5 | D4 E4 F4 D4 C5 | D4 E4 F4 D4 C5 | D4 E4 F4 D4 C5 | D4 E4 F4 D4 C5 | D4 E4 F4 D4 C5",
+    "sourceStatus": "live",
+    "sourceConfidence": "estimated",
+    "sources": [
+      {
+        "name": "Notalar.net",
+        "url": "https://www.notalar.net/arkadasim-esek-flut-notalari/",
+        "role": "note-source"
+      }
+    ]
+  }
+}

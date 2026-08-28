@@ -1,0 +1,31 @@
+{
+  "requestId": "c5527ad5-38ce-49fd-84a5-b4caa2595f42",
+  "status": "completed",
+  "confidence": "estimated",
+  "song": {
+    "id": "notalar-1169-arkadasim-esek",
+    "title": "Arkadaşım Eşek",
+    "aliases": [
+      "arkadaşım eşek",
+      "Arkadaşım Eşek Do Re Mi Notaları"
+    ],
+    "subtitle": {
+      "en": "Live text source · first register assumed",
+      "tr": "Canlı metin kaynağı · ilk register varsayıldı"
+    },
+    "difficulty": {
+      "en": "Source arrangement",
+      "tr": "Kaynak düzeni"
+    },
+    "notes": "E4 E4 F4 E4 D4 | D4 E4 F4 D4 C5 | D4 E4 F4 D4 C5 | D4 E4 F4 D4 C5 D4",
+    "sourceStatus": "live",
+    "sourceConfidence": "estimated",
+    "sources": [
+      {
+        "name": "Notalar.net",
+        "url": "https://www.notalar.net/arkadasim-esek-do-re-mi-notalari/",
+        "role": "note-source"
+      }
+    ]
+  }
+}
