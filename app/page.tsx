@@ -66,11 +66,13 @@ type ParsedNote = {
   pitch: string;
   octave: number;
   holes?: string;
+  octaveAdjustment?: number;
 };
 
 type WhistleArrangement = {
   phrases: ParsedNote[][];
   semitoneShift: number;
+  octaveAdjustments: number;
 };
 
 type PlaybackPhase = {
@@ -217,6 +219,7 @@ const COPY = {
     arrangementUp: "Transposed up",
     semitones: "semitones",
     intervalsPreserved: "The same shift is applied to every note, so the melody intervals stay intact.",
+    arrangementOctaveAdjusted: "Extreme notes were moved to the nearest playable octave.",
     whistleOctaveHelp: "Whistle notation is written one octave below the sound: written E4 sounds as E5 on a high-D whistle.",
     lowRegister: "low register",
     highRegister: "high register",
@@ -333,6 +336,7 @@ const COPY = {
     arrangementUp: "Yukarı aktarıldı",
     semitones: "yarım ses",
     intervalsPreserved: "Bütün notalara aynı aktarım uygulandığı için ezginin aralıkları korunur.",
+    arrangementOctaveAdjusted: "Sınırdaki notalar en yakın çalınabilir oktava taşındı.",
     whistleOctaveHelp: "Whistle notası duyulan sesten bir oktav aşağı yazılır: yazılı Mi4, ince D whistle’da Mi5 olarak duyulur.",
     lowRegister: "alt register",
     highRegister: "üst register",
@@ -1246,8 +1250,8 @@ export default function Home() {
         <div className="arrangement-panel">
           <strong>{t.arrangementTitle}</strong>
           <span>{arrangement.semitoneShift === 0
-            ? t.arrangementOriginal
-            : `${arrangement.semitoneShift < 0 ? t.arrangementDown : t.arrangementUp} ${Math.abs(arrangement.semitoneShift)} ${t.semitones}. ${t.intervalsPreserved}`}</span>
+            ? (arrangement.octaveAdjustments > 0 ? t.arrangementOctaveAdjusted : t.arrangementOriginal)
+            : `${arrangement.semitoneShift < 0 ? t.arrangementDown : t.arrangementUp} ${Math.abs(arrangement.semitoneShift)} ${t.semitones}. ${t.intervalsPreserved}${arrangement.octaveAdjustments > 0 ? ` ${t.arrangementOctaveAdjusted}` : ""}`}</span>
           <small>{t.whistleOctaveHelp}</small>
         </div>
         <section className={`practice-panel${isPlaying ? " playing" : ""}`} aria-label={t.practice}>

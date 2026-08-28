@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   adaptPhrasesToDWhistle,
+  arrangePhrasesForDWhistle,
   bestWhistleOctaveShift,
   bestWhistleSemitoneShift,
   estimateDWhistleRegisters,
@@ -101,4 +102,18 @@ test("örnek tabdaki işaretsiz B A G E dizisini alt registerda tutar", () => {
 test("C#5 ilk registerda, D5 ise üst registerda gösterilir", () => {
   assert.equal(isUpperWhistleRegister("C#", 5), false);
   assert.equal(isUpperWhistleRegister("D", 5), true);
+});
+
+test("iki oktavı aşan melodide sınır notalarını en yakın çalınabilir oktava taşır", () => {
+  const arrangement = arrangePhrasesForDWhistle([[
+    { pitch: "E", octave: 3 },
+    { pitch: "A", octave: 3 },
+    { pitch: "C", octave: 6 },
+    { pitch: "E", octave: 6 },
+  ]]);
+
+  assert.equal(arrangement.semitoneShift, 0);
+  assert.equal(arrangement.octaveAdjustments, 2);
+  assert.deepEqual(arrangement.phrases[0].map((note) => `${note.pitch}${note.octave}`), ["E4", "A4", "C6", "E6"]);
+  assert.ok(arrangement.phrases.flat().every((note) => note.holes));
 });

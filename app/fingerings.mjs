@@ -36,6 +36,10 @@ function noteNumber(pitch, octave) {
 const SIMPLE_LOWEST = noteNumber("D", 4);
 const SECOND_REGISTER_START = noteNumber("D", 5);
 const SIMPLE_HIGHEST = noteNumber("C#", 6);
+const EXTENDED_HIGHEST = noteNumber("G", 6);
+// A single D-whistle register arrangement cannot preserve a source span wider
+// than the complete Clarke chart. Wider scores need local octave folding.
+const MAX_SINGLE_REGISTER_SPAN = EXTENDED_HIGHEST - SIMPLE_LOWEST;
 const SEMITONE_SHIFTS = Object.freeze(Array.from({ length: 73 }, (_, index) => index - 36));
 const OCTAVE_SHIFTS = Object.freeze(SEMITONE_SHIFTS.filter((shift) => shift % 12 === 0));
 
@@ -48,6 +52,37 @@ function shiftedNote(note, semitoneShift) {
   const number = noteNumber(note.pitch, note.octave) + semitoneShift;
   const shifted = pitchAndOctave(number);
   return { ...note, ...shifted, holes: fingeringFor(shifted.pitch, shifted.octave) };
+}
+
+/**
+ * Move a note to the nearest octave represented by the Clarke D chart when a
+ * source score spans more than the whistle's two practical octaves. We retain
+ * the pitch class and mark only notes that were actually folded; callers can
+ * explain this small, local adaptation without changing normal note objects.
+ */
+function foldToPlayableOctave(note) {
+  if (note.holes) return note;
+
+  const number = noteNumber(note.pitch, note.octave);
+  if (!Number.isFinite(number)) return note;
+
+  for (let octaveDistance = 1; octaveDistance <= 4; octaveDistance += 1) {
+    for (const direction of [1, -1]) {
+      const octaveShift = direction * octaveDistance;
+      const candidate = pitchAndOctave(number + (octaveShift * 12));
+      const holes = fingeringFor(candidate.pitch, candidate.octave);
+      if (holes) {
+        return {
+          ...note,
+          ...candidate,
+          holes,
+          octaveAdjustment: octaveShift,
+        };
+      }
+    }
+  }
+
+  return note;
 }
 
 export function fingeringFor(pitch, octave) {
@@ -137,10 +172,24 @@ export function bestWhistleOctaveShift(notes) {
 }
 
 export function arrangePhrasesForDWhistle(phrases) {
-  const semitoneShift = bestWhistleSemitoneShift(phrases.flat());
+  const sourceNotes = phrases.flat();
+  const sourceNumbers = sourceNotes
+    .map((note) => noteNumber(note.pitch, note.octave))
+    .filter(Number.isFinite);
+  const sourceSpan = sourceNumbers.length
+    ? Math.max(...sourceNumbers) - Math.min(...sourceNumbers)
+    : 0;
+  // A global transposition would still leave notes out of range when the
+  // source spans more than the complete D-whistle chart. Keep the source key
+  // in that case and fold only the offending extreme notes by octaves.
+  const semitoneShift = sourceSpan > MAX_SINGLE_REGISTER_SPAN
+    ? 0
+    : bestWhistleSemitoneShift(sourceNotes);
+  const arrangedPhrases = phrases.map((phrase) => phrase.map((note) => foldToPlayableOctave(shiftedNote(note, semitoneShift))));
   return {
     semitoneShift,
-    phrases: phrases.map((phrase) => phrase.map((note) => shiftedNote(note, semitoneShift))),
+    octaveAdjustments: arrangedPhrases.flat().filter((note) => note.octaveAdjustment).length,
+    phrases: arrangedPhrases,
   };
 }
 
