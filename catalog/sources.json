@@ -13,6 +13,12 @@
         "en": "Intermediate",
         "tr": "Orta"
       },
+      "tempo": {
+        "bpm": 149,
+        "source": "database",
+        "confidence": 100,
+        "url": "https://getsongbpm.com/song/bu-aksam/kZOKKY"
+      },
       "source": {
         "name": "Notalar.net",
         "apiUrl": "https://www.notalar.net/wp-json/wp/v2/posts?slug=icerim-ben-aksam-melodika-notalari&_fields=title,link,content,modified",

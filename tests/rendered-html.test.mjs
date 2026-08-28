@@ -32,7 +32,8 @@ test("Tin Whistle Note Creator ana sayfasını sunucu tarafında oluşturur", as
   assert.match(html, /Practice mode/);
   assert.match(html, /Tin whistle sound/);
   assert.match(html, /CC BY-SA 4\.0/);
-  assert.match(html, /90(?:<!-- -->)? BPM/);
+  assert.match(html, /149(?:<!-- -->)? BPM/);
+  assert.match(html, /Source quality/);
   assert.match(html, /aria-pressed="false"/);
   assert.match(html, /Türkçe/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|Your site is taking shape/i);
@@ -53,7 +54,8 @@ test("çoklu örnekli Irish tin-whistle ses bankası paketlenir", async () => {
   const context = { console: { log() {} } };
   runInNewContext(soundfont.toString("utf8"), context);
   const preset = context._tone_0780_GeneralUserGS_sf2_file;
-  assert.equal(createHash("sha256").update(soundfont).digest("hex"), "e60df94eba01026614e68f93cc808e98a612ce94bc9d5efa06fa30b2b3b6c396");
+  const canonicalSoundfont = Buffer.from(soundfont.toString("utf8").replaceAll("\r\n", "\n"), "utf8");
+  assert.equal(createHash("sha256").update(canonicalSoundfont).digest("hex"), "e60df94eba01026614e68f93cc808e98a612ce94bc9d5efa06fa30b2b3b6c396");
   assert.equal(preset.zones.length, 5);
   assert.deepEqual(Array.from(preset.zones, (zone) => zone.originalPitch), [6400, 6900, 7100, 7400, 8100]);
   assert.match(attribution, /GeneralUser GS/);

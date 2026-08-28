@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { parseAbcScore } from "./abc.mjs";
+import { assessSongQuality } from "./catalog-quality.mjs";
 import { adaptPhrasesToDWhistle } from "./fingerings.mjs";
 import { buildPhraseRanges, buildPlaybackPlan, frequencyForNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "./practice.mjs";
 import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
@@ -183,6 +184,16 @@ const COPY = {
     customDifficulty: "Custom",
     verified: "Cross-checked",
     liveSource: "Live API source",
+    omrUnreviewed: "Machine-read notes · review pending",
+    textEstimated: "Text notes · octave estimated",
+    sourcedMelody: "Sourced melody",
+    qualitySummary: "Source quality",
+    qualityMelody: "Melody",
+    qualityRhythm: "Rhythm",
+    qualityTempo: "Tempo",
+    knownTempo: "Original BPM found",
+    defaultTempoShort: "Practice default",
+    omrCaveat: "Automatic score reading can contain wrong notes. Treat this as a practice draft until it is cross-checked.",
     sources: "Sources",
     primarySource: "note source",
     crossCheck: "cross-check",
@@ -279,6 +290,16 @@ const COPY = {
     customDifficulty: "Özel",
     verified: "Karşılaştırıldı",
     liveSource: "Canlı API kaynağı",
+    omrUnreviewed: "Makineyle okunan nota · kontrol bekliyor",
+    textEstimated: "Metin notası · oktav tahmini",
+    sourcedMelody: "Kaynaklı ezgi",
+    qualitySummary: "Kaynak kalitesi",
+    qualityMelody: "Ezgi",
+    qualityRhythm: "Ritim",
+    qualityTempo: "Tempo",
+    knownTempo: "Orijinal BPM bulundu",
+    defaultTempoShort: "Pratik varsayılanı",
+    omrCaveat: "Otomatik nota okuma hatalı notalar içerebilir. Başka bir kaynakla karşılaştırılana kadar bunu çalışma taslağı olarak kullan.",
     sources: "Kaynaklar",
     primarySource: "nota kaynağı",
     crossCheck: "karşılaştırma",
@@ -303,6 +324,14 @@ const FALLBACK_SONGS: Song[] = [
     subtitle: { en: "Web-sourced melody · independently cross-checked", tr: "İnternetten alınan ezgi · bağımsız kaynakla karşılaştırıldı" },
     difficulty: { en: "Intermediate", tr: "Orta" },
     notes: "A4 E5 D5 C5 D5 | B4 C5 D5 B4 A4 | A4 E5 D5 C5 D5 | B4 C5 D5 D5 | A4 E5 D5 C5 D5 | B4 C5 D5 B4 A4 | C5 B4 A4 C5 | B4 A4 A4",
+    rhythm: {
+      bpm: 149,
+      source: "estimated",
+      tempoSource: "database",
+      tempoConfidence: 100,
+      tempoUrl: "https://getsongbpm.com/song/bu-aksam/kZOKKY",
+      durations: [],
+    },
     sourceStatus: "cross-checked",
     sources: [
       { name: "Notalar.net", url: "https://www.notalar.net/icerim-ben-aksam-melodika-notalari/", role: "note-source" },
@@ -386,7 +415,7 @@ export default function Home() {
   const [song, setSong] = useState<Song | null>(FALLBACK_SONGS[0]);
   const [sourceCandidates, setSourceCandidates] = useState<SourceCandidate[]>([]);
   const [status, setStatus] = useState<StatusKey>("catalogPrepared");
-  const [bpm, setBpm] = useState(90);
+  const [bpm, setBpm] = useState(FALLBACK_SONGS[0].rhythm?.bpm ?? 90);
   const [tempoStatus, setTempoStatus] = useState<TempoStatus>("idle");
   const [isPlaying, setIsPlaying] = useState(false);
   const [soundStatus, setSoundStatus] = useState<SoundStatus>("idle");
@@ -412,6 +441,7 @@ export default function Home() {
   const whistleBuffersRef = useRef<Map<number, AudioBuffer>>(new Map());
   const whistleLoadPromiseRef = useRef<Promise<boolean> | null>(null);
   const t = COPY[language];
+  const songQuality = useMemo(() => song ? assessSongQuality(song) : null, [song]);
   isPlayingRef.current = isPlaying;
 
   useEffect(() => {
@@ -1151,8 +1181,16 @@ export default function Home() {
             <button type="button" className="print-button" onClick={() => window.print()}>{t.print}</button>
           </div>
         </div>
-        {song.sourceStatus !== "manual" && <div className="source-panel">
-            <div><strong>✓ {song.sourceStatus === "live" ? t.liveSource : t.verified}</strong><span>{song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : t.sourceCaveat}</span></div>
+        {song.sourceStatus !== "manual" && songQuality && <div className={`source-panel quality-${songQuality.tone}`}>
+          <div>
+            <strong>{songQuality.tone === "verified" ? "✓" : songQuality.tone === "warning" ? "!" : "i"} {songQuality.melody === "cross-checked" ? t.verified : songQuality.melody === "omr-unreviewed" ? t.omrUnreviewed : songQuality.melody === "text-estimated" ? t.textEstimated : t.sourcedMelody}</strong>
+            <span>{songQuality.melody === "omr-unreviewed" ? t.omrCaveat : songQuality.rhythm === "score" ? t.scoreRhythm : songQuality.rhythm === "text" ? t.textRhythm : t.sourceCaveat}</span>
+            <div className="quality-facts" aria-label={t.qualitySummary}>
+              <span><b>{t.qualityMelody}:</b> {songQuality.melody === "cross-checked" ? t.verified : songQuality.melody === "omr-unreviewed" ? t.omrUnreviewed : songQuality.melody === "text-estimated" ? t.textEstimated : t.sourcedMelody}</span>
+              <span><b>{t.qualityRhythm}:</b> {songQuality.rhythm === "score" ? t.scoreRhythm : songQuality.rhythm === "text" ? t.textRhythm : t.estimatedRhythm}</span>
+              <span><b>{t.qualityTempo}:</b> {songQuality.tempo === "known" ? t.knownTempo : t.defaultTempoShort}</span>
+            </div>
+          </div>
           <div className="source-links"><span>{t.sources}:</span>{song.sources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.url}>{source.name} <small>({source.role === "note-source" ? t.primarySource : t.crossCheck})</small></a>)}</div>
         </div>}
         <section className={`practice-panel${isPlaying ? " playing" : ""}`} aria-label={t.practice}>

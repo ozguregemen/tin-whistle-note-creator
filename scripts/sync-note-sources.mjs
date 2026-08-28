@@ -1,5 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { extractTextTimedPhrases } from "./source-processing.mjs";
+import { extractTextTimedPhrases, mergeSongIntoCatalog } from "./source-processing.mjs";
 
 const SOURCE_FILE = new URL("../catalog/sources.json", import.meta.url);
 const OUTPUT_FILE = new URL("../catalog/catalog.json", import.meta.url);
@@ -30,13 +30,16 @@ async function syncSong(config) {
     throw new Error(`Phrase structure changed for ${config.id}: ${lengths.join(", ")}`);
   }
 
-  const rhythm = parsed.hasRhythm ? {
-    bpm: 90,
-    source: "text",
-    tempoSource: "default",
-    tempoConfidence: 0,
-    durations: parsed.durations,
-    gaps: parsed.gaps,
+  const configuredBpm = Number(config.tempo?.bpm);
+  const hasConfiguredTempo = Number.isFinite(configuredBpm) && configuredBpm >= 40 && configuredBpm <= 220;
+  const rhythm = parsed.hasRhythm || hasConfiguredTempo ? {
+    bpm: hasConfiguredTempo ? Math.round(configuredBpm) : 90,
+    source: parsed.hasRhythm ? "text" : "estimated",
+    tempoSource: hasConfiguredTempo ? config.tempo.source : "default",
+    tempoConfidence: hasConfiguredTempo ? config.tempo.confidence : 0,
+    ...(hasConfiguredTempo && config.tempo.url ? { tempoUrl: config.tempo.url } : {}),
+    durations: parsed.hasRhythm ? parsed.durations : [],
+    ...(parsed.hasRhythm ? { gaps: parsed.gaps } : {}),
   } : undefined;
 
   return {
@@ -61,8 +64,8 @@ async function syncSong(config) {
 }
 
 const manifest = JSON.parse(await readFile(SOURCE_FILE, "utf8"));
-const songs = [];
-for (const song of manifest.songs) songs.push(await syncSong(song));
+const refreshedSongs = [];
+for (const song of manifest.songs) refreshedSongs.push(await syncSong(song));
 
 let previousCatalog = null;
 try {
@@ -71,9 +74,12 @@ try {
   if (error?.code !== "ENOENT") throw error;
 }
 
-if (previousCatalog && JSON.stringify(previousCatalog.songs) === JSON.stringify(songs)) {
-  console.log(`Checked ${songs.length} web-sourced song(s); no changes.`);
+let nextCatalog = previousCatalog || { schemaVersion: 1, songs: [] };
+for (const song of refreshedSongs) nextCatalog = mergeSongIntoCatalog(nextCatalog, song);
+
+if (previousCatalog && JSON.stringify(previousCatalog.songs) === JSON.stringify(nextCatalog.songs)) {
+  console.log(`Checked ${refreshedSongs.length} web-sourced song(s); no changes.`);
 } else {
-  await writeFile(OUTPUT_FILE, `${JSON.stringify({ schemaVersion: 1, generatedAt: new Date().toISOString(), songs }, null, 2)}\n`);
-  console.log(`Synced ${songs.length} web-sourced song(s).`);
+  await writeFile(OUTPUT_FILE, `${JSON.stringify(nextCatalog, null, 2)}\n`);
+  console.log(`Synced ${refreshedSongs.length} web-sourced song(s) without removing live catalog entries.`);
 }

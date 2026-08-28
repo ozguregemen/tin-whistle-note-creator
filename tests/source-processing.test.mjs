@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  addEstimatedOctaves, extractScoreAssets, extractTextPhrases, extractTextTimedPhrases, musicXmlToPhrases, musicXmlToTimedPhrases, phrasesToString,
+  addEstimatedOctaves, extractScoreAssets, extractTextPhrases, extractTextTimedPhrases, mergeSongIntoCatalog, musicXmlToPhrases, musicXmlToTimedPhrases, phrasesToString,
   stripLeadingArtist,
 } from "../scripts/source-processing.mjs";
 
@@ -63,4 +63,10 @@ test("MusicXML tempo içermiyorsa 90'ı kaynak temposu gibi üretmez", () => {
     <note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration></note>
   </measure></part></score-partwise>`;
   assert.equal(musicXmlToTimedPhrases(xml).tempo, null);
+});
+
+test("güncellenen kaynak kaydı canlı katalogdaki diğer şarkıları silmez", () => {
+  const catalog = { schemaVersion: 1, songs: [{ id: "live-song", title: "Live" }, { id: "reviewed-song", title: "Old" }] };
+  const merged = mergeSongIntoCatalog(catalog, { id: "reviewed-song", title: "Refreshed" });
+  assert.deepEqual(merged.songs, [{ id: "live-song", title: "Live" }, { id: "reviewed-song", title: "Refreshed" }]);
 });

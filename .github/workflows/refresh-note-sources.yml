@@ -23,6 +23,9 @@ jobs:
       - name: Read allow-listed note sources
         run: node scripts/sync-note-sources.mjs
 
+      - name: Audit catalog structure and quality
+        run: npm run audit:catalog
+
       - name: Commit reviewed source updates
         run: |
           if git diff --quiet -- catalog/catalog.json; then

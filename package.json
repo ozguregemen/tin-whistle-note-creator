@@ -10,6 +10,7 @@
     "build": "vinext build",
     "build:pages": "vite build --config vite.pages.config.ts",
     "sync:sources": "node scripts/sync-note-sources.mjs",
+    "audit:catalog": "node scripts/audit-catalog.mjs",
     "worker:dev": "wrangler dev --config wrangler.source-api.jsonc",
     "worker:check": "wrangler deploy --dry-run --config wrangler.source-api.jsonc",
     "worker:deploy": "wrangler deploy --config wrangler.source-api.jsonc",

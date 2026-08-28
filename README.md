@@ -50,6 +50,7 @@ npm run dev
 
 ```bash
 npm run build
+npm run audit:catalog
 ```
 
 İzin verilen internet kaynaklarını yeniden okumak için:
@@ -58,7 +59,9 @@ npm run build
 npm run sync:sources
 ```
 
-Kaynak listesi `catalog/sources.json`, web uygulamasının okuduğu üretilmiş katalog ise `catalog/catalog.json` dosyasındadır. Eşitleyici kaynakta beklenmeyen nota veya cümle sayısı görürse yanlış sonucu otomatik yayımlamak yerine hata verir.
+Kaynak listesi `catalog/sources.json`, web uygulamasının okuduğu üretilmiş katalog ise `catalog/catalog.json` dosyasındadır. Eşitleyici kaynakta beklenmeyen nota veya cümle sayısı görürse yanlış sonucu otomatik yayımlamak yerine hata verir ve daha önce canlı kaynaklardan eklenen katalog kayıtlarını korur.
+
+`npm run audit:catalog`; nota, süre ve es dizilerinin boyutlarını doğrular. Ayrıca karşılaştırılmamış OMR, eşit vuruş fallback'i ve bilinmeyen tempo gibi müzikal kalite boşluklarını ayrı uyarılar olarak raporlar. GitHub Actions hem haftalık kaynak yenilemesinde hem de yeni canlı kaynak işlendiğinde bu denetimi çalıştırır.
 
 GitHub Pages statik çıktısını yerelde kontrol etmek için:
 
@@ -109,6 +112,8 @@ npm run build:pages
 
 Worker arama sonucunu hemen döndürür. Kullanıcı bir kaynağı seçince `.github/workflows/process-source-request.yml` çalışır; sonuç `catalog/jobs/<request-id>.json` dosyasına ve başarı halinde ana kataloğa yazılır. Gitaregitim PDF/JPG sonuçları veya küratörlü PDF sayfaları güvenilir biçimde okunamazsa yanlış nota yayımlamak yerine `needs-review` durumuna geçer.
 
+Arayüz kaynak güvenini tek bir “doğrulandı” işareti olarak sunmaz. Ezgi, ritim ve tempo ayrı ayrı etiketlenir; makineyle okunmuş fakat başka bir kaynakla karşılaştırılmamış OMR kayıtları sarı uyarı kartıyla çalışma taslağı olarak gösterilir.
+
 ## Ürün planı
 
 ### 1. MVP — parmak diyagramı
@@ -125,6 +130,7 @@ Worker arama sonucunu hemen döndürür. Kullanıcı bir kaynağı seçince `.gi
 - İkinci bağlayıcı: The Session’ın salt okunur JSON/ABC API’si
 - Yeni kaynak adaptörlerini ikişerli dilimler halinde ekleme ve her birini gerçek şarkı kabul testleriyle doğrulama
 - Kaynak, düzenleyen kişi, lisans ve doğrulama durumunu her eserle birlikte saklama
+- Tamamlandı: ezgi, ritim ve tempo güvenini ayrı gösteren katalog kalite denetimi
 
 ### 3. Müzikal dönüştürme
 

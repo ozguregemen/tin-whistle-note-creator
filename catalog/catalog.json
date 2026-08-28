@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-27T21:00:37.428Z",
+  "generatedAt": "2026-08-28T10:39:47.149Z",
   "songs": [
     {
       "id": "duman-bu-aksam",
@@ -20,6 +20,14 @@
         "tr": "Orta"
       },
       "notes": "A4 E5 D5 C5 D5 | B4 C5 D5 B4 A4 | A4 E5 D5 C5 D5 | B4 C5 D5 D5 | A4 E5 D5 C5 D5 | B4 C5 D5 B4 A4 | C5 B4 A4 C5 | B4 A4 A4",
+      "rhythm": {
+        "bpm": 149,
+        "source": "estimated",
+        "tempoSource": "database",
+        "tempoConfidence": 100,
+        "tempoUrl": "https://getsongbpm.com/song/bu-aksam/kZOKKY",
+        "durations": []
+      },
       "sourceStatus": "cross-checked",
       "sourceModifiedAt": "2017-12-08T21:50:14",
       "sources": [
@@ -38,6 +46,7 @@
     {
       "id": "notalar-4800-caddelerde-ruzgar",
       "title": "Caddelerde Rüzgar",
+      "artist": "Nilüfer",
       "aliases": [
         "Nilüfer Caddelerde Rüzgar",
         "Caddelerde Rüzgar Notaları"
@@ -1450,6 +1459,7 @@
     {
       "id": "gitaregitim-15286-onun-arabasi-var",
       "title": "Onun Arabası Var",
+      "artist": "Mustafa Sandal",
       "aliases": [
         "araba",
         "Onun Arabası Var – Gitar – Nota – Tab"
@@ -1464,10 +1474,11 @@
       },
       "notes": "G5 A5 A#5 A#5 A5 A5 G5 A5 F5 G5 A5 A#5 A5 A#5 C6 | G5 A5 F5 G5 A5 A#5 A#5 A#5 A5 A5 G5 A5 F5 G5 A5 G5 G5 F5 E5 | G5 G5 F5 E5 D5 | D5 C5 A4 C5 A4 A4 A4 G4 A4 A#4 A4 E5 D5 D5 C5 D5 | D5 D5 C5 A#4 A4 D5 D5 D5 A4 A#4 A4 G4 | D5 D5 D5 A4 A#4 A4 G4 | A#4 A#4 A4 G4 G4 A4 F4 G4 A4 A#4 A#4 A4 G4 | G4 A4 F4 G4 A4 A#4 A#4 A#4 A4 G4 G4 A4 F4 G4 A4 G4 G4 G4 F4 E4 | G4 G4 F4 E4 A4 G4 G4 F4 C5 C5",
       "rhythm": {
-        "bpm": 90,
+        "bpm": 124,
         "source": "score",
-        "tempoSource": "default",
-        "tempoConfidence": 0,
+        "tempoSource": "database",
+        "tempoConfidence": 100,
+        "tempoUrl": "https://getsongbpm.com/song/araba/4xQrN0",
         "durations": [
           [
             1,
@@ -2656,6 +2667,7 @@
     {
       "id": "gitaregitim-7352-cok-uzaklarda-caddelerde-ruzgar",
       "title": "Çok Uzaklarda Caddelerde Rüzgar",
+      "artist": "Nilüfer",
       "aliases": [
         "Nilüfer Caddelerde Rüzgar",
         "Çok Uzaklarda Caddelerde Rüzgar Nota Tab"
