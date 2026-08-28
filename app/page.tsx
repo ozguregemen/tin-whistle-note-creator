@@ -122,7 +122,7 @@ const COPY = {
     find: "Find notes",
     suggested: "Try:",
     pasteLabel: "Separate notes with spaces and phrases with a “|”",
-    pasteHint: "Use Do/Re/Mi or C/D/E · Add # for sharps · Example: F#4",
+    pasteHint: "Use Do/Re/Mi or C/D/E · Add # for sharps · Add ' for the upper register · Example: D'",
     convert: "Convert",
     catalogPrepared: "Verified web-sourced catalog is ready",
     catalogUpdated: "Latest source catalog loaded from GitHub",
@@ -190,7 +190,7 @@ const COPY = {
     verified: "Cross-checked",
     liveSource: "Live API source",
     omrUnreviewed: "Machine-read notes · review pending",
-    textEstimated: "Text notes · octave estimated",
+    textEstimated: "Text notes · first register assumed",
     sourcedMelody: "Sourced melody",
     qualitySummary: "Source quality",
     qualityMelody: "Melody",
@@ -212,7 +212,7 @@ const COPY = {
     emptyBody: "We did not leave the previous song on screen. Only reviewed source matches are shown here.",
     sourceCaveat: "Pitch sequence is sourced; rhythm and note durations are not included yet.",
     arrangementTitle: "D-whistle arrangement",
-    arrangementOriginal: "The source range already sits in the comfortable register.",
+    arrangementOriginal: "The source fits the standard two-register D-whistle range; its key is unchanged.",
     arrangementDown: "Transposed down",
     arrangementUp: "Transposed up",
     semitones: "semitones",
@@ -238,7 +238,7 @@ const COPY = {
     find: "Notaları bul",
     suggested: "Önerilen:",
     pasteLabel: "Notaları boşlukla, cümleleri “|” işaretiyle ayır",
-    pasteHint: "Do/Re/Mi veya C/D/E kullan · Diyez için # ekle · Örnek: F#4",
+    pasteHint: "Do/Re/Mi veya C/D/E kullan · Diyez için #, üst register için ' ekle · Örnek: Re'",
     convert: "Dönüştür",
     catalogPrepared: "Doğrulanmış internet kaynaklı katalog hazır",
     catalogUpdated: "Güncel kaynak kataloğu GitHub’dan yüklendi",
@@ -306,7 +306,7 @@ const COPY = {
     verified: "Karşılaştırıldı",
     liveSource: "Canlı API kaynağı",
     omrUnreviewed: "Makineyle okunan nota · kontrol bekliyor",
-    textEstimated: "Metin notası · oktav tahmini",
+    textEstimated: "Metin notası · ilk register varsayıldı",
     sourcedMelody: "Kaynaklı ezgi",
     qualitySummary: "Kaynak kalitesi",
     qualityMelody: "Ezgi",
@@ -328,7 +328,7 @@ const COPY = {
     emptyBody: "Önceki şarkıyı ekranda bırakmadık. Burada yalnızca incelenmiş kaynak eşleşmeleri gösterilir.",
     sourceCaveat: "Ses dizisi kaynaklıdır; ritim ve nota süreleri henüz dahil değildir.",
     arrangementTitle: "D-whistle düzeni",
-    arrangementOriginal: "Kaynak ses aralığı zaten rahat registerda.",
+    arrangementOriginal: "Kaynak, D whistle’ın standart iki registerına sığıyor; tonu değiştirilmedi.",
     arrangementDown: "Aşağı aktarıldı",
     arrangementUp: "Yukarı aktarıldı",
     semitones: "yarım ses",
@@ -395,7 +395,7 @@ const NOTE_NAMES: Record<string, string> = {
 
 function normalizeNote(raw: string): ParsedNote | null {
   const cleaned = raw.trim().replaceAll("♯", "#").replaceAll("♭", "b");
-  const match = cleaned.match(/^([A-Ga-g]|do|re|ré|mi|fa|sol|la|si)([#b]?)([3-6])?$/i);
+  const match = cleaned.match(/^([A-Ga-g]|do|re|ré|mi|fa|sol|la|si)([#b]?)([3-6]|['′+])?$/i);
   if (!match) return null;
   let pitch = SOLFEGE[match[1].toUpperCase()] ?? match[1].toUpperCase();
   if (match[2] === "#") pitch += "#";
@@ -403,7 +403,13 @@ function normalizeNote(raw: string): ParsedNote | null {
     const flatToSharp: Record<string, string> = { Db: "C#", Eb: "D#", Gb: "F#", Ab: "G#", Bb: "A#" };
     pitch = flatToSharp[`${pitch}b`] ?? pitch;
   }
-  const octave = Number(match[3] ?? (pitch === "C" || pitch === "C#" ? 5 : 4));
+  const octaveMarker = match[3];
+  const upperRegister = octaveMarker === "'" || octaveMarker === "′" || octaveMarker === "+";
+  const octave = /^\d$/.test(octaveMarker ?? "")
+    ? Number(octaveMarker)
+    : upperRegister
+      ? (pitch === "C" || pitch === "C#" ? 6 : 5)
+      : (pitch === "C" || pitch === "C#" ? 5 : 4);
   return { token: raw, pitch, octave, display: NOTE_NAMES[pitch] ?? pitch };
 }
 
@@ -1215,7 +1221,7 @@ export default function Home() {
 
       {song ? <section className="workspace shell" aria-labelledby="preview-title">
         <div className="workspace-heading">
-          <div><span className="section-kicker">{t.guide}</span><h2 id="preview-title">{song.artist ? `${song.artist} — ` : ""}{song.title}</h2><p>{song.subtitle[language]} · {song.difficulty[language]} · D tin whistle</p></div>
+          <div><span className="section-kicker">{t.guide}</span><h2 id="preview-title">{song.artist ? `${song.artist} — ` : ""}{song.title}</h2><p>{song.sourceConfidence === "estimated" ? t.textEstimated : song.subtitle[language]} · {song.difficulty[language]} · D tin whistle</p></div>
           <div className="workspace-actions">
             <div className="legend"><span className="hole closed" /> {t.closed} <span className="hole half" /> {t.half} <span className="hole open" /> {t.open}</div>
             <button type="button" className="print-button" onClick={() => window.print()}>{t.print}</button>

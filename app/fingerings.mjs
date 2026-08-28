@@ -14,6 +14,7 @@ const SIMPLE_CHROMATIC_FINGERINGS = Object.freeze({
 });
 
 const EXTENDED_UPPER_FINGERINGS = Object.freeze({
+  D5: "011111",
   D6: "011111",
   E6: "111111",
   "F#6": "111101",
@@ -73,55 +74,18 @@ function registerCandidates(pitch) {
   return candidates;
 }
 
-function registerTransitionCost(previous, current) {
-  const distance = Math.abs(current.midi - previous.midi);
-  const octaveChange = previous.octave === current.octave ? 0 : 2.5;
-  const largeLeap = distance > 7 ? (distance - 7) * 4 : 0;
-  return distance + octaveChange + largeLeap;
-}
-
 /**
- * Assign written whistle registers to pitch-class-only text notes. This is a
- * whole-melody voice-leading estimate: it does not prefer upward motion and it
- * avoids the artificial octave jumps produced by a greedy per-note choice.
+ * Assign unmarked pitch-class-only text notes to the first row of the Clarke D
+ * chart. A source that omits octave marks does not contain enough information
+ * to infer upper-register notes reliably, so we do not invent them. Exact
+ * score pitches and explicit D'/D+ style input bypass this fallback.
  */
 export function estimateDWhistleRegisters(phrases) {
-  const flat = phrases.flatMap((phrase, phraseIndex) => phrase.map((note, noteIndex) => ({ note, phraseIndex, noteIndex })));
-  if (!flat.length) return phrases;
-
-  const layers = [];
-  for (let index = 0; index < flat.length; index += 1) {
-    const entry = flat[index];
-    const candidates = registerCandidates(entry.note.pitch);
-    if (!candidates.length) continue;
-    const layer = candidates.map((candidate) => {
-      const heightTieBreaker = (candidate.midi - SIMPLE_LOWEST) * 0.002;
-      if (index === 0) return { ...candidate, cost: heightTieBreaker, previous: -1 };
-      const previousLayer = layers[index - 1];
-      let best = null;
-      previousLayer.forEach((previous, previousIndex) => {
-        const cost = previous.cost + registerTransitionCost(previous, candidate) + heightTieBreaker;
-        if (!best || cost < best.cost) best = { cost, previous: previousIndex };
-      });
-      return { ...candidate, ...best };
-    });
-    layers.push(layer);
-  }
-
-  if (layers.length !== flat.length) return phrases;
-  let candidateIndex = layers.at(-1).reduce((bestIndex, candidate, index, layer) => (
-    candidate.cost < layer[bestIndex].cost ? index : bestIndex
-  ), 0);
-  const selected = new Array(flat.length);
-  for (let index = flat.length - 1; index >= 0; index -= 1) {
-    selected[index] = layers[index][candidateIndex];
-    candidateIndex = layers[index][candidateIndex].previous;
-  }
-
-  let cursor = 0;
   return phrases.map((phrase) => phrase.map((note) => {
-    const register = selected[cursor++];
-    return { ...note, pitch: register.pitch, octave: register.octave };
+    const firstRegister = registerCandidates(note.pitch)[0];
+    return firstRegister
+      ? { ...note, pitch: firstRegister.pitch, octave: firstRegister.octave }
+      : note;
   }));
 }
 
@@ -138,11 +102,11 @@ function shiftScore(notes, semitoneShift) {
 
 function betterShift(candidate, best) {
   if (!best || candidate.playable !== best.playable) return !best || candidate.playable > best.playable;
-  if (candidate.upperLoad !== best.upperLoad) return candidate.upperLoad < best.upperLoad;
-  if (candidate.difficultFingerings !== best.difficultFingerings) return candidate.difficultFingerings < best.difficultFingerings;
   if (Math.abs(candidate.semitoneShift) !== Math.abs(best.semitoneShift)) {
     return Math.abs(candidate.semitoneShift) < Math.abs(best.semitoneShift);
   }
+  if (candidate.upperLoad !== best.upperLoad) return candidate.upperLoad < best.upperLoad;
+  if (candidate.difficultFingerings !== best.difficultFingerings) return candidate.difficultFingerings < best.difficultFingerings;
   return candidate.semitoneShift < best.semitoneShift;
 }
 
@@ -150,7 +114,10 @@ function betterShift(candidate, best) {
 export function bestWhistleSemitoneShift(notes) {
   if (!notes.length) return 0;
   const original = shiftScore(notes, 0);
-  if (original.playable === notes.length && original.upperLoad === 0) return 0;
+  // The Clarke chart intentionally includes both registers. Do not change a
+  // song's key merely because it uses the upper register; transpose only when
+  // the source actually falls outside the supported D-whistle range.
+  if (original.playable === notes.length) return 0;
 
   let best = null;
   for (const shift of SEMITONE_SHIFTS) {

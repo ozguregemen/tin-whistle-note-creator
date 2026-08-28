@@ -28,7 +28,8 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 - Do/Re/Mi veya C/D/E biçiminde elle nota girişi
 - `|` işaretiyle müzik cümlelerini ayırma
 - Clarke D chromatic fingering referansına göre tam, yarım ve açık delikli parmak şemaları
-- Melodinin bütün aralıklarını koruyan tek parça, rahat D whistle registerına otomatik transpozisyon
+- Clarke tablosundaki alt ve üst D-whistle registerlarını koruyan oktav yerleşimi
+- Yalnız desteklenen iki registerın dışına çıkan melodilerde bütün aralıkları koruyan sabit transpozisyon
 - Desteklenen kromatik aralığın dışındaki sesler için uyarı
 - Play/Pause/Stop, aktif nota takibi ve ayarlanabilir BPM içeren Pratik Modu v1
 - ABC ve MusicXML kaynaklarından nota süresi, tempo ve es bilgisi okuma
@@ -39,9 +40,9 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 
 ### D whistle oktavı ve otomatik düzenleme
 
-Uygulamadaki `D4–C#5` etiketleri D whistle için **yazılı perdeyi** gösterir. İnce D whistle gerçekte bir oktav yukarıdan duyulur; örneğin yazılı `E4`, duyulan `E5` sesidir. İkinci register yazılı `D5` ile başlar ve daha güçlü hava ister.
+Uygulamadaki `D4–C#5` etiketleri D whistle için **yazılı perdeyi** gösterir. İnce D whistle gerçekte bir oktav yukarıdan duyulur; örneğin yazılı `E4`, duyulan `E5` sesidir. İkinci register yazılı `D5` ile başlar ve daha güçlü hava ister. Elle nota girişinde `D'` veya `Re'`, üst registerdaki `D5` anlamına gelir.
 
-Kaynak yalnızca nota adlarını veriyorsa uygulama, ezginin tamamındaki hareketi birlikte değerlendirerek registerları tahmin eder. Ardından bütün melodiye tek bir sabit yarım ses aktarımı uygular. Böylece ezginin aralıkları ve yönü korunurken gereksiz üst-register kullanımı azaltılır. Tek tek yüksek notaları bir oktav aşağı katlamak kullanılmaz; bu yöntem melodiyi değiştirirdi.
+Kaynak yalnızca nota adlarını veriyorsa bütün işaretsiz notalar Clarke tablosunun ilk satırındaki alt registera yerleştirilir. Kaynakta gerçek oktav bilgisi veya `D'`/`Re'` gibi açık bir üst-register işareti varsa ikinci register kullanılır. Oktavı yazılmamış bir metinden güvenilir üst-register bilgisi uydurulmaz. Melodi desteklenen iki registerın dışına çıkarsa bütün melodiye tek bir sabit yarım ses aktarımı uygulanır; tek tek notalar katlanmaz.
 
 ## Çalıştırma
 
@@ -141,7 +142,7 @@ Arayüz kaynak güvenini tek bir “doğrulandı” işareti olarak sunmaz. Ezgi
 ### 3. Müzikal dönüştürme
 
 - Yarım delik ve temel cross-fingering seçenekleri
-- Tamamlandı: rahat D whistle registerı için aralıkları koruyan sabit yarım ses transpozisyonu
+- Tamamlandı: Clarke alt/üst register yerleşimi ve yalnız aralık dışı melodiler için sabit transpozisyon
 - Farklı tin whistle tonları (C, D, Eb vb.)
 - Kaynak metnindeki alt çizgi ve `es` işaretlerinden nota süreleri/es aktarımı ([notasyon açıklaması](https://www.gitaregitim.net/nota-isimleriyle-sarkilar/))
 - Uzman doğrulaması ve kaynaklar arası karşılaştırma

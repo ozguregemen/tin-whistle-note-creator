@@ -77,8 +77,8 @@ function buildSong(payload, post, notes, confidence, rhythm) {
     ...(artist ? { artist } : {}),
     aliases: [payload.query, payload.requestedTitle].filter(Boolean),
     subtitle: {
-      en: confidence === "estimated" ? "Live text source · octave register estimated" : "Live score source · machine-read notation",
-      tr: confidence === "estimated" ? "Canlı metin kaynağı · oktav bölgesi tahmini" : "Canlı nota kaynağı · makineyle okunan notasyon",
+      en: confidence === "estimated" ? "Live text source · first register assumed" : "Live score source · machine-read notation",
+      tr: confidence === "estimated" ? "Canlı metin kaynağı · ilk register varsayıldı" : "Canlı nota kaynağı · makineyle okunan notasyon",
     },
     difficulty: { en: "Source arrangement", tr: "Kaynak düzeni" },
     notes,

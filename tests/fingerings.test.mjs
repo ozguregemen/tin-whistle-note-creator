@@ -24,6 +24,8 @@ test("çapraz parmak kullanılan kromatik notaları destekler", () => {
 });
 
 test("uzatılmış üst register parmaklarını kullanır", () => {
+  assert.equal(fingeringFor("D", 4), "111111");
+  assert.equal(fingeringFor("D", 5), "011111");
   assert.equal(fingeringFor("D", 6), "011111");
   assert.equal(fingeringFor("E", 6), "111111");
   assert.equal(fingeringFor("F#", 6), "111101");
@@ -54,7 +56,7 @@ test("zaten uygun registerdaki melodiyi yerinde bırakır", () => {
   assert.equal(bestWhistleOctaveShift(phrases.flat()), 0);
 });
 
-test("metin notalarının registerını tek tek yukarı itmek yerine bütün ezgiye bakarak tahmin eder", () => {
+test("işaretsiz metin notalarını Clarke tablosunun alt registerında tutar", () => {
   const estimated = estimateDWhistleRegisters([
     ["E", "E", "F", "E", "A", "E"].map((pitch) => ({ pitch })),
     ["D", "E", "D"].map((pitch) => ({ pitch })),
@@ -63,14 +65,14 @@ test("metin notalarının registerını tek tek yukarı itmek yerine bütün ezg
   ]);
 
   assert.deepEqual(estimated.map((phrase) => phrase.map((note) => `${note.pitch}${note.octave}`)), [
-    ["E5", "E5", "F5", "E5", "A5", "E5"],
-    ["D5", "E5", "D5"],
-    ["C5", "D5", "C5"],
+    ["E4", "E4", "F4", "E4", "A4", "E4"],
+    ["D4", "E4", "D4"],
+    ["C5", "D4", "C5"],
     ["B4", "C5", "B4", "A4"],
   ]);
 });
 
-test("Caddelerde Rüzgar aralığını üst E yerine en fazla üst D kullanacak biçimde aktarır", () => {
+test("Caddelerde Rüzgar alt Mi ile başlar ve iki registera sığdığı için tonu değişmez", () => {
   const source = estimateDWhistleRegisters([
     ["E", "E", "F", "E", "A", "E"].map((pitch) => ({ pitch })),
     ["D", "E", "D"].map((pitch) => ({ pitch })),
@@ -79,10 +81,21 @@ test("Caddelerde Rüzgar aralığını üst E yerine en fazla üst D kullanacak 
   ]);
   const adapted = adaptPhrasesToDWhistle(source).flat();
 
-  assert.equal(bestWhistleSemitoneShift(source.flat()), -7);
-  assert.equal(adapted[0].pitch, "A");
+  assert.equal(bestWhistleSemitoneShift(source.flat()), 0);
+  assert.equal(adapted[0].pitch, "E");
   assert.equal(adapted[0].octave, 4);
-  assert.equal(Math.max(...adapted.map((note) => note.octave * 12 + ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"].indexOf(note.pitch))), 62);
+});
+
+test("örnek tabdaki işaretsiz B A G E dizisini alt registerda tutar", () => {
+  const estimated = estimateDWhistleRegisters([
+    ["B", "A", "G", "E", "F#", "G"].map((pitch) => ({ pitch })),
+    ["B", "A", "G", "E", "G", "D"].map((pitch) => ({ pitch })),
+  ]);
+
+  assert.deepEqual(estimated.map((phrase) => phrase.map((note) => `${note.pitch}${note.octave}`)), [
+    ["B4", "A4", "G4", "E4", "F#4", "G4"],
+    ["B4", "A4", "G4", "E4", "G4", "D4"],
+  ]);
 });
 
 test("C#5 ilk registerda, D5 ise üst registerda gösterilir", () => {
