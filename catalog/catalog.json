@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-28T10:39:47.149Z",
+  "generatedAt": "2026-08-28T21:33:54.012Z",
   "songs": [
     {
       "id": "duman-bu-aksam",
@@ -2839,6 +2839,32 @@
         {
           "name": "Gitaregitim.net",
           "url": "https://www.gitaregitim.net/cok-uzaklarda-caddelerde-ruzgar-nota-tab/",
+          "role": "note-source"
+        }
+      ]
+    },
+    {
+      "id": "notalar-1169-arkadasim-esek",
+      "title": "Arkadaşım Eşek",
+      "aliases": [
+        "arkadaşım eşek",
+        "Arkadaşım Eşek Do Re Mi Notaları"
+      ],
+      "subtitle": {
+        "en": "Live text source · first register assumed",
+        "tr": "Canlı metin kaynağı · ilk register varsayıldı"
+      },
+      "difficulty": {
+        "en": "Source arrangement",
+        "tr": "Kaynak düzeni"
+      },
+      "notes": "E4 E4 F4 E4 D4 | D4 E4 F4 D4 C5 | D4 E4 F4 D4 C5 | D4 E4 F4 D4 C5 D4",
+      "sourceStatus": "live",
+      "sourceConfidence": "estimated",
+      "sources": [
+        {
+          "name": "Notalar.net",
+          "url": "https://www.notalar.net/arkadasim-esek-do-re-mi-notalari/",
           "role": "note-source"
         }
       ]
