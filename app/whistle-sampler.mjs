@@ -11,6 +11,9 @@ export const WHISTLE_SAMPLE_ZONES = Object.freeze([
 export const WHISTLE_SOUNDFONT = Object.freeze({
   file: "audio/tin-whistle/0780_GeneralUserGS_sf2_file.js",
   globalName: "_tone_0780_GeneralUserGS_sf2_file",
+  // GeneralUser's GM Whistle preset is octave-transposing: for example, its
+  // zone rooted at MIDI 69 contains an A5 sample, so trigger 69 sounds MIDI 81.
+  soundingOffsetSemitones: 12,
 });
 
 export function midiForNote(pitch, octave) {
@@ -22,6 +25,11 @@ export function midiForNote(pitch, octave) {
 export function midiForWhistleNote(pitch, writtenOctave) {
   const writtenMidi = midiForNote(pitch, writtenOctave);
   return writtenMidi === null ? null : writtenMidi + 12;
+}
+
+export function soundfontTriggerMidiForAudibleMidi(audibleMidi, soundingOffsetSemitones = 0) {
+  if (!Number.isFinite(audibleMidi) || !Number.isFinite(soundingOffsetSemitones)) return null;
+  return audibleMidi - soundingOffsetSemitones;
 }
 
 export function sampleZoneForMidi(midi) {

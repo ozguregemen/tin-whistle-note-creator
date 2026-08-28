@@ -6,7 +6,7 @@ import { assessSongQuality } from "./catalog-quality.mjs";
 import { arrangePhrasesForDWhistle, estimateDWhistleRegisters, isUpperWhistleRegister } from "./fingerings.mjs";
 import { buildPhraseRanges, buildPlaybackPlan, frequencyForWhistleNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "./practice.mjs";
 import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
-import { base64AudioBuffer, midiForWhistleNote, playbackRateForMidi, sampleZoneForMidi, soundfontLoopForZone, soundfontZoneForMidi, WHISTLE_SAMPLE_ZONES, WHISTLE_SOUNDFONT } from "./whistle-sampler.mjs";
+import { base64AudioBuffer, midiForWhistleNote, playbackRateForMidi, sampleZoneForMidi, soundfontLoopForZone, soundfontTriggerMidiForAudibleMidi, soundfontZoneForMidi, WHISTLE_SAMPLE_ZONES, WHISTLE_SOUNDFONT } from "./whistle-sampler.mjs";
 
 type Language = "en" | "tr";
 type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "discoveryFound" | "queueing" | "processing" | "needsReview" | "liveFound" | "sourceUnavailable";
@@ -760,16 +760,20 @@ export default function Home() {
     const gain = context.createGain();
     const now = context.currentTime;
 
-    const midi = midiForWhistleNote(note.pitch, note.octave);
-    const soundfontZone = soundfontZoneForMidi(midi, whistleSoundfontZonesRef.current) as WhistleSoundfontZone | null;
-    const legacyZone = sampleZoneForMidi(midi);
+    const audibleMidi = midiForWhistleNote(note.pitch, note.octave);
+    const soundfontTriggerMidi = soundfontTriggerMidiForAudibleMidi(
+      audibleMidi,
+      WHISTLE_SOUNDFONT.soundingOffsetSemitones,
+    );
+    const soundfontZone = soundfontZoneForMidi(soundfontTriggerMidi, whistleSoundfontZonesRef.current) as WhistleSoundfontZone | null;
+    const legacyZone = sampleZoneForMidi(audibleMidi);
     const legacyBuffer = legacyZone ? whistleBuffersRef.current.get(legacyZone.rootMidi) : undefined;
     let source: AudioScheduledSourceNode;
-    if (soundfontZone?.buffer && midi !== null) {
+    if (soundfontZone?.buffer && soundfontTriggerMidi !== null) {
       const sampleSource = context.createBufferSource();
       const loop = soundfontLoopForZone(soundfontZone);
       sampleSource.buffer = soundfontZone.buffer;
-      sampleSource.playbackRate.setValueAtTime(playbackRateForMidi(midi, soundfontZone), now);
+      sampleSource.playbackRate.setValueAtTime(playbackRateForMidi(soundfontTriggerMidi, soundfontZone), now);
       if (loop) {
         sampleSource.loop = true;
         sampleSource.loopStart = loop.start;
@@ -779,10 +783,10 @@ export default function Home() {
       gain.gain.setValueAtTime(0.0001, now);
       gain.gain.exponentialRampToValueAtTime(0.58, now + 0.018);
       source = sampleSource;
-    } else if (legacyBuffer && legacyZone && midi !== null) {
+    } else if (legacyBuffer && legacyZone && audibleMidi !== null) {
       const sampleSource = context.createBufferSource();
       sampleSource.buffer = legacyBuffer;
-      sampleSource.playbackRate.setValueAtTime(playbackRateForMidi(midi, legacyZone.rootMidi), now);
+      sampleSource.playbackRate.setValueAtTime(playbackRateForMidi(audibleMidi, legacyZone.rootMidi), now);
       sampleSource.connect(gain);
       gain.gain.setValueAtTime(0.0001, now);
       gain.gain.exponentialRampToValueAtTime(0.72, now + 0.025);
