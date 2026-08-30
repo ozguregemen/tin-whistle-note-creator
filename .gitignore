@@ -41,3 +41,4 @@ yarn-error.log*
 /work/
 /.source-job/
 /audiveris.deb
+/public/models/basic-pitch/
