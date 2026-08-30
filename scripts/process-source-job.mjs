@@ -7,7 +7,7 @@ import {
   addEstimatedOctaves, extractScoreAssets, extractTextTimedPhrases, mergeSongIntoCatalog,
   musicXmlToTimedPhrases, phrasesToString, plainTitle, slugify, stripLeadingArtist,
 } from "./source-processing.mjs";
-import { guitarProScoreToTimedPhrases } from "./songsterr-processing.mjs";
+import { guitarProScoreToTimedPhrases, songsterrTrackJsonToTimedPhrases } from "./songsterr-processing.mjs";
 import { documentNoteCountIsPlausible, getDocumentSource } from "../worker/document-sources.mjs";
 
 const CATALOG_FILE = new URL("../catalog/catalog.json", import.meta.url);
@@ -23,6 +23,12 @@ const SOURCES = {
 
 const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
 const MAX_METADATA_BYTES = 512 * 1024;
+const SONGSTERR_TRACK_CDNS = Object.freeze([
+  "https://dqsljvtekg760.cloudfront.net",
+  "https://d34shlm8p2ums2.cloudfront.net",
+  "https://d3cqchs6g3b5ew.cloudfront.net",
+  "https://d3d3l6a6rcgkaf.cloudfront.net",
+]);
 
 function requestPayload() {
   const sourceId = process.env.SOURCE_ID;
@@ -156,6 +162,38 @@ async function limitedJson(response, maximumBytes, label) {
   return JSON.parse(new TextDecoder().decode(await limitedResponseBytes(response, maximumBytes, label)));
 }
 
+async function loadSongsterrTrackJson(payload, meta, trackIndex) {
+  const image = String(meta.image || "").trim();
+  const path = image
+    ? `/${payload.songId}/${meta.revisionId}/${encodeURIComponent(image)}/${trackIndex}.json`
+    : `/part/${meta.revisionId}/${trackIndex}`;
+  let lastStatus = 0;
+  for (const cdn of SONGSTERR_TRACK_CDNS) {
+    const response = await fetch(`${cdn}${path}`, {
+      headers: { Accept: "application/json", "User-Agent": "tin-whistle-note-creator/0.3" },
+    });
+    if (response.ok) return limitedJson(response, MAX_DOCUMENT_BYTES, "Songsterr track data");
+    lastStatus = response.status;
+    if (response.status !== 403 && response.status !== 404) break;
+  }
+  throw new Error(`Songsterr track data returned HTTP ${lastStatus || 502}`);
+}
+
+function songsterrTrackIndex(meta, preferredTrackIndex) {
+  const tracks = Array.isArray(meta?.tracks) ? meta.tracks : [];
+  const preferred = Number(preferredTrackIndex);
+  const isMelodic = (track) => {
+    const instrument = String(track?.instrument || "").toLowerCase();
+    return !instrument.includes("drum") && !instrument.includes("percussion") && !instrument.includes("bass");
+  };
+  if (Number.isInteger(preferred) && tracks[preferred] && isMelodic(tracks[preferred])) return preferred;
+  const vocal = tracks.findIndex((track) => isMelodic(track) && /vocal|melody|lead/i.test(`${track?.name || ""} ${track?.instrument || ""}`));
+  if (vocal >= 0) return vocal;
+  const guitar = Number(meta?.popularTrackGuitar);
+  if (Number.isInteger(guitar) && tracks[guitar] && isMelodic(tracks[guitar])) return guitar;
+  return tracks.findIndex(isMelodic);
+}
+
 async function loadSongsterrScore(payload) {
   const metaResponse = await fetch(new URL(`/api/meta/${payload.songId}`, payload.source.origin), {
     headers: { Accept: "application/json", "User-Agent": "tin-whistle-note-creator/0.3" },
@@ -175,7 +213,14 @@ async function loadSongsterrScore(payload) {
     throw new Error("Songsterr returned a mismatched score revision");
   }
 
-  const sourceUrl = new URL(String(revision.source || ""));
+  const resolvedMeta = { ...revision, ...meta, popularTrackGuitar: meta.popularTrackGuitar, popularTrackVocals: meta.popularTrackVocals };
+  if (!revision.source) {
+    const trackIndex = songsterrTrackIndex(meta, payload.trackIndex);
+    if (trackIndex < 0) throw new Error("Songsterr did not return a melodic track");
+    const track = await loadSongsterrTrackJson(payload, meta, trackIndex);
+    return { meta: resolvedMeta, track, trackIndex, format: "track-json" };
+  }
+  const sourceUrl = new URL(String(revision.source));
   if (sourceUrl.protocol !== "https:" || sourceUrl.hostname !== "gp.songsterr.com") {
     throw new Error("Songsterr returned an unsupported score source");
   }
@@ -187,12 +232,12 @@ async function loadSongsterrScore(payload) {
   const settings = new alphaTab.Settings();
   settings.importer.maxDecodingBufferSize = MAX_DOCUMENT_BYTES;
   const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(scoreBytes, settings);
-  return { meta: { ...revision, popularTrackGuitar: meta.popularTrackGuitar, popularTrackVocals: meta.popularTrackVocals }, score };
+  return { meta: resolvedMeta, score, format: "guitar-pro" };
 }
 
 function songsterrPageUrl(meta) {
   const slug = slugify(`${meta.artist || ""} ${meta.title || ""}`) || "song";
-  return `https://www.songsterr.com/a/wsa/${slug}-tab-s${meta.songId}`;
+  return `https://www.songsterr.com/a/wsa/${slug}-sheet-s${meta.songId}`;
 }
 
 async function prepare() {
@@ -208,7 +253,8 @@ async function prepare() {
       modified: null,
     };
   } else if (payload.source.kind === "guitarpro") {
-    const { meta, score } = await loadSongsterrScore(payload);
+    const loaded = await loadSongsterrScore(payload);
+    const { meta, score } = loaded;
     payload.requestedArtist ||= String(meta.artist || "").slice(0, 120);
     post = {
       title: { rendered: String(meta.title || payload.requestedTitle || `Song ${payload.songId}`) },
@@ -216,7 +262,9 @@ async function prepare() {
       content: { rendered: "" },
       modified: meta.createdAt || null,
     };
-    const parsed = guitarProScoreToTimedPhrases(score, meta, payload.trackIndex);
+    const parsed = loaded.format === "track-json"
+      ? songsterrTrackJsonToTimedPhrases(loaded.track, meta, loaded.trackIndex)
+      : guitarProScoreToTimedPhrases(score, meta, payload.trackIndex);
     const noteCount = parsed.phrases.flat().length;
     if (noteCount < 8) {
       await writeJob({

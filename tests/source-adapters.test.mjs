@@ -100,7 +100,7 @@ test("yabancı şarkıyı Songsterr kataloğunda sanatçı ve başlıkla bulur",
   assert.equal(result.results[0].trackIndex, 0);
   assert.equal(result.results[0].title, "The Mayan Factor — Warflower");
   assert.equal(result.results[0].processingMode, "gp");
-  assert.match(result.results[0].url, /songsterr\.com\/a\/wsa\/the-mayan-factor-warflower-tab-s1144964$/);
+  assert.match(result.results[0].url, /songsterr\.com\/a\/wsa\/the-mayan-factor-warflower-sheet-s1144964$/);
 });
 
 test("yabancı şarkıyı yalnızca başlığıyla da Songsterr kataloğunda bulur", async () => {

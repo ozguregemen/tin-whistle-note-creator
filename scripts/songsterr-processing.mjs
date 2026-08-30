@@ -38,6 +38,63 @@ function selectedBeatNote(beat) {
     .sort((left, right) => Number(right.realValue) - Number(left.realValue))[0] || null;
 }
 
+function songsterrJsonBeatNote(beat, tuning) {
+  const notes = Array.isArray(beat?.notes) ? beat.notes : [];
+  return notes
+    .filter((note) => !note?.rest && Number.isInteger(Number(note?.string)) && Number.isFinite(Number(note?.fret)))
+    .map((note) => ({
+      midi: Number(tuning?.[Number(note.string)]) + Number(note.fret),
+      tied: Boolean(note.tie),
+    }))
+    .filter((note) => Number.isFinite(note.midi))
+    .sort((left, right) => right.midi - left.midi)[0] || null;
+}
+
+function songsterrJsonTrackEvents(track) {
+  const byStart = new Map();
+  let measureStart = 0;
+  for (const [barIndex, measure] of (Array.isArray(track?.measures) ? track.measures : []).entries()) {
+    let measureDuration = 0;
+    for (const voice of Array.isArray(measure?.voices) ? measure.voices : []) {
+      let voiceStart = 0;
+      for (const beat of Array.isArray(voice?.beats) ? voice.beats : []) {
+        const [numerator, denominator] = Array.isArray(beat?.duration) ? beat.duration : [];
+        const duration = Number(numerator) / Number(denominator) * 4;
+        if (!Number.isFinite(duration) || duration <= 0) continue;
+        const note = songsterrJsonBeatNote(beat, track.tuning);
+        if (note) {
+          const event = {
+            barIndex,
+            start: measureStart + voiceStart,
+            duration,
+            midi: Math.round(note.midi),
+            tied: note.tied,
+          };
+          const existing = byStart.get(event.start);
+          if (!existing || event.midi > existing.midi) byStart.set(event.start, event);
+        }
+        voiceStart += duration;
+      }
+      measureDuration = Math.max(measureDuration, voiceStart);
+    }
+    const [beats, beatUnit] = Array.isArray(measure?.signature) ? measure.signature : [];
+    const signatureDuration = Number(beats) / Number(beatUnit) * 4;
+    measureStart += Math.max(measureDuration, Number.isFinite(signatureDuration) ? signatureDuration : 0);
+  }
+  const events = [...byStart.values()].sort((left, right) => left.start - right.start || right.midi - left.midi);
+  const merged = [];
+  for (const event of events) {
+    const previous = merged.at(-1);
+    const previousEnd = previous ? previous.start + previous.duration : 0;
+    if (event.tied && previous?.midi === event.midi && event.start <= previousEnd + 1e-6) {
+      previous.duration = Math.max(previousEnd, event.start + event.duration) - previous.start;
+    } else {
+      merged.push({ ...event });
+    }
+  }
+  return merged;
+}
+
 function trackEvents(track) {
   const byStart = new Map();
   const staves = Array.isArray(track?.staves) ? track.staves : [];
@@ -78,13 +135,13 @@ function trackEvents(track) {
   return merged;
 }
 
-function phraseEvents(events) {
+function phraseEvents(events, ticksPerQuarter = QUARTER_NOTE_TICKS) {
   const phrases = [];
   let current = [];
   let phraseStartBar = 0;
   let previousEnd = 0;
   for (const event of events) {
-    const gapBeats = Math.max(0, event.start - previousEnd) / QUARTER_NOTE_TICKS;
+    const gapBeats = Math.max(0, event.start - previousEnd) / ticksPerQuarter;
     const shouldSplit = current.length > 0 && (
       current.length >= MAX_PHRASE_NOTES
       || gapBeats >= 2
@@ -97,13 +154,29 @@ function phraseEvents(events) {
     if (current.length === 0) phraseStartBar = event.barIndex;
     current.push({
       note: midiToScientificPitch(event.midi),
-      duration: Math.max(0.125, Math.min(16, event.duration / QUARTER_NOTE_TICKS)),
+      duration: Math.max(0.125, Math.min(16, event.duration / ticksPerQuarter)),
       gap: current.length ? gapBeats : 0,
     });
     previousEnd = Math.max(previousEnd, event.start + event.duration);
   }
   if (current.length) phrases.push(current);
   return phrases;
+}
+
+export function songsterrTrackJsonToTimedPhrases(track, meta = {}, trackIndex = 0) {
+  const metaTrack = Array.isArray(meta?.tracks) ? meta.tracks[trackIndex] : null;
+  if (!track || !metaTrack || !isMelodicMetaTrack(metaTrack)) {
+    return { phrases: [], durations: [], gaps: [], tempo: null, trackIndex: -1 };
+  }
+  const grouped = phraseEvents(songsterrJsonTrackEvents(track), 1)
+    .map((phrase) => phrase.filter((event) => event.note));
+  return {
+    phrases: grouped.map((phrase) => phrase.map((event) => event.note)),
+    durations: grouped.map((phrase) => phrase.map((event) => event.duration)),
+    gaps: grouped.map((phrase) => phrase.map((event) => event.gap)),
+    tempo: null,
+    trackIndex,
+  };
 }
 
 export function guitarProScoreToTimedPhrases(score, meta = {}, preferredTrackIndex) {
