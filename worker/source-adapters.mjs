@@ -12,6 +12,7 @@ const DISCOVERY_SOURCES = new Map([
 ]);
 
 const MAX_WORDPRESS_BYTES = 256 * 1024;
+const MAX_SONGSTERR_BYTES = 512 * 1024;
 const MAX_DISCOVERY_BYTES = 512 * 1024;
 
 export const SOURCE_ADAPTERS = {
@@ -28,6 +29,13 @@ export const SOURCE_ADAPTERS = {
     kind: "wordpress",
     origin: "https://www.gitaregitim.net",
     processingMode: "omr",
+  },
+  songsterr: {
+    id: "songsterr",
+    name: "Songsterr",
+    kind: "catalog",
+    origin: "https://www.songsterr.com",
+    processingMode: "review",
   },
   academicPdf: DOCUMENT_SOURCE_ADAPTER,
 };
@@ -148,6 +156,50 @@ async function fetchWordPressResults(adapter, query, fetchFn) {
   return [...unique.values()];
 }
 
+function songsterrUrl(item) {
+  const slug = normalizeSearchText(`${item.artist || ""} ${item.title || ""}`)
+    .replace(/[^a-z0-9 ]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
+  return `https://www.songsterr.com/a/wsa/${slug || "song"}-tab-s${item.songId}`;
+}
+
+async function fetchSongsterrResults(adapter, query, fetchFn) {
+  const searchTerms = meaningfulSearchText(query);
+  if (!searchTerms) return [];
+  const url = new URL("/api/songs", adapter.origin);
+  url.searchParams.set("pattern", searchTerms);
+  url.searchParams.set("size", "10");
+  const response = await fetchFn(url, {
+    headers: { Accept: "application/json", "User-Agent": "tin-whistle-note-creator/0.2" },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error(`${adapter.name} returned HTTP ${response.status}`);
+  const items = JSON.parse(await readLimitedText(response, MAX_SONGSTERR_BYTES));
+  if (!Array.isArray(items)) return [];
+
+  const unique = new Map();
+  for (const item of items) {
+    if (!Number.isInteger(item?.songId) || typeof item?.artist !== "string" || typeof item?.title !== "string") continue;
+    if (item.isJunk || item.hasPlayer === false) continue;
+    const score = searchMatchScore(query, [item.title, item.artist, `${item.artist} ${item.title}`]);
+    if (score < 58) continue;
+    const candidate = {
+      id: `${adapter.id}:${item.songId}`,
+      sourceId: adapter.id,
+      sourceName: adapter.name,
+      songId: item.songId,
+      title: `${item.artist} — ${item.title}`,
+      url: songsterrUrl(item),
+      processingMode: adapter.processingMode,
+      score,
+    };
+    const existing = unique.get(candidate.id);
+    if (!existing || existing.score < score) unique.set(candidate.id, candidate);
+  }
+  return [...unique.values()];
+}
+
 function searchDocumentSources(query) {
   return Object.values(DOCUMENT_SOURCES).flatMap((document) => {
     const score = searchMatchScore(query, [document.title, ...document.aliases]);
@@ -243,13 +295,18 @@ async function searchWebDiscovery(query, fetchFn) {
 export async function searchAllSources(query, fetchFn = fetch) {
   if (!normalizeSearchText(query)) return { results: [], unavailableSources: [] };
   const wordpressAdapters = Object.values(SOURCE_ADAPTERS).filter((adapter) => adapter.kind === "wordpress");
+  const songsterrAdapter = SOURCE_ADAPTERS.songsterr;
+  const searchers = [
+    ...wordpressAdapters.map((adapter) => ({ adapter, search: () => fetchWordPressResults(adapter, query, fetchFn) })),
+    { adapter: songsterrAdapter, search: () => fetchSongsterrResults(songsterrAdapter, query, fetchFn) },
+  ];
   const settled = await Promise.allSettled(
-    wordpressAdapters.map((adapter) => fetchWordPressResults(adapter, query, fetchFn)),
+    searchers.map(({ search }) => search()),
   );
   const results = searchDocumentSources(query);
   const unavailableSources = [];
   settled.forEach((result, index) => {
-    const adapter = wordpressAdapters[index];
+    const adapter = searchers[index].adapter;
     if (result.status === "fulfilled") results.push(...result.value);
     else unavailableSources.push(adapter.id);
   });

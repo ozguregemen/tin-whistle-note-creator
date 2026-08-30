@@ -78,6 +78,47 @@ test("küratörlü akademik PDF kaynağını sanatçı olmadan da bulur", async 
   assert.equal(result.results[0].processingMode, "omr");
 });
 
+test("yabancı şarkıyı Songsterr kataloğunda sanatçı ve başlıkla bulur", async () => {
+  const fetchMock = async (input) => {
+    const url = new URL(input);
+    if (url.hostname !== "www.songsterr.com") return response([]);
+    assert.equal(url.pathname, "/api/songs");
+    assert.equal(url.searchParams.get("pattern"), "the mayan factor warflower");
+    return response([{
+      songId: 1144964,
+      artist: "The Mayan Factor",
+      title: "Warflower",
+      hasPlayer: true,
+      isJunk: false,
+      tracks: [{ instrument: "Acoustic Guitar (steel)" }],
+    }]);
+  };
+  const result = await searchAllSources("The Mayan Factor Warflower", fetchMock);
+  assert.equal(result.results[0].sourceId, "songsterr");
+  assert.equal(result.results[0].songId, 1144964);
+  assert.equal(result.results[0].title, "The Mayan Factor — Warflower");
+  assert.equal(result.results[0].processingMode, "review");
+  assert.match(result.results[0].url, /songsterr\.com\/a\/wsa\/the-mayan-factor-warflower-tab-s1144964$/);
+});
+
+test("yabancı şarkıyı yalnızca başlığıyla da Songsterr kataloğunda bulur", async () => {
+  const fetchMock = async (input) => {
+    const url = new URL(input);
+    if (url.hostname !== "www.songsterr.com") return response([]);
+    assert.equal(url.searchParams.get("pattern"), "warflower");
+    return response([{
+      songId: 1144964,
+      artist: "The Mayan Factor",
+      title: "Warflower",
+      hasPlayer: true,
+      isJunk: false,
+    }]);
+  };
+  const result = await searchAllSources("Warflower", fetchMock);
+  assert.equal(result.results[0].sourceId, "songsterr");
+  assert.equal(result.results[0].score, 100);
+});
+
 test("onaylı kaynaklarda sonuç yoksa nota odaklı web keşfi sunar", async () => {
   const discoveryQueries = [];
   const fetchMock = async (input) => {

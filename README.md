@@ -11,6 +11,7 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 ## Bu sürümde çalışanlar
 
 - İzin verilen kaynakları WordPress REST API üzerinden okuyan kaynak eşitleyici
+- Yabancı şarkıları Songsterr kataloğunda sanatçı/başlık eşleşmesiyle bulan bağlantı adaptörü
 - İlk gerçek ve kaynaklı kayıt: Duman — Bu Akşam
 - The Session’ın CORS-açık API’sinde ziyaret anında canlı ABC nota araması
 - Cloudflare Worker üzerinden Notalar.net ve Gitaregitim.net üzerinde canlı, paralel kaynak araması
@@ -85,7 +86,7 @@ GitHub Pages yalnızca arayüzü sunar. `worker/source-api.mjs` içindeki Cloudf
 
 Canlı API: `https://tin-whistle-note-source-api.ozguregemenbusiness.workers.dev`
 
-Onaylı adaptörlerde eşleşme bulunamazsa Worker, yalnızca nota odaklı izinli alan adlarında (MuseScore ve Kolay Nota) arama motoru keşfi yapar. Bu sonuçlar güvenilirlik kontrolü için bağlantı olarak gösterilir; otomatik nota içe aktarma yalnızca onaylı WordPress veya küratörlü belge adaptörlerinde kullanılabilir. Belge adaptörleri tam internet taraması yapmaz: kaynak URL'si, nota sayfaları ve beklenen nota aralığı kodda izinli listeyle sınırlandırılır.
+Worker, Türkçe kaynakların yanında Songsterr'ın yabancı şarkı kataloğunu da sanatçı ve başlıkla arar. Songsterr sonucu kaynak bağlantısı olarak gösterilir; ücretli Guitar Pro/MIDI indirme özellikleri otomatikleştirilmez. Onaylı adaptörlerde eşleşme bulunamazsa Worker, yalnızca nota odaklı izinli alan adlarında (MuseScore ve Kolay Nota) arama motoru keşfi yapar. Bu sonuçlar güvenilirlik kontrolü için bağlantı olarak gösterilir; otomatik nota içe aktarma yalnızca onaylı WordPress veya küratörlü belge adaptörlerinde kullanılabilir. Belge adaptörleri tam internet taraması yapmaz: kaynak URL'si, nota sayfaları ve beklenen nota aralığı kodda izinli listeyle sınırlandırılır.
 
 Worker'ı kontrol etmek ve yayımlamak için:
 

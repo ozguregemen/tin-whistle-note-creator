@@ -11,7 +11,7 @@ test("Worker sağlık ve CORS uç noktalarını sunar", async () => {
   const response = await handle(new Request("https://worker.test/health", { headers: { Origin: "https://ozguregemen.github.io" } }));
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("access-control-allow-origin"), "https://ozguregemen.github.io");
-  assert.deepEqual((await response.json()).adapters, ["notalar", "gitaregitim", "academic-pdf"]);
+  assert.deepEqual((await response.json()).adapters, ["notalar", "gitaregitim", "songsterr", "academic-pdf"]);
 });
 
 test("Worker yalnızca desteklenen kaynakları GitHub Actions kuyruğuna gönderir", async () => {
