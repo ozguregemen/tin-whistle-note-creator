@@ -220,6 +220,7 @@ const COPY = {
     processSource: "Read this score",
     textSource: "Text notes · fast",
     scoreSource: "PDF / image score · OMR",
+    gpSource: "Guitar Pro / tab data · automatic",
     reviewSource: "Open and review",
     webSource: "Web discovery · unverified",
     emptyTitle: "No note sheet selected",
@@ -345,6 +346,7 @@ const COPY = {
     processSource: "Bu notayı oku",
     textSource: "Metin notası · hızlı",
     scoreSource: "PDF / görsel nota · OMR",
+    gpSource: "Guitar Pro / tab verisi · otomatik",
     reviewSource: "Aç ve kontrol et",
     webSource: "Web keşfi · doğrulanmadı",
     emptyTitle: "Nota sayfası seçilmedi",
@@ -1266,7 +1268,7 @@ export default function Home() {
                 {sourceCandidates.map((candidate) => <article className="source-result" key={candidate.id}>
                   <div>
                     <strong>{candidate.title}</strong>
-                    <span>{candidate.sourceName} · {candidate.processingMode === "text" ? t.textSource : candidate.processingMode === "review" ? t.webSource : t.scoreSource}</span>
+                    <span>{candidate.sourceName} · {candidate.processingMode === "text" ? t.textSource : candidate.processingMode === "gp" ? t.gpSource : candidate.processingMode === "review" ? t.webSource : t.scoreSource}</span>
                   </div>
                   <div>
                     <a href={candidate.url} target="_blank" rel="noreferrer">{t.primarySource}</a>

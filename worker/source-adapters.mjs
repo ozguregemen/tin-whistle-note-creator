@@ -161,7 +161,7 @@ function songsterrUrl(item) {
     .replace(/[^a-z0-9 ]/g, "")
     .trim()
     .replace(/\s+/g, "-");
-  return `https://www.songsterr.com/a/wsa/${slug || "song"}-tab-s${item.songId}`;
+  return `https://www.songsterr.com/a/wsa/${slug || "song"}-sheet-s${item.songId}`;
 }
 
 function songsterrMelodyTrack(item) {
