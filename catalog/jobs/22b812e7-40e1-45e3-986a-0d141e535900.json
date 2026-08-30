@@ -1,0 +1,31 @@
+{
+  "requestId": "22b812e7-40e1-45e3-986a-0d141e535900",
+  "status": "completed",
+  "confidence": "estimated",
+  "song": {
+    "id": "notalar-1491-sen-aglama",
+    "title": "Sen Ağlama",
+    "aliases": [
+      "sen ağlama",
+      "Sen Ağlama Notaları"
+    ],
+    "subtitle": {
+      "en": "Live text source · first register assumed",
+      "tr": "Canlı metin kaynağı · ilk register varsayıldı"
+    },
+    "difficulty": {
+      "en": "Source arrangement",
+      "tr": "Kaynak düzeni"
+    },
+    "notes": "G4 A4 B4 B4 | G4 A4 B4 B4 | B4 C5 D4 E4 D4 D4 C5 | B4 G4 C5 B4 A4 | F4 G4 A4 A4 | F4 G4 A4 A4 | F4 G4 A4 C5 B4 B4 A4 A4 | F4 G4 F4 E4",
+    "sourceStatus": "live",
+    "sourceConfidence": "estimated",
+    "sources": [
+      {
+        "name": "Notalar.net",
+        "url": "https://www.notalar.net/sen-aglama-notalari/",
+        "role": "note-source"
+      }
+    ]
+  }
+}
