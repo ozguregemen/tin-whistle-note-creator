@@ -73,9 +73,15 @@ async function queueJob(request, env, fetchFn) {
   const body = await request.json().catch(() => null);
   const adapter = getSourceAdapter(body?.sourceId);
   const postId = Number.isInteger(body?.postId) && body.postId > 0 ? body.postId : null;
+  const songId = Number.isInteger(body?.songId) && body.songId > 0 ? body.songId : null;
+  const trackIndex = Number.isInteger(body?.trackIndex) && body.trackIndex >= 0 ? body.trackIndex : null;
   const documentId = typeof body?.documentId === "string" ? body.documentId : "";
   const document = adapter?.kind === "document" ? getDocumentSource(documentId) : null;
-  const candidateIsValid = adapter?.kind === "wordpress" ? postId !== null : Boolean(document && document.sourceId === adapter?.id);
+  const candidateIsValid = adapter?.kind === "wordpress"
+    ? postId !== null
+    : adapter?.kind === "guitarpro"
+      ? songId !== null
+      : Boolean(document && document.sourceId === adapter?.id);
   if (!adapter || !candidateIsValid) {
     return { response: { error: "Invalid or unsupported source candidate" }, status: 400 };
   }
@@ -94,6 +100,8 @@ async function queueJob(request, env, fetchFn) {
         requestId,
         sourceId: adapter.id,
         ...(postId !== null ? { postId } : {}),
+        ...(songId !== null ? { songId } : {}),
+        ...(trackIndex !== null ? { trackIndex } : {}),
         ...(document ? { documentId: document.id } : {}),
         query,
         title,

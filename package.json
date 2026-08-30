@@ -22,6 +22,7 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@coderline/alphatab": "^1.8.4",
     "@spotify/basic-pitch": "^1.0.1",
     "drizzle-orm": "0.45.2",
     "react": "19.2.6",

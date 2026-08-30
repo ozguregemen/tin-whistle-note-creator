@@ -48,6 +48,23 @@ test("Worker yalnızca desteklenen kaynakları GitHub Actions kuyruğuna gönder
   assert.equal(dispatchBody.client_payload.documentId, "ohu-tarkan-kuzu-kuzu");
   assert.equal("postId" in dispatchBody.client_payload, false);
 
+  const songsterrResponse = await handle(new Request("https://worker.test/api/jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sourceId: "songsterr",
+      songId: 1144964,
+      trackIndex: 0,
+      query: "The Mayan Factor Warflower",
+      title: "The Mayan Factor — Warflower",
+      artist: "The Mayan Factor",
+    }),
+  }));
+  assert.equal(songsterrResponse.status, 202);
+  assert.equal(dispatchBody.client_payload.songId, 1144964);
+  assert.equal(dispatchBody.client_payload.trackIndex, 0);
+  assert.equal(dispatchBody.client_payload.artist, "The Mayan Factor");
+
   const rejected = await handle(new Request("https://worker.test/api/jobs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

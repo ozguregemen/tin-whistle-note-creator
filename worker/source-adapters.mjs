@@ -33,9 +33,9 @@ export const SOURCE_ADAPTERS = {
   songsterr: {
     id: "songsterr",
     name: "Songsterr",
-    kind: "catalog",
+    kind: "guitarpro",
     origin: "https://www.songsterr.com",
-    processingMode: "review",
+    processingMode: "gp",
   },
   academicPdf: DOCUMENT_SOURCE_ADAPTER,
 };
@@ -164,6 +164,19 @@ function songsterrUrl(item) {
   return `https://www.songsterr.com/a/wsa/${slug || "song"}-tab-s${item.songId}`;
 }
 
+function songsterrMelodyTrack(item) {
+  const tracks = Array.isArray(item?.tracks) ? item.tracks : [];
+  const usable = (index) => Number.isInteger(index)
+    && index >= 0
+    && index < tracks.length
+    && !/drum|percussion|bass/i.test(String(tracks[index]?.instrument || ""));
+  const vocal = Number(item?.popularTrackVocals);
+  if (usable(vocal)) return vocal;
+  const guitar = Number(item?.popularTrackGuitar);
+  if (usable(guitar)) return guitar;
+  return tracks.findIndex((track) => !/drum|percussion|bass/i.test(String(track?.instrument || "")));
+}
+
 async function fetchSongsterrResults(adapter, query, fetchFn) {
   const searchTerms = meaningfulSearchText(query);
   if (!searchTerms) return [];
@@ -189,6 +202,8 @@ async function fetchSongsterrResults(adapter, query, fetchFn) {
       sourceId: adapter.id,
       sourceName: adapter.name,
       songId: item.songId,
+      artist: item.artist,
+      trackIndex: songsterrMelodyTrack(item),
       title: `${item.artist} — ${item.title}`,
       url: songsterrUrl(item),
       processingMode: adapter.processingMode,

@@ -96,8 +96,10 @@ test("yabancı şarkıyı Songsterr kataloğunda sanatçı ve başlıkla bulur",
   const result = await searchAllSources("The Mayan Factor Warflower", fetchMock);
   assert.equal(result.results[0].sourceId, "songsterr");
   assert.equal(result.results[0].songId, 1144964);
+  assert.equal(result.results[0].artist, "The Mayan Factor");
+  assert.equal(result.results[0].trackIndex, 0);
   assert.equal(result.results[0].title, "The Mayan Factor — Warflower");
-  assert.equal(result.results[0].processingMode, "review");
+  assert.equal(result.results[0].processingMode, "gp");
   assert.match(result.results[0].url, /songsterr\.com\/a\/wsa\/the-mayan-factor-warflower-tab-s1144964$/);
 });
 

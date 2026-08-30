@@ -11,7 +11,7 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 ## Bu sürümde çalışanlar
 
 - İzin verilen kaynakları WordPress REST API üzerinden okuyan kaynak eşitleyici
-- Yabancı şarkıları Songsterr kataloğunda sanatçı/başlık eşleşmesiyle bulan bağlantı adaptörü
+- Yabancı şarkıları Songsterr kataloğunda sanatçı/başlık eşleşmesiyle bulup herkese açık Guitar Pro düzenlemesini zamanlanmış D-whistle notalarına dönüştüren adaptör
 - MP3/WAV/OGG/FLAC dosyalarından melodiyi cihazda çıkarıp D-whistle parmaklarına dönüştüren yerel ses transkripsiyonu
 - İlk gerçek ve kaynaklı kayıt: Duman — Bu Akşam
 - The Session’ın CORS-açık API’sinde ziyaret anında canlı ABC nota araması
@@ -83,11 +83,11 @@ npm run preview:pages
 
 ## Canlı kaynak API'si
 
-GitHub Pages yalnızca arayüzü sunar. `worker/source-api.mjs` içindeki Cloudflare Worker canlı kaynak aramasını, özel GitHub kataloğuna erişimi ve Actions iş tetiklemesini yürütür. Desteklenen adaptörler Notalar.net, Gitaregitim.net ve küratörlü akademik nota PDF'leridir.
+GitHub Pages yalnızca arayüzü sunar. `worker/source-api.mjs` içindeki Cloudflare Worker canlı kaynak aramasını, özel GitHub kataloğuna erişimi ve Actions iş tetiklemesini yürütür. Otomatik içe aktarma destekleyen adaptörler Notalar.net, Gitaregitim.net, Songsterr Guitar Pro düzenlemeleri ve küratörlü akademik nota PDF'leridir.
 
 Canlı API: `https://tin-whistle-note-source-api.ozguregemenbusiness.workers.dev`
 
-Worker, Türkçe kaynakların yanında Songsterr'ın yabancı şarkı kataloğunu da sanatçı ve başlıkla arar. Songsterr sonucu kaynak bağlantısı olarak gösterilir; ücretli Guitar Pro/MIDI indirme özellikleri otomatikleştirilmez. Onaylı adaptörlerde eşleşme bulunamazsa Worker, yalnızca nota odaklı izinli alan adlarında (MuseScore ve Kolay Nota) arama motoru keşfi yapar. Bu sonuçlar güvenilirlik kontrolü için bağlantı olarak gösterilir; otomatik nota içe aktarma yalnızca onaylı WordPress veya küratörlü belge adaptörlerinde kullanılabilir. Belge adaptörleri tam internet taraması yapmaz: kaynak URL'si, nota sayfaları ve beklenen nota aralığı kodda izinli listeyle sınırlandırılır.
+Worker, Türkçe kaynakların yanında Songsterr'ın yabancı şarkı kataloğunu da sanatçı ve başlıkla arar. Seçilen Songsterr kaydının herkese açık Guitar Pro kaynağı GitHub Actions içinde alphaTab ile okunur; varsa vokal/lead izi, yoksa Songsterr'ın öne çıkardığı gitar izi seçilir. Akorlarda en üst ses alınarak D-whistle için tek sesli, ritimli bir çalışma düzenlemesi üretilir. Gitar düzenlemesinden çıkarılan sonuç her zaman vokal melodisinin birebir kopyası olmayabileceğinden kaynak düzenlemesi olarak etiketlenir. Onaylı adaptörlerde eşleşme bulunamazsa Worker, yalnızca nota odaklı izinli alan adlarında (MuseScore ve Kolay Nota) arama motoru keşfi yapar. Bu sonuçlar güvenilirlik kontrolü için bağlantı olarak gösterilir; otomatik içe aktarma yalnızca işleyicisi bulunan adaptörlerde kullanılabilir. Belge adaptörleri tam internet taraması yapmaz: kaynak URL'si, nota sayfaları ve beklenen nota aralığı kodda izinli listeyle sınırlandırılır.
 
 `Sesi notaya çevir` sekmesi Spotify Basic Pitch modelini yalnızca ihtiyaç olduğunda tarayıcıya yükler. Seçilen ses dosyası bir sunucuya gönderilmez. Çok enstrümanlı tam mikslerde sonuç bir çalışma taslağıdır; belirgin tek enstrüman veya izole melodi kayıtları daha güvenilir sonuç verir.
 
@@ -121,7 +121,7 @@ $env:VITE_SOURCE_API_URL="https://<worker-adresi>.workers.dev"
 npm run build:pages
 ```
 
-Worker arama sonucunu hemen döndürür. Kullanıcı bir kaynağı seçince `.github/workflows/process-source-request.yml` çalışır; sonuç `catalog/jobs/<request-id>.json` dosyasına ve başarı halinde ana kataloğa yazılır. Gitaregitim PDF/JPG sonuçları veya küratörlü PDF sayfaları güvenilir biçimde okunamazsa yanlış nota yayımlamak yerine `needs-review` durumuna geçer.
+Worker arama sonucunu hemen döndürür. Kullanıcı bir kaynağı seçince `.github/workflows/process-source-request.yml` çalışır; sonuç `catalog/jobs/<request-id>.json` dosyasına ve başarı halinde ana kataloğa yazılır. Songsterr Guitar Pro dosyaları nota, süre, es ve kaynak temposuyla içe aktarılır. Gitaregitim PDF/JPG sonuçları veya küratörlü PDF sayfaları güvenilir biçimde okunamazsa yanlış nota yayımlamak yerine `needs-review` durumuna geçer.
 
 Arayüz kaynak güvenini tek bir “doğrulandı” işareti olarak sunmaz. Ezgi, ritim ve tempo ayrı ayrı etiketlenir; makineyle okunmuş fakat başka bir kaynakla karşılaştırılmamış OMR kayıtları sarı uyarı kartıyla çalışma taslağı olarak gösterilir.
 

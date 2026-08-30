@@ -9,9 +9,17 @@ on:
         description: Source adapter ID
         required: true
         type: choice
-        options: [notalar, gitaregitim, academic-pdf]
+        options: [notalar, gitaregitim, songsterr, academic-pdf]
       post_id:
         description: WordPress post ID
+        required: false
+        type: string
+      song_id:
+        description: Songsterr song ID
+        required: false
+        type: string
+      track_index:
+        description: Preferred melodic track index
         required: false
         type: string
       document_id:
@@ -42,6 +50,8 @@ jobs:
       REQUEST_ID: ${{ github.event.client_payload.requestId }}
       SOURCE_ID: ${{ github.event.client_payload.sourceId || inputs.source_id }}
       POST_ID: ${{ github.event.client_payload.postId || inputs.post_id }}
+      SONG_ID: ${{ github.event.client_payload.songId || inputs.song_id }}
+      TRACK_INDEX: ${{ github.event.client_payload.trackIndex || inputs.track_index }}
       DOCUMENT_ID: ${{ github.event.client_payload.documentId || inputs.document_id }}
       SOURCE_QUERY: ${{ github.event.client_payload.query || inputs.query }}
       SOURCE_TITLE: ${{ github.event.client_payload.title || inputs.title }}
@@ -60,6 +70,9 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
+
+      - name: Install score importer
+        run: npm ci --ignore-scripts
 
       - name: Prepare source request
         id: prepare

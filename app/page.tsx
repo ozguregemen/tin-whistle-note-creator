@@ -36,7 +36,7 @@ type Song = {
     gaps?: number[][];
   };
   sourceStatus: "cross-checked" | "live" | "manual";
-  sourceConfidence?: "estimated" | "omr-unreviewed";
+  sourceConfidence?: "estimated" | "omr-unreviewed" | "score-imported";
   sources: SongSource[];
 };
 
@@ -48,10 +48,12 @@ type SourceCandidate = {
   sourceName: string;
   postId?: number;
   songId?: number;
+  trackIndex?: number;
   documentId?: string;
+  artist?: string;
   title: string;
   url: string;
-  processingMode: "text" | "omr" | "review";
+  processingMode: "text" | "omr" | "gp" | "review";
   score: number;
 };
 
@@ -1129,7 +1131,8 @@ export default function Home() {
   }
 
   async function processSource(candidate: SourceCandidate) {
-    if (candidate.processingMode === "review" || (candidate.postId === undefined && candidate.documentId === undefined)) return;
+    if (candidate.processingMode === "review"
+      || (candidate.postId === undefined && candidate.documentId === undefined && candidate.songId === undefined)) return;
     const api = sourceApiUrl();
     if (!api) { setStatus("sourceUnavailable"); return; }
     setStatus("queueing");
@@ -1140,9 +1143,12 @@ export default function Home() {
         body: JSON.stringify({
           sourceId: candidate.sourceId,
           ...(candidate.postId !== undefined ? { postId: candidate.postId } : {}),
+          ...(candidate.songId !== undefined ? { songId: candidate.songId } : {}),
+          ...(candidate.trackIndex !== undefined ? { trackIndex: candidate.trackIndex } : {}),
           ...(candidate.documentId !== undefined ? { documentId: candidate.documentId } : {}),
           query,
           title: candidate.title,
+          ...(candidate.artist ? { artist: candidate.artist } : {}),
         }),
       });
       if (!response.ok) throw new Error(`Source job returned ${response.status}`);
