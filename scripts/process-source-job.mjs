@@ -2,10 +2,12 @@ import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promise
 import { extname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import * as alphaTab from "@coderline/alphatab";
 import {
   addEstimatedOctaves, extractScoreAssets, extractTextTimedPhrases, mergeSongIntoCatalog,
   musicXmlToTimedPhrases, phrasesToString, plainTitle, slugify, stripLeadingArtist,
 } from "./source-processing.mjs";
+import { guitarProScoreToTimedPhrases } from "./songsterr-processing.mjs";
 import { documentNoteCountIsPlausible, getDocumentSource } from "../worker/document-sources.mjs";
 
 const CATALOG_FILE = new URL("../catalog/catalog.json", import.meta.url);
@@ -15,18 +17,23 @@ const WORK_DIRECTORY = new URL("../.source-job/", import.meta.url);
 const SOURCES = {
   notalar: { name: "Notalar.net", kind: "wordpress", origin: "https://www.notalar.net", mode: "text" },
   gitaregitim: { name: "Gitaregitim.net", kind: "wordpress", origin: "https://www.gitaregitim.net", mode: "omr" },
+  songsterr: { name: "Songsterr", kind: "guitarpro", origin: "https://www.songsterr.com", mode: "gp" },
   "academic-pdf": { name: "Academic score PDF", kind: "document", mode: "omr" },
 };
 
 const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
+const MAX_METADATA_BYTES = 512 * 1024;
 
 function requestPayload() {
   const sourceId = process.env.SOURCE_ID;
   const postId = Number(process.env.POST_ID);
+  const songId = Number(process.env.SONG_ID);
+  const trackIndex = /^\d+$/.test(process.env.TRACK_INDEX || "") ? Number(process.env.TRACK_INDEX) : null;
   const documentId = (process.env.DOCUMENT_ID || "").slice(0, 120);
   const source = SOURCES[sourceId];
   const document = source?.kind === "document" ? getDocumentSource(documentId) : null;
   const validWordPressPost = source?.kind === "wordpress" && Number.isInteger(postId) && postId > 0;
+  const validGuitarProSong = source?.kind === "guitarpro" && Number.isInteger(songId) && songId > 0;
   const validDocument = source?.kind === "document" && document?.sourceId === sourceId;
   const resolvedBpm = Number(process.env.SOURCE_BPM);
   const tempo = Number.isFinite(resolvedBpm) && resolvedBpm >= 40 && resolvedBpm <= 220 ? {
@@ -36,11 +43,12 @@ function requestPayload() {
     confidence: Math.min(100, Math.max(0, Number(process.env.SOURCE_BPM_CONFIDENCE) || 0)),
     artist: (process.env.SOURCE_ARTIST || "").slice(0, 120),
   } : null;
-  if (!source || (!validWordPressPost && !validDocument)) throw new Error("Invalid source job payload");
+  if (!source || (!validWordPressPost && !validGuitarProSong && !validDocument)) throw new Error("Invalid source job payload");
   return {
     requestId: /^[0-9a-f-]{36}$/i.test(process.env.REQUEST_ID || "") ? process.env.REQUEST_ID : randomUUID(),
     sourceId,
     ...(validWordPressPost ? { postId } : {}),
+    ...(validGuitarProSong ? { songId, ...(Number.isInteger(trackIndex) && trackIndex >= 0 ? { trackIndex } : {}) } : {}),
     ...(validDocument ? { documentId, document } : {}),
     query: (process.env.SOURCE_QUERY || "").slice(0, 160),
     requestedTitle: (process.env.SOURCE_TITLE || "").slice(0, 200),
@@ -72,13 +80,21 @@ function buildSong(payload, post, notes, confidence, rhythm) {
     .trim();
   title = stripLeadingArtist(title, artist);
   return {
-    id: `${payload.sourceId}-${payload.documentId || payload.postId}-${slugify(title)}`,
+    id: `${payload.sourceId}-${payload.documentId || payload.songId || payload.postId}-${slugify(title)}`,
     title,
     ...(artist ? { artist } : {}),
     aliases: [payload.query, payload.requestedTitle].filter(Boolean),
     subtitle: {
-      en: confidence === "estimated" ? "Live text source · first register assumed" : "Live score source · machine-read notation",
-      tr: confidence === "estimated" ? "Canlı metin kaynağı · ilk register varsayıldı" : "Canlı nota kaynağı · makineyle okunan notasyon",
+      en: confidence === "estimated"
+        ? "Live text source · first register assumed"
+        : confidence === "score-imported"
+          ? "Live Guitar Pro source · melody track imported"
+          : "Live score source · machine-read notation",
+      tr: confidence === "estimated"
+        ? "Canlı metin kaynağı · ilk register varsayıldı"
+        : confidence === "score-imported"
+          ? "Canlı Guitar Pro kaynağı · melodi kanalı içe aktarıldı"
+          : "Canlı nota kaynağı · makineyle okunan notasyon",
     },
     difficulty: { en: "Source arrangement", tr: "Kaynak düzeni" },
     notes,
@@ -127,6 +143,58 @@ async function downloadDocument(document) {
   await writeFile(new URL("document.pdf", WORK_DIRECTORY), bytes);
 }
 
+async function limitedResponseBytes(response, maximumBytes, label) {
+  const declaredLength = Number(response.headers.get("Content-Length") || 0);
+  if (declaredLength > maximumBytes) throw new Error(`${label} is too large`);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength > maximumBytes) throw new Error(`${label} is too large`);
+  return bytes;
+}
+
+async function limitedJson(response, maximumBytes, label) {
+  if (!response.ok) throw new Error(`${label} returned HTTP ${response.status}`);
+  return JSON.parse(new TextDecoder().decode(await limitedResponseBytes(response, maximumBytes, label)));
+}
+
+async function loadSongsterrScore(payload) {
+  const metaResponse = await fetch(new URL(`/api/meta/${payload.songId}`, payload.source.origin), {
+    headers: { Accept: "application/json", "User-Agent": "tin-whistle-note-creator/0.3" },
+  });
+  const meta = await limitedJson(metaResponse, MAX_METADATA_BYTES, "Songsterr metadata");
+  if (meta?.songId !== payload.songId || !meta.hasPlayer || meta.isJunk || meta.isBlocked || meta.isDeleted) {
+    throw new Error("Songsterr song is not available for score import");
+  }
+
+  const revisionId = Number(meta.revisionId || meta.latestRevisionId);
+  if (!Number.isInteger(revisionId) || revisionId <= 0) throw new Error("Songsterr did not return a score revision");
+  const revisionResponse = await fetch(new URL(`/api/revision/${revisionId}`, payload.source.origin), {
+    headers: { Accept: "application/json", "User-Agent": "tin-whistle-note-creator/0.3" },
+  });
+  const revision = await limitedJson(revisionResponse, MAX_METADATA_BYTES, "Songsterr revision");
+  if (revision?.songId !== payload.songId || revision?.revisionId !== revisionId) {
+    throw new Error("Songsterr returned a mismatched score revision");
+  }
+
+  const sourceUrl = new URL(String(revision.source || ""));
+  if (sourceUrl.protocol !== "https:" || sourceUrl.hostname !== "gp.songsterr.com") {
+    throw new Error("Songsterr returned an unsupported score source");
+  }
+  const scoreResponse = await fetch(sourceUrl, {
+    headers: { Accept: "application/octet-stream", "User-Agent": "tin-whistle-note-creator/0.3" },
+  });
+  if (!scoreResponse.ok) throw new Error(`Songsterr score returned HTTP ${scoreResponse.status}`);
+  const scoreBytes = await limitedResponseBytes(scoreResponse, MAX_DOCUMENT_BYTES, "Songsterr score");
+  const settings = new alphaTab.Settings();
+  settings.importer.maxDecodingBufferSize = MAX_DOCUMENT_BYTES;
+  const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(scoreBytes, settings);
+  return { meta: { ...revision, popularTrackGuitar: meta.popularTrackGuitar, popularTrackVocals: meta.popularTrackVocals }, score };
+}
+
+function songsterrPageUrl(meta) {
+  const slug = slugify(`${meta.artist || ""} ${meta.title || ""}`) || "song";
+  return `https://www.songsterr.com/a/wsa/${slug}-tab-s${meta.songId}`;
+}
+
 async function prepare() {
   const payload = requestPayload();
   await mkdir(WORK_DIRECTORY, { recursive: true });
@@ -139,6 +207,40 @@ async function prepare() {
       content: { rendered: "" },
       modified: null,
     };
+  } else if (payload.source.kind === "guitarpro") {
+    const { meta, score } = await loadSongsterrScore(payload);
+    payload.requestedArtist ||= String(meta.artist || "").slice(0, 120);
+    post = {
+      title: { rendered: String(meta.title || payload.requestedTitle || `Song ${payload.songId}`) },
+      link: songsterrPageUrl(meta),
+      content: { rendered: "" },
+      modified: meta.createdAt || null,
+    };
+    const parsed = guitarProScoreToTimedPhrases(score, meta, payload.trackIndex);
+    const noteCount = parsed.phrases.flat().length;
+    if (noteCount < 8) {
+      await writeJob({
+        requestId: payload.requestId,
+        status: "needs-review",
+        reason: "The Guitar Pro source did not contain a usable melodic track",
+        sourceUrl: post.link,
+      });
+      await emitOutput("mode", "needs-review");
+      await emitOutput("request_id", payload.requestId);
+      return;
+    }
+    await complete(payload, post, parsed.phrases, "score-imported", {
+      bpm: parsed.tempo || payload.tempo?.bpm || 90,
+      source: "score",
+      tempoSource: parsed.tempo ? "score" : payload.tempo ? "database" : "default",
+      tempoConfidence: parsed.tempo ? 100 : payload.tempo?.confidence || 0,
+      ...(payload.tempo?.sourceUrl && !parsed.tempo ? { tempoUrl: payload.tempo.sourceUrl } : {}),
+      durations: parsed.durations,
+      gaps: parsed.gaps,
+    });
+    await emitOutput("mode", "complete");
+    await emitOutput("request_id", payload.requestId);
+    return;
   } else {
     const postUrl = new URL(`/wp-json/wp/v2/posts/${payload.postId}`, payload.source.origin);
     postUrl.searchParams.set("_fields", "title,link,content,modified");

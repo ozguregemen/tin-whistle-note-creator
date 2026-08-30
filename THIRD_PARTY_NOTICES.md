@@ -13,3 +13,10 @@ TensorFlow.js is distributed under the Apache License 2.0.
 
 - Source: https://github.com/tensorflow/tfjs
 - License: https://github.com/tensorflow/tfjs/blob/master/LICENSE
+
+## alphaTab
+
+alphaTab is used to parse Guitar Pro score files during source-processing jobs. It is distributed under the Mozilla Public License 2.0.
+
+- Source: https://github.com/CoderLine/alphaTab
+- License: https://github.com/CoderLine/alphaTab/blob/develop/LICENSE
