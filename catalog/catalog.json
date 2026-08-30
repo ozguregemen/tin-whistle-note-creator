@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-30T14:23:37.686Z",
+  "generatedAt": "2026-08-30T14:27:23.501Z",
   "songs": [
     {
       "id": "duman-bu-aksam",
@@ -9831,6 +9831,163 @@
         {
           "name": "Songsterr",
           "url": "https://www.songsterr.com/a/wsa/tame-impala-dracula-sheet-s2413330",
+          "role": "note-source"
+        }
+      ]
+    },
+    {
+      "id": "songsterr-5936621-du-bist-gut-genug",
+      "title": "Du bist gut genug",
+      "artist": "Meth.cereal on tiktok",
+      "aliases": [
+        "du bist gut genug",
+        "Meth.cereal on tiktok — Du bist gut genug"
+      ],
+      "subtitle": {
+        "en": "Live Guitar Pro source · melody track imported",
+        "tr": "Canlı Guitar Pro kaynağı · melodi kanalı içe aktarıldı"
+      },
+      "difficulty": {
+        "en": "Source arrangement",
+        "tr": "Kaynak düzeni"
+      },
+      "notes": "B4 A4 G4 B4 A4 C5 B4 C5 B4 C5 B4 A4 | D5 D5 A4 C5 B4 C5 B4 C5 B4 A4 G4 C5 | B4 C5 B4 C5 B4 C5 B4 A4 G4 E4 C5 B4 | C5 B4 C5 B4 A4 D5 A4 C5 B4 C5 B4 C5 | B4 A4",
+      "rhythm": {
+        "bpm": 90,
+        "source": "score",
+        "tempoSource": "default",
+        "tempoConfidence": 0,
+        "durations": [
+          [
+            1,
+            0.5,
+            0.5,
+            1,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.25,
+            0.25,
+            1,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.25,
+            0.25,
+            1,
+            0.5,
+            0.5,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            2,
+            1.5,
+            1.5,
+            0.5,
+            0.5,
+            0.5
+          ],
+          [
+            0.5,
+            0.25,
+            0.25,
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            0.5,
+            0.5,
+            0.5,
+            0.25,
+            0.25
+          ],
+          [
+            1.5,
+            1.5
+          ]
+        ],
+        "gaps": [
+          [
+            0,
+            0.5,
+            0.5,
+            0.5,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0.5
+          ],
+          [
+            0,
+            0.5,
+            0.5,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0.5,
+            0.5,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "sourceStatus": "live",
+      "sourceConfidence": "score-imported",
+      "sources": [
+        {
+          "name": "Songsterr",
+          "url": "https://www.songsterr.com/a/wsa/meth-cereal-on-tiktok-du-bist-gut-genug-sheet-s5936621",
           "role": "note-source"
         }
       ]
