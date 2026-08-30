@@ -43,9 +43,10 @@ type Catalog = { songs: Song[] };
 
 type SourceCandidate = {
   id: string;
-  sourceId: "notalar" | "gitaregitim" | "academic-pdf" | "web";
+  sourceId: "notalar" | "gitaregitim" | "songsterr" | "academic-pdf" | "web";
   sourceName: string;
   postId?: number;
+  songId?: number;
   documentId?: string;
   title: string;
   url: string;
