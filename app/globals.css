@@ -42,6 +42,14 @@ h1 em { color:var(--green); font-weight:400; }
 textarea { width:100%; resize:vertical; min-height:90px; border:1px solid #b8beb8; border-radius:12px; padding:14px 16px; outline:none; background:#fff; color:var(--ink); line-height:1.6; }
 textarea:focus,.search-row:focus-within { border-color:var(--green); box-shadow:0 0 0 3px rgba(31,90,67,.1); }
 .paste-actions { display:flex; justify-content:space-between; align-items:center; gap:16px; padding-top:12px; color:var(--muted); font-size:12px; }
+.audio-import>input[type="file"] { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.audio-picker { display:grid !important; grid-template-columns:auto 1fr; gap:4px 13px; align-items:center; margin:0 !important; padding:18px; border:1px dashed #9eaaa3; border-radius:12px; background:#fff; cursor:pointer; }
+.audio-picker:hover { border-color:var(--green); background:#f7faf8; }
+.audio-picker.disabled { cursor:wait; opacity:.68; }
+.audio-picker>span { grid-row:1/3; color:var(--accent); font:32px/1 Georgia,serif; }
+.audio-picker>strong { color:var(--ink); font-size:14px; }
+.audio-picker>small { color:var(--muted); font-size:11px; font-weight:400; line-height:1.45; }
+.audio-import progress { width:100%; height:7px; margin-top:12px; accent-color:var(--green); }
 .status { display:flex; align-items:center; gap:7px; margin:16px 0 0; color:var(--muted); font-size:12px; }
 .status span { width:7px; height:7px; border-radius:50%; background:#6da67e; box-shadow:0 0 0 4px rgba(109,166,126,.14); }
 .workspace { margin-bottom:80px; padding:34px; border:1px solid var(--line); border-radius:24px; background:var(--card); }

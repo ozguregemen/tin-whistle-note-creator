@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { parseAbcScore } from "./abc.mjs";
+import { transcribeAudioFile } from "./audio-transcription.mjs";
 import { assessSongQuality } from "./catalog-quality.mjs";
 import { arrangePhrasesForDWhistle, estimateDWhistleRegisters, isUpperWhistleRegister } from "./fingerings.mjs";
 import { buildPhraseRanges, buildPlaybackPlan, frequencyForWhistleNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "./practice.mjs";
@@ -9,7 +10,7 @@ import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
 import { base64AudioBuffer, midiForWhistleNote, playbackRateForMidi, sampleZoneForMidi, soundfontLoopForZone, soundfontTriggerMidiForAudibleMidi, soundfontZoneForMidi, WHISTLE_SAMPLE_ZONES, WHISTLE_SOUNDFONT } from "./whistle-sampler.mjs";
 
 type Language = "en" | "tr";
-type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "discoveryFound" | "queueing" | "processing" | "needsReview" | "liveFound" | "sourceUnavailable";
+type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "discoveryFound" | "queueing" | "processing" | "needsReview" | "liveFound" | "sourceUnavailable" | "audioTranscribing" | "audioConverted" | "audioUnavailable";
 
 type SongSource = {
   name: string;
@@ -27,7 +28,7 @@ type Song = {
   notes: string;
   rhythm?: {
     bpm: number;
-    source: "score" | "text" | "estimated";
+    source: "score" | "text" | "estimated" | "transcribed";
     tempoSource?: "score" | "curated" | "database" | "default";
     tempoConfidence?: number;
     tempoUrl?: string;
@@ -120,6 +121,7 @@ const COPY = {
     intro: "Choose a song or paste its notes. Tin Whistle Note Creator turns every note into a simple six-hole fingering diagram.",
     catalogTab: "Search catalog",
     pasteTab: "Paste notes",
+    audioTab: "Transcribe audio",
     searchLabel: "What song would you like to play?",
     searchPlaceholder: "Song or folk tune name",
     find: "Find notes",
@@ -127,6 +129,12 @@ const COPY = {
     pasteLabel: "Separate notes with spaces and phrases with a “|”",
     pasteHint: "Use Do/Re/Mi or C/D/E · Add # for sharps · Add ' for the upper register · Example: D'",
     convert: "Convert",
+    audioLabel: "Choose an audio file to extract its melody",
+    audioHint: "MP3, WAV, OGG or FLAC · processed only in this browser · clearest with one prominent instrument",
+    audioChoose: "Choose audio",
+    audioTranscribing: "Transcribing pitch and timing locally…",
+    audioConverted: "Audio melody converted into D-whistle fingerings",
+    audioUnavailable: "No reliable melody was found in this audio. Try a clearer instrumental or isolated track.",
     catalogPrepared: "Verified web-sourced catalog is ready",
     catalogUpdated: "Latest source catalog loaded from GitHub",
     catalogFound: "Found in the web-sourced catalog",
@@ -170,6 +178,7 @@ const COPY = {
     scoreRhythm: "Score rhythm",
     textRhythm: "Rhythm markers from source",
     estimatedRhythm: "Estimated equal beats",
+    transcribedRhythm: "Timing transcribed from audio",
     progress: "Progress",
     warningStart: "note(s) sit outside the supported D whistle range.",
     warningEnd: "Faded notes need a different octave or arrangement.",
@@ -237,6 +246,7 @@ const COPY = {
     intro: "Bir şarkı seç veya notalarını yapıştır. Tin Whistle Note Creator her notayı altı delikli, kolay bir parmak şemasına çevirir.",
     catalogTab: "Katalogda ara",
     pasteTab: "Notaları yapıştır",
+    audioTab: "Sesi notaya çevir",
     searchLabel: "Hangi şarkıyı çalmak istiyorsun?",
     searchPlaceholder: "Şarkı veya türkü adı",
     find: "Notaları bul",
@@ -244,6 +254,12 @@ const COPY = {
     pasteLabel: "Notaları boşlukla, cümleleri “|” işaretiyle ayır",
     pasteHint: "Do/Re/Mi veya C/D/E kullan · Diyez için #, üst register için ' ekle · Örnek: Re'",
     convert: "Dönüştür",
+    audioLabel: "Melodisini çıkarmak için bir ses dosyası seç",
+    audioHint: "MP3, WAV, OGG veya FLAC · yalnızca bu tarayıcıda işlenir · belirgin tek enstrümanda daha iyi sonuç verir",
+    audioChoose: "Ses seç",
+    audioTranscribing: "Perde ve zamanlama tarayıcıda çıkarılıyor…",
+    audioConverted: "Ses melodisi D-whistle parmaklarına dönüştürüldü",
+    audioUnavailable: "Bu seste güvenilir bir melodi bulunamadı. Daha temiz bir enstrümantal veya izole kayıt dene.",
     catalogPrepared: "Doğrulanmış internet kaynaklı katalog hazır",
     catalogUpdated: "Güncel kaynak kataloğu GitHub’dan yüklendi",
     catalogFound: "İnternet kaynaklı katalogda bulundu",
@@ -287,6 +303,7 @@ const COPY = {
     scoreRhythm: "Nota kaynağındaki ritim",
     textRhythm: "Kaynağın ritim işaretleri",
     estimatedRhythm: "Tahmini eşit vuruşlar",
+    transcribedRhythm: "Sesten çıkarılan zamanlama",
     progress: "İlerleme",
     warningStart: "nota desteklenen D whistle aralığının dışında.",
     warningEnd: "Soluk gösterilen notalar için farklı oktav veya düzenleme gerekir.",
@@ -455,7 +472,7 @@ function Fingering({ note, index, globalIndex, active, language }: { note: Parse
 
 export default function Home() {
   const [language, setLanguage] = useState<Language>("en");
-  const [mode, setMode] = useState<"search" | "paste">("search");
+  const [mode, setMode] = useState<"search" | "paste" | "audio">("search");
   const [catalog, setCatalog] = useState<Song[]>(FALLBACK_SONGS);
   const [query, setQuery] = useState("Duman İçerim Ben Bu Akşam");
   const [manualNotes, setManualNotes] = useState("D4 E4 F#4 G4 | A4 B4 C#5 D5 | D5 C#5 B4 A4 | G4 F#4 E4 D4");
@@ -464,6 +481,7 @@ export default function Home() {
   const [status, setStatus] = useState<StatusKey>("catalogPrepared");
   const [bpm, setBpm] = useState(FALLBACK_SONGS[0].rhythm?.bpm ?? 90);
   const [tempoStatus, setTempoStatus] = useState<TempoStatus>("idle");
+  const [transcriptionProgress, setTranscriptionProgress] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [soundStatus, setSoundStatus] = useState<SoundStatus>("idle");
   const [activeNoteIndex, setActiveNoteIndex] = useState(-1);
@@ -1167,6 +1185,39 @@ export default function Home() {
     setStatus("converted");
   }
 
+  async function convertAudio(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setStatus("audioTranscribing");
+    setTranscriptionProgress(0);
+    try {
+      const result = await transcribeAudioFile(file, (progress: number) => setTranscriptionProgress(Math.round(progress * 100)));
+      if (!result.noteCount || !result.notes) {
+        setStatus("audioUnavailable");
+        return;
+      }
+      const title = file.name.replace(/\.[^.]+$/, "").replaceAll(/[_-]+/g, " ").trim() || t.customTitle;
+      setSong({
+        id: `audio-${Date.now()}`,
+        title,
+        aliases: [],
+        subtitle: { en: "Locally transcribed audio melody", tr: "Tarayıcıda sesten çıkarılan melodi" },
+        difficulty: { en: "Machine transcription", tr: "Makine transkripsiyonu" },
+        notes: result.notes,
+        rhythm: result.rhythm,
+        sourceStatus: "manual",
+        sources: [],
+      });
+      setBpm(result.rhythm.bpm);
+      setStatus("audioConverted");
+    } catch {
+      setStatus("audioUnavailable");
+    } finally {
+      setTranscriptionProgress(0);
+    }
+  }
+
   function chooseSuggestion(selected: Song) {
     setQuery(selected.title); setSong(selected); setStatus("catalogFound"); setMode("search");
   }
@@ -1191,6 +1242,7 @@ export default function Home() {
           <div className="mode-tabs" role="tablist" aria-label="Note source">
             <button type="button" role="tab" aria-selected={mode === "search"} onClick={() => setMode("search")}>{t.catalogTab}</button>
             <button type="button" role="tab" aria-selected={mode === "paste"} onClick={() => setMode("paste")}>{t.pasteTab}</button>
+            <button type="button" role="tab" aria-selected={mode === "audio"} onClick={() => setMode("audio")}>{t.audioTab}</button>
           </div>
           {mode === "search" ? (
             <form onSubmit={findSong}>
@@ -1217,12 +1269,23 @@ export default function Home() {
                 </article>)}
               </div>}
             </form>
-          ) : (
+          ) : mode === "paste" ? (
             <form onSubmit={convertManual}>
               <label htmlFor="notes-input">{t.pasteLabel}</label>
               <textarea id="notes-input" value={manualNotes} onChange={(event) => setManualNotes(event.target.value)} rows={3} />
               <div className="paste-actions"><span>{t.pasteHint}</span><button type="submit">{t.convert} <span aria-hidden="true">→</span></button></div>
             </form>
+          ) : (
+            <div className="audio-import">
+              <label htmlFor="audio-input">{t.audioLabel}</label>
+              <label className={`audio-picker${status === "audioTranscribing" ? " disabled" : ""}`} htmlFor="audio-input">
+                <span aria-hidden="true">♪</span>
+                <strong>{status === "audioTranscribing" ? `${t.audioTranscribing} ${transcriptionProgress}%` : t.audioChoose}</strong>
+                <small>{t.audioHint}</small>
+              </label>
+              <input id="audio-input" type="file" accept="audio/mpeg,audio/wav,audio/ogg,audio/flac,.mp3,.wav,.ogg,.flac" onChange={convertAudio} disabled={status === "audioTranscribing"} />
+              {status === "audioTranscribing" && <progress max="100" value={transcriptionProgress}>{transcriptionProgress}%</progress>}
+            </div>
           )}
           <p className="status" role="status"><span /> {t[status]}</p>
         </div>
@@ -1256,7 +1319,7 @@ export default function Home() {
           <small>{t.whistleOctaveHelp}</small>
         </div>
         <section className={`practice-panel${isPlaying ? " playing" : ""}`} aria-label={t.practice}>
-          <div className="practice-title"><span className="section-kicker">{t.practice}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : t.estimatedRhythm}</strong></div>
+          <div className="practice-title"><span className="section-kicker">{t.practice}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</strong></div>
           <div className="practice-controls">
             <button type="button" className="practice-play" onClick={togglePractice} disabled={!playbackPlan.length || soundStatus === "loading"} aria-pressed={isPlaying}><span aria-hidden="true">{isPlaying ? "Ⅱ" : "▶"}</span> {soundStatus === "loading" ? "…" : isPlaying ? t.pause : t.play}</button>
             <button type="button" className="practice-stop" onClick={stopPractice} disabled={!isPlaying && activeNoteIndex < 0}><span aria-hidden="true">■</span> {t.stop}</button>
@@ -1283,7 +1346,7 @@ export default function Home() {
             <label className="phrase-select" htmlFor="loop-phrase"><span>{t.selectPhrase}</span><select id="loop-phrase" value={selectedPhraseIndex} onChange={(event) => changeSelectedPhrase(Number(event.target.value))} disabled={!loopEnabled}>{phrases.map((_, index) => <option value={index} key={index}>{t.phrase} {String(index + 1).padStart(2, "0")}</option>)}</select></label>
           </div>
         </section>
-        <p className="audio-credit">{t.sampleCredit}: <a href="https://github.com/mrbumpy409/GeneralUser-GS" target="_blank" rel="noreferrer">{t.soundBank}</a> · <a href="https://github.com/surikov/webaudiofontdata" target="_blank" rel="noreferrer">{t.soundConversion}</a> · <a href="https://huggingface.co/AEmotionStudio/windstudio-tin-whistle-samples" target="_blank" rel="noreferrer">{t.fallbackSamples}</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a> · {t.bpmCredit}: <a href="https://getsongbpm.com" target="_blank" rel="noreferrer">GetSongBPM.com</a></p>
+        <p className="audio-credit">{t.sampleCredit}: <a href="https://github.com/mrbumpy409/GeneralUser-GS" target="_blank" rel="noreferrer">{t.soundBank}</a> · <a href="https://github.com/surikov/webaudiofontdata" target="_blank" rel="noreferrer">{t.soundConversion}</a> · <a href="https://huggingface.co/AEmotionStudio/windstudio-tin-whistle-samples" target="_blank" rel="noreferrer">{t.fallbackSamples}</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a> · Audio transcription: <a href="https://github.com/spotify/basic-pitch-ts" target="_blank" rel="noreferrer">Spotify Basic Pitch</a> · {t.bpmCredit}: <a href="https://getsongbpm.com" target="_blank" rel="noreferrer">GetSongBPM.com</a></p>
         {unsupported.length > 0 && <div className="warning" role="alert"><strong>{unsupported.length} {t.warningStart}</strong> {t.warningEnd}</div>}
         <div className="phrases">
           {phrases.map((phrase, phraseIndex) => (
@@ -1296,7 +1359,7 @@ export default function Home() {
             </article>
           ))}
         </div>
-        <footer className="score-footer"><span>{allNotes.length} {t.notes} · {phrases.length} {t.phrases}</span><span>Tin Whistle Note Creator MVP · {song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : t.estimatedRhythm}</span></footer>
+        <footer className="score-footer"><span>{allNotes.length} {t.notes} · {phrases.length} {t.phrases}</span><span>Tin Whistle Note Creator MVP · {song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</span></footer>
       </section> : <section className="workspace empty-workspace shell" aria-live="polite">
         <span className="section-kicker">{t.guide}</span>
         <h2>{t.emptyTitle}</h2>

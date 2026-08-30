@@ -1,5 +1,5 @@
 const KNOWN_TEMPO_SOURCES = new Set(["score", "curated", "database"]);
-const RHYTHM_SOURCES = new Set(["score", "text"]);
+const RHYTHM_SOURCES = new Set(["score", "text", "transcribed"]);
 
 function notePhrases(notes) {
   if (typeof notes !== "string") return [];
