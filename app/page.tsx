@@ -180,6 +180,7 @@ const COPY = {
     soundBank: "GeneralUser GS sound bank",
     soundConversion: "WebAudioFont conversion",
     fallbackSamples: "CC fallback samples",
+    audioDataCredits: "Audio & data credits",
     audioTranscriptionCredit: "Audio transcription",
     scoreRhythm: "Score rhythm",
     textRhythm: "Rhythm markers from source",
@@ -312,6 +313,7 @@ const COPY = {
     soundBank: "GeneralUser GS ses bankası",
     soundConversion: "WebAudioFont dönüşümü",
     fallbackSamples: "CC yedek örnekler",
+    audioDataCredits: "Ses ve veri kaynakları",
     audioTranscriptionCredit: "Ses transkripsiyonu",
     scoreRhythm: "Nota kaynağındaki ritim",
     textRhythm: "Kaynağın ritim işaretleri",
@@ -1438,7 +1440,10 @@ export default function Home() {
               : `${arrangement.semitoneShift < 0 ? t.arrangementDown : t.arrangementUp} ${Math.abs(arrangement.semitoneShift)} ${t.semitones}. ${t.intervalsPreserved}${arrangement.octaveAdjustments > 0 ? ` ${t.arrangementOctaveAdjusted}` : ""}`}</span>
             <small>{t.whistleOctaveHelp}</small>
           </div>
-          <p className="audio-credit">{t.sampleCredit}: <a href="https://github.com/mrbumpy409/GeneralUser-GS" target="_blank" rel="noreferrer">{t.soundBank}</a> · <a href="https://github.com/surikov/webaudiofontdata" target="_blank" rel="noreferrer">{t.soundConversion}</a> · <a href="https://huggingface.co/AEmotionStudio/windstudio-tin-whistle-samples" target="_blank" rel="noreferrer">{t.fallbackSamples}</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a> · {t.audioTranscriptionCredit}: <a href="https://github.com/spotify/basic-pitch-ts" target="_blank" rel="noreferrer">Spotify Basic Pitch</a> · {t.bpmCredit}: <a href="https://getsongbpm.com" target="_blank" rel="noreferrer">GetSongBPM.com</a></p>
+          <details className="audio-credits">
+            <summary>{t.audioDataCredits}</summary>
+            <p className="audio-credit">{t.sampleCredit}: <a href="https://github.com/mrbumpy409/GeneralUser-GS" target="_blank" rel="noreferrer">{t.soundBank}</a> · <a href="https://github.com/surikov/webaudiofontdata" target="_blank" rel="noreferrer">{t.soundConversion}</a> · <a href="https://huggingface.co/AEmotionStudio/windstudio-tin-whistle-samples" target="_blank" rel="noreferrer">{t.fallbackSamples}</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a> · {t.audioTranscriptionCredit}: <a href="https://github.com/spotify/basic-pitch-ts" target="_blank" rel="noreferrer">Spotify Basic Pitch</a> · {t.bpmCredit}: <a href="https://getsongbpm.com" target="_blank" rel="noreferrer">GetSongBPM.com</a></p>
+          </details>
         </section>
         <footer className="score-footer"><span>{allNotes.length} {t.notes} · {phrases.length} {t.phrases}</span><span>D tin whistle · {song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</span></footer>
       </section> : <section className="workspace empty-workspace shell" aria-live="polite">
