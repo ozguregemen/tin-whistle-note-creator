@@ -3,6 +3,33 @@ const PITCH_CLASS = Object.freeze({
   "F#": 6, G: 7, "G#": 8, A: 9, "A#": 10, B: 11,
 });
 
+export const BPM_MIN = 40;
+export const BPM_MAX = 220;
+
+export function clampBpm(value, fallback = 90) {
+  const fallbackNumber = Number(fallback);
+  const safeFallback = Number.isFinite(fallbackNumber) ? fallbackNumber : 90;
+  const number = Number(value);
+  const candidate = Number.isFinite(number) ? number : safeFallback;
+  return Math.min(BPM_MAX, Math.max(BPM_MIN, Math.round(candidate)));
+}
+
+// Keep an incomplete number field (for example an empty string while the user
+// replaces its contents) separate from the committed playback tempo.
+export function bpmFromInputDraft(value) {
+  const draft = String(value).trim();
+  if (!/^\d+$/.test(draft)) return null;
+  const number = Number(draft);
+  return number >= BPM_MIN && number <= BPM_MAX ? number : null;
+}
+
+export function commitBpmInput(value, currentBpm = 90) {
+  const draft = String(value).trim();
+  if (!draft) return clampBpm(currentBpm);
+  const number = Number(draft);
+  return Number.isFinite(number) ? clampBpm(number, currentBpm) : clampBpm(currentBpm);
+}
+
 export function frequencyForNote(pitch, octave) {
   const pitchClass = PITCH_CLASS[pitch];
   if (pitchClass === undefined || !Number.isFinite(octave)) return 0;

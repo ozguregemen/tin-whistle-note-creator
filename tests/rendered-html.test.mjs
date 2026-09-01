@@ -32,8 +32,12 @@ test("Tin Whistle Note Creator ana sayfasını sunucu tarafında oluşturur", as
   assert.match(html, /Practice mode/);
   assert.match(html, /Tin whistle sound/);
   assert.match(html, /CC BY-SA 4\.0/);
-  assert.match(html, /149(?:<!-- -->)? BPM/);
+  assert.match(html, /id="practice-bpm"[^>]+type="range"[^>]+min="40"[^>]+max="220"/);
+  assert.match(html, /id="practice-bpm-number"[^>]+type="number"[^>]+min="40"[^>]+max="220"[^>]+value="149"/);
+  assert.match(html, />BPM</);
   assert.match(html, /Source quality/);
+  assert.match(html, /Songs and melodies, adapted for D tin whistle/);
+  assert.doesNotMatch(html, /MVP · D Tin Whistle|Turkish melodies, adapted for tin whistle/);
   assert.match(html, /aria-pressed="false"/);
   assert.match(html, /Türkçe/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|Your site is taking shape/i);

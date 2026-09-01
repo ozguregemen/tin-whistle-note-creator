@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { parseAbcScore } from "../app/abc.mjs";
-import { buildPhraseRanges, buildPlaybackPlan, frequencyForNote, frequencyForWhistleNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "../app/practice.mjs";
+import { BPM_MAX, BPM_MIN, bpmFromInputDraft, buildPhraseRanges, buildPlaybackPlan, clampBpm, commitBpmInput, frequencyForNote, frequencyForWhistleNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "../app/practice.mjs";
 import { base64AudioBuffer, midiForNote, midiForWhistleNote, playbackRateForMidi, sampleZoneForMidi, soundfontLoopForZone, soundfontTriggerMidiForAudibleMidi, soundfontZoneForMidi, WHISTLE_SOUNDFONT } from "../app/whistle-sampler.mjs";
 
 test("ABC nota uzunluklarını perde dizisiyle birlikte okur", () => {
@@ -93,6 +93,18 @@ test("Irish tin-whistle ses bankası yakın perde bölgesini ve döngüsünü ku
   assert.ok(Math.abs(playbackRateForMidi(62, zones[0]) - 2 ** ((6200 - 6400) / 1200)) < 0.0001);
   assert.deepEqual(soundfontLoopForZone(zones[0]), { start: 6431 / 22050, end: 11603 / 22050 });
   assert.deepEqual(Array.from(new Uint8Array(base64AudioBuffer("AQID"))), [1, 2, 3]);
+});
+
+test("BPM sayı alanını çalma temposuyla güvenli biçimde eşler", () => {
+  assert.equal(BPM_MIN, 40);
+  assert.equal(BPM_MAX, 220);
+  assert.equal(bpmFromInputDraft("120"), 120);
+  assert.equal(bpmFromInputDraft(""), null);
+  assert.equal(bpmFromInputDraft("3"), null);
+  assert.equal(commitBpmInput("", 96), 96);
+  assert.equal(commitBpmInput("39", 96), 40);
+  assert.equal(commitBpmInput("221", 96), 220);
+  assert.equal(clampBpm(120), 120);
 });
 
 test("transpoze GeneralUser whistle presetine işitsel değil tetikleme MIDI'si gönderir", () => {

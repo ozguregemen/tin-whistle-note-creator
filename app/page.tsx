@@ -1,11 +1,11 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { parseAbcScore } from "./abc.mjs";
 import { transcribeAudioFile } from "./audio-transcription.mjs";
 import { assessSongQuality } from "./catalog-quality.mjs";
 import { arrangePhrasesForDWhistle, estimateDWhistleRegisters, isUpperWhistleRegister } from "./fingerings.mjs";
-import { buildPhraseRanges, buildPlaybackPlan, frequencyForWhistleNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "./practice.mjs";
+import { BPM_MAX, BPM_MIN, bpmFromInputDraft, buildPhraseRanges, buildPlaybackPlan, clampBpm, commitBpmInput, frequencyForWhistleNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "./practice.mjs";
 import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
 import { base64AudioBuffer, midiForWhistleNote, playbackRateForMidi, sampleZoneForMidi, soundfontLoopForZone, soundfontTriggerMidiForAudibleMidi, soundfontZoneForMidi, WHISTLE_SAMPLE_ZONES, WHISTLE_SOUNDFONT } from "./whistle-sampler.mjs";
 
@@ -113,14 +113,16 @@ type WhistleSoundfontPreset = { zones: WhistleSoundfontZone[] };
 
 const COPY = {
   en: {
+    navLabel: "Main navigation",
     languageAction: "Türkçe",
     languageLabel: "Switch language to Turkish",
     navHow: "How it works",
-    badge: "MVP · D Tin Whistle",
-    eyebrow: "Turkish melodies, adapted for tin whistle",
+    badge: "D Tin Whistle",
+    eyebrow: "Songs and melodies, adapted for D tin whistle",
     heroTop: "Turn a melody into",
     heroAccent: "clear fingerings.",
-    intro: "Choose a song or paste its notes. Tin Whistle Note Creator turns every note into a simple six-hole fingering diagram.",
+    intro: "Search for a song, paste notes, or transcribe an audio file—then turn the melody into playable D-whistle fingerings.",
+    inputModes: "Ways to start",
     catalogTab: "Search catalog",
     pasteTab: "Paste notes",
     audioTab: "Transcribe audio",
@@ -161,6 +163,7 @@ const COPY = {
     pause: "Pause",
     stop: "Stop",
     tempo: "Tempo",
+    bpmInput: "BPM value",
     tempoSearching: "Finding original BPM…",
     originalTempo: "Original tempo · BPM database",
     scoreTempo: "Tempo from score",
@@ -177,6 +180,7 @@ const COPY = {
     soundBank: "GeneralUser GS sound bank",
     soundConversion: "WebAudioFont conversion",
     fallbackSamples: "CC fallback samples",
+    audioTranscriptionCredit: "Audio transcription",
     scoreRhythm: "Score rhythm",
     textRhythm: "Rhythm markers from source",
     estimatedRhythm: "Estimated equal beats",
@@ -188,16 +192,16 @@ const COPY = {
     note: "note",
     notes: "notes",
     phrases: "phrases",
-    noRhythm: "Rhythm is not included in this MVP",
-    mvpScope: "MVP scope",
-    howTitle: "Practice the right fingers at your own tempo.",
-    step1Title: "Bring in the notes",
-    step1Body: "Choose from the local catalog or paste a simple note sequence.",
-    step2Title: "Check playability",
-    step2Body: "Use chromatic and half-hole fingerings, then flag notes outside the supported range.",
-    step3Title: "Practice the melody",
-    step3Body: "Play, pause, follow the active note, and adjust the BPM.",
-    footer: "A first step toward a more accessible Turkish tin whistle repertoire.",
+    noRhythm: "Rhythm is unavailable for this source",
+    howKicker: "How it works",
+    howTitle: "From melody source to playable fingerings.",
+    step1Title: "Choose a starting point",
+    step1Body: "Search global song sources, paste notes, or transcribe a local audio file.",
+    step2Title: "Adapt for D whistle",
+    step2Body: "The melody is fitted to the standard two-register range with clear chromatic fingerings.",
+    step3Title: "Listen and practise",
+    step3Body: "Play the melody, follow each fingering, adjust the tempo, and loop a phrase.",
+    footer: "Search, adapt, and practise melodies for D tin whistle.",
     customTitle: "My melody",
     customSubtitle: "Manually entered note sequence",
     customDifficulty: "Custom",
@@ -223,8 +227,10 @@ const COPY = {
     gpSource: "Guitar Pro / tab data · automatic",
     reviewSource: "Open and review",
     webSource: "Web discovery · unverified",
-    emptyTitle: "No note sheet selected",
-    emptyBody: "We did not leave the previous song on screen. Only reviewed source matches are shown here.",
+    emptyTitle: "Your fingering guide will appear here",
+    emptyBody: "Search for a song, paste notes, or transcribe audio above. If no suitable source exists yet, you can request the song.",
+    detailsTitle: "Source & arrangement details",
+    detailsIntro: "Provenance, source quality, and the D-whistle adaptation used for this guide.",
     sourceCaveat: "Pitch sequence is sourced; rhythm and note durations are not included yet.",
     arrangementTitle: "D-whistle arrangement",
     arrangementOriginal: "The source fits the standard two-register D-whistle range; its key is unchanged.",
@@ -239,14 +245,16 @@ const COPY = {
     writtenPitch: "written",
   },
   tr: {
+    navLabel: "Ana gezinme",
     languageAction: "English",
     languageLabel: "Dili İngilizceye geçir",
     navHow: "Nasıl çalışır?",
-    badge: "MVP · D Tin Whistle",
-    eyebrow: "Türkçe ezgiler, tin whistle’a uyarlanmış",
+    badge: "D Tin Whistle",
+    eyebrow: "Şarkılar ve ezgiler, D tin whistle’a uyarlanmış",
     heroTop: "Bir ezgiyi anlaşılır",
     heroAccent: "parmaklara dönüştür.",
-    intro: "Bir şarkı seç veya notalarını yapıştır. Tin Whistle Note Creator her notayı altı delikli, kolay bir parmak şemasına çevirir.",
+    intro: "Bir şarkı ara, notaları yapıştır veya bir ses dosyasını notaya çevir; ardından ezgiyi çalınabilir D-whistle parmaklarına dönüştür.",
+    inputModes: "Başlangıç yolları",
     catalogTab: "Katalogda ara",
     pasteTab: "Notaları yapıştır",
     audioTab: "Sesi notaya çevir",
@@ -287,6 +295,7 @@ const COPY = {
     pause: "Duraklat",
     stop: "Durdur",
     tempo: "Tempo",
+    bpmInput: "BPM değeri",
     tempoSearching: "Orijinal BPM aranıyor…",
     originalTempo: "Orijinal tempo · BPM veritabanı",
     scoreTempo: "Nota kaynağındaki tempo",
@@ -303,6 +312,7 @@ const COPY = {
     soundBank: "GeneralUser GS ses bankası",
     soundConversion: "WebAudioFont dönüşümü",
     fallbackSamples: "CC yedek örnekler",
+    audioTranscriptionCredit: "Ses transkripsiyonu",
     scoreRhythm: "Nota kaynağındaki ritim",
     textRhythm: "Kaynağın ritim işaretleri",
     estimatedRhythm: "Tahmini eşit vuruşlar",
@@ -314,16 +324,16 @@ const COPY = {
     note: "nota",
     notes: "nota",
     phrases: "cümle",
-    noRhythm: "Ritim bilgisi bu MVP’ye dahil değildir",
-    mvpScope: "MVP sınırı",
-    howTitle: "Doğru parmakları kendi temponda çalış.",
-    step1Title: "Notayı al",
-    step1Body: "Yerel katalogdan seç veya basit bir nota dizisi yapıştır.",
-    step2Title: "Uygunluğu kontrol et",
-    step2Body: "Kromatik ve yarım delik parmaklarını kullan, desteklenen aralığın dışındaki sesleri işaretle.",
-    step3Title: "Melodiyi çalış",
-    step3Body: "Çal, duraklat, aktif notayı takip et ve BPM’i ayarla.",
-    footer: "Türkçe tin whistle repertuvarını erişilebilir kılmak için ilk adım.",
+    noRhythm: "Bu kaynakta ritim bilgisi bulunmuyor",
+    howKicker: "Nasıl çalışır",
+    howTitle: "Ezgi kaynağından çalınabilir parmaklara.",
+    step1Title: "Başlangıç yolunu seç",
+    step1Body: "Global şarkı kaynaklarında ara, notaları yapıştır veya yerel bir ses dosyasını notaya çevir.",
+    step2Title: "D whistle’a uyarla",
+    step2Body: "Ezgi, açık kromatik parmaklarla standart iki register aralığına uyarlanır.",
+    step3Title: "Dinle ve çalış",
+    step3Body: "Melodiyi çal, parmakları takip et, tempoyu değiştir ve bir cümleyi döngüle.",
+    footer: "D tin whistle için ezgileri ara, uyarla ve çalış.",
     customTitle: "Benim ezgim",
     customSubtitle: "Elle girilen nota dizisi",
     customDifficulty: "Özel",
@@ -349,8 +359,10 @@ const COPY = {
     gpSource: "Guitar Pro / tab verisi · otomatik",
     reviewSource: "Aç ve kontrol et",
     webSource: "Web keşfi · doğrulanmadı",
-    emptyTitle: "Nota sayfası seçilmedi",
-    emptyBody: "Önceki şarkıyı ekranda bırakmadık. Burada yalnızca incelenmiş kaynak eşleşmeleri gösterilir.",
+    emptyTitle: "Parmak rehberin burada görünecek",
+    emptyBody: "Yukarıdan bir şarkı ara, notaları yapıştır veya sesi notaya çevir. Uygun kaynak yoksa şarkıyı isteyebilirsin.",
+    detailsTitle: "Kaynak ve düzenleme ayrıntıları",
+    detailsIntro: "Bu rehberde kullanılan kaynak, kalite bilgisi ve D-whistle uyarlaması.",
     sourceCaveat: "Ses dizisi kaynaklıdır; ritim ve nota süreleri henüz dahil değildir.",
     arrangementTitle: "D-whistle düzeni",
     arrangementOriginal: "Kaynak, D whistle’ın standart iki registerına sığıyor; tonu değiştirilmedi.",
@@ -393,6 +405,7 @@ const FALLBACK_SONGS: Song[] = [
 
 const REMOTE_CATALOG_URL = "https://raw.githubusercontent.com/ozguregemen/tin-whistle-note-creator/main/catalog/catalog.json";
 const THE_SESSION_SEARCH_URL = "https://thesession.org/tunes/search?format=json&q=";
+const INPUT_MODES = ["search", "paste", "audio"] as const;
 
 function sourceApiUrl() {
   if (typeof window === "undefined") return "";
@@ -483,7 +496,8 @@ export default function Home() {
   const [song, setSong] = useState<Song | null>(FALLBACK_SONGS[0]);
   const [sourceCandidates, setSourceCandidates] = useState<SourceCandidate[]>([]);
   const [status, setStatus] = useState<StatusKey>("catalogPrepared");
-  const [bpm, setBpm] = useState(FALLBACK_SONGS[0].rhythm?.bpm ?? 90);
+  const [bpm, setBpm] = useState(clampBpm(FALLBACK_SONGS[0].rhythm?.bpm ?? 90));
+  const [bpmInput, setBpmInput] = useState(String(clampBpm(FALLBACK_SONGS[0].rhythm?.bpm ?? 90)));
   const [tempoStatus, setTempoStatus] = useState<TempoStatus>("idle");
   const [transcriptionProgress, setTranscriptionProgress] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -501,7 +515,7 @@ export default function Home() {
   const metronomeEnabledRef = useRef(false);
   const loopEnabledRef = useRef(false);
   const selectedPhraseRef = useRef(0);
-  const bpmRef = useRef(90);
+  const bpmRef = useRef(clampBpm(FALLBACK_SONGS[0].rhythm?.bpm ?? 90));
   const isPlayingRef = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioScheduledSourceNode | null>(null);
@@ -612,9 +626,10 @@ export default function Home() {
     setIsPlaying(false);
     setLoopEnabled(false);
     setSelectedPhraseIndex(0);
-    const initialBpm = song?.rhythm?.bpm ?? 90;
+    const initialBpm = clampBpm(song?.rhythm?.bpm ?? 90);
     bpmRef.current = initialBpm;
     setBpm(initialBpm);
+    setBpmInput(String(initialBpm));
     // Tempo discovery updates the current song in place and must not restart transport.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [song?.id]);
@@ -1006,7 +1021,8 @@ export default function Home() {
     finishPlayback();
   }
 
-  function changeTempo(nextBpm: number) {
+  function changeTempo(nextBpm: number, syncInput = true) {
+    const committedBpm = clampBpm(nextBpm, bpmRef.current);
     const phase = playbackPhaseRef.current;
     const playing = isPlayingRef.current;
     const remainingBeats = phase && playing ? remainingPhaseBeats(phase) : 0;
@@ -1014,8 +1030,9 @@ export default function Home() {
     const remainingMetronomeBeats = metronomePhase && playing
       ? remainingBeatsAfterElapsed(metronomePhase.remainingBeats, window.performance.now() - metronomePhase.startedAt, metronomePhase.bpm)
       : 0;
-    bpmRef.current = nextBpm;
-    setBpm(nextBpm);
+    bpmRef.current = committedBpm;
+    setBpm(committedBpm);
+    if (syncInput) setBpmInput(String(committedBpm));
 
     if (!phase || !playing) return;
     if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
@@ -1193,6 +1210,30 @@ export default function Home() {
     setStatus("converted");
   }
 
+  function navigateInputModes(event: ReactKeyboardEvent<HTMLButtonElement>, currentMode: typeof INPUT_MODES[number]) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const currentIndex = INPUT_MODES.indexOf(currentMode);
+    const nextIndex = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? INPUT_MODES.length - 1
+        : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + INPUT_MODES.length) % INPUT_MODES.length;
+    const nextMode = INPUT_MODES[nextIndex];
+    setMode(nextMode);
+    window.requestAnimationFrame(() => document.getElementById(`source-tab-${nextMode}`)?.focus());
+  }
+
+  function editBpmInput(value: string) {
+    setBpmInput(value);
+    const liveBpm = bpmFromInputDraft(value);
+    if (liveBpm !== null) changeTempo(liveBpm, false);
+  }
+
+  function commitBpmField() {
+    changeTempo(commitBpmInput(bpmInput, bpmRef.current));
+  }
+
   async function convertAudio(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -1217,7 +1258,7 @@ export default function Home() {
         sourceStatus: "manual",
         sources: [],
       });
-      setBpm(result.rhythm.bpm);
+      changeTempo(result.rhythm.bpm);
       setStatus("audioConverted");
     } catch {
       setStatus("audioUnavailable");
@@ -1232,12 +1273,12 @@ export default function Home() {
 
   return (
     <main lang={language}>
-      <nav className="nav shell" aria-label="Main navigation">
+      <nav className="nav shell" aria-label={t.navLabel}>
         <a className="brand" href="#top">Tin Whistle Note Creator</a>
         <div className="nav-actions">
           <a href="#how-it-works">{t.navHow}</a>
           <button className="language-toggle" type="button" onClick={toggleLanguage} aria-label={t.languageLabel}>{t.languageAction}</button>
-          <span className="mvp-badge">{t.badge}</span>
+          <span className="instrument-badge">{t.badge}</span>
         </div>
       </nav>
 
@@ -1247,13 +1288,13 @@ export default function Home() {
         <p>{t.intro}</p>
 
         <div className="converter-card">
-          <div className="mode-tabs" role="tablist" aria-label="Note source">
-            <button type="button" role="tab" aria-selected={mode === "search"} onClick={() => setMode("search")}>{t.catalogTab}</button>
-            <button type="button" role="tab" aria-selected={mode === "paste"} onClick={() => setMode("paste")}>{t.pasteTab}</button>
-            <button type="button" role="tab" aria-selected={mode === "audio"} onClick={() => setMode("audio")}>{t.audioTab}</button>
+          <div className="mode-tabs" role="tablist" aria-label={t.inputModes}>
+            <button id="source-tab-search" type="button" role="tab" aria-controls="source-panel-search" aria-selected={mode === "search"} tabIndex={mode === "search" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "search")} onClick={() => setMode("search")}>{t.catalogTab}</button>
+            <button id="source-tab-paste" type="button" role="tab" aria-controls="source-panel-paste" aria-selected={mode === "paste"} tabIndex={mode === "paste" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "paste")} onClick={() => setMode("paste")}>{t.pasteTab}</button>
+            <button id="source-tab-audio" type="button" role="tab" aria-controls="source-panel-audio" aria-selected={mode === "audio"} tabIndex={mode === "audio" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "audio")} onClick={() => setMode("audio")}>{t.audioTab}</button>
           </div>
           {mode === "search" ? (
-            <form onSubmit={findSong}>
+            <form id="source-panel-search" role="tabpanel" aria-labelledby="source-tab-search" onSubmit={findSong}>
               <label htmlFor="song-search">{t.searchLabel}</label>
               <div className="search-row">
                 <span aria-hidden="true">⌕</span>
@@ -1278,13 +1319,13 @@ export default function Home() {
               </div>}
             </form>
           ) : mode === "paste" ? (
-            <form onSubmit={convertManual}>
+            <form id="source-panel-paste" role="tabpanel" aria-labelledby="source-tab-paste" onSubmit={convertManual}>
               <label htmlFor="notes-input">{t.pasteLabel}</label>
               <textarea id="notes-input" value={manualNotes} onChange={(event) => setManualNotes(event.target.value)} rows={3} />
               <div className="paste-actions"><span>{t.pasteHint}</span><button type="submit">{t.convert} <span aria-hidden="true">→</span></button></div>
             </form>
           ) : (
-            <div className="audio-import">
+            <div id="source-panel-audio" className="audio-import" role="tabpanel" aria-labelledby="source-tab-audio">
               <label htmlFor="audio-input">{t.audioLabel}</label>
               <label className={`audio-picker${status === "audioTranscribing" ? " disabled" : ""}`} htmlFor="audio-input">
                 <span aria-hidden="true">♪</span>
@@ -1295,7 +1336,7 @@ export default function Home() {
               {status === "audioTranscribing" && <progress max="100" value={transcriptionProgress}>{transcriptionProgress}%</progress>}
             </div>
           )}
-          <p className="status" role="status"><span /> {t[status]}</p>
+          <p className={`status status-${status}`} role="status"><span /> {t[status]}</p>
         </div>
       </section>
 
@@ -1307,34 +1348,50 @@ export default function Home() {
             <button type="button" className="print-button" onClick={() => window.print()}>{t.print}</button>
           </div>
         </div>
-        {song.sourceStatus !== "manual" && songQuality && <div className={`source-panel quality-${songQuality.tone}`}>
-          <div>
-            <strong>{songQuality.tone === "verified" ? "✓" : songQuality.tone === "warning" ? "!" : "i"} {songQuality.melody === "cross-checked" ? t.verified : songQuality.melody === "omr-unreviewed" ? t.omrUnreviewed : songQuality.melody === "text-estimated" ? t.textEstimated : t.sourcedMelody}</strong>
-            <span>{songQuality.melody === "omr-unreviewed" ? t.omrCaveat : songQuality.rhythm === "score" ? t.scoreRhythm : songQuality.rhythm === "text" ? t.textRhythm : t.sourceCaveat}</span>
-            <div className="quality-facts" aria-label={t.qualitySummary}>
-              <span><b>{t.qualityMelody}:</b> {songQuality.melody === "cross-checked" ? t.verified : songQuality.melody === "omr-unreviewed" ? t.omrUnreviewed : songQuality.melody === "text-estimated" ? t.textEstimated : t.sourcedMelody}</span>
-              <span><b>{t.qualityRhythm}:</b> {songQuality.rhythm === "score" ? t.scoreRhythm : songQuality.rhythm === "text" ? t.textRhythm : t.estimatedRhythm}</span>
-              <span><b>{t.qualityTempo}:</b> {songQuality.tempo === "known" ? t.knownTempo : t.defaultTempoShort}</span>
-            </div>
-          </div>
-          <div className="source-links"><span>{t.sources}:</span>{song.sources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.url}>{source.name} <small>({source.role === "note-source" ? t.primarySource : t.crossCheck})</small></a>)}</div>
-        </div>}
-        <div className="arrangement-panel">
-          <strong>{t.arrangementTitle}</strong>
-          <span>{arrangement.semitoneShift === 0
-            ? (arrangement.octaveAdjustments > 0 ? t.arrangementOctaveAdjusted : t.arrangementOriginal)
-            : `${arrangement.semitoneShift < 0 ? t.arrangementDown : t.arrangementUp} ${Math.abs(arrangement.semitoneShift)} ${t.semitones}. ${t.intervalsPreserved}${arrangement.octaveAdjustments > 0 ? ` ${t.arrangementOctaveAdjusted}` : ""}`}</span>
-          <small>{t.whistleOctaveHelp}</small>
-        </div>
         <section className={`practice-panel${isPlaying ? " playing" : ""}`} aria-label={t.practice}>
-          <div className="practice-title"><span className="section-kicker">{t.practice}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</strong></div>
-          <div className="practice-controls">
-            <button type="button" className="practice-play" onClick={togglePractice} disabled={!playbackPlan.length || soundStatus === "loading"} aria-pressed={isPlaying}><span aria-hidden="true">{isPlaying ? "Ⅱ" : "▶"}</span> {soundStatus === "loading" ? "…" : isPlaying ? t.pause : t.play}</button>
-            <button type="button" className="practice-stop" onClick={stopPractice} disabled={!isPlaying && activeNoteIndex < 0}><span aria-hidden="true">■</span> {t.stop}</button>
-            <label htmlFor="practice-bpm">{t.tempo}</label>
-            <input id="practice-bpm" type="range" min="40" max="220" step="1" value={bpm} onChange={(event) => changeTempo(Number(event.target.value))} />
-            <output htmlFor="practice-bpm">{bpm} BPM</output>
-            <span className={`tempo-origin ${tempoStatus}`}>
+          <div className="practice-main">
+            <div className="practice-title"><span className="section-kicker">{t.practice}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</strong></div>
+            <div className="practice-transport">
+              <button type="button" className="practice-play" onClick={togglePractice} disabled={!playbackPlan.length || soundStatus === "loading"} aria-pressed={isPlaying}><span aria-hidden="true">{isPlaying ? "Ⅱ" : "▶"}</span> {soundStatus === "loading" ? "…" : isPlaying ? t.pause : t.play}</button>
+              <button type="button" className="practice-stop" onClick={stopPractice} disabled={!isPlaying && activeNoteIndex < 0}><span aria-hidden="true">■</span> {t.stop}</button>
+            </div>
+            <div className="tempo-control" role="group" aria-labelledby="practice-tempo-label">
+              <span id="practice-tempo-label" className="tempo-label">{t.tempo}</span>
+              <input id="practice-bpm" type="range" min={BPM_MIN} max={BPM_MAX} step="1" value={bpm} aria-label={t.tempo} onChange={(event) => changeTempo(Number(event.target.value))} />
+              <div className="bpm-field">
+                <label className="sr-only" htmlFor="practice-bpm-number">{t.bpmInput}</label>
+                <input
+                  id="practice-bpm-number"
+                  type="number"
+                  min={BPM_MIN}
+                  max={BPM_MAX}
+                  step="1"
+                  inputMode="numeric"
+                  value={bpmInput}
+                  onChange={(event) => editBpmInput(event.target.value)}
+                  onBlur={commitBpmField}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      event.currentTarget.blur();
+                    }
+                  }}
+                />
+                <span aria-hidden="true">BPM</span>
+              </div>
+            </div>
+            <div className="practice-progress" aria-live="polite"><span>{t.progress}</span><strong>{progressCurrent} / {progressTotal}</strong></div>
+          </div>
+          <div className="practice-secondary">
+            <div className="practice-options">
+              <label className="practice-toggle"><input type="checkbox" checked={metronomeEnabled} onChange={(event) => changeMetronome(event.target.checked)} /> <span>{t.metronome}</span></label>
+              <label className="practice-toggle"><input type="checkbox" checked={followEnabled} onChange={(event) => setFollowEnabled(event.target.checked)} /> <span>{t.followNotes}</span></label>
+              <label className="practice-toggle"><input type="checkbox" checked={loopEnabled} onChange={(event) => changeLoop(event.target.checked)} /> <span>{t.loopPhrase}</span></label>
+              <label className="phrase-select" htmlFor="loop-phrase"><span>{t.selectPhrase}</span><select id="loop-phrase" value={selectedPhraseIndex} onChange={(event) => changeSelectedPhrase(Number(event.target.value))} disabled={!loopEnabled}>{phrases.map((_, index) => <option value={index} key={index}>{t.phrase} {String(index + 1).padStart(2, "0")}</option>)}</select></label>
+            </div>
+            <div className="practice-meta">
+              <span className="sound-status" aria-live="polite">{soundStatus === "loading" ? t.loadingSound : soundStatus === "fallback" ? t.referenceSound : t.whistleSound}</span>
+              <span className={`tempo-origin ${tempoStatus}`}>
               {tempoStatus === "loading"
                 ? t.tempoSearching
                 : song.rhythm?.tempoSource === "database"
@@ -1344,17 +1401,10 @@ export default function Home() {
                   : song.rhythm?.tempoSource === "score" || song.rhythm?.tempoSource === "curated"
                     ? t.scoreTempo
                     : t.defaultTempo}
-            </span>
-          </div>
-          <div className="practice-progress" aria-live="polite"><span>{soundStatus === "loading" ? t.loadingSound : soundStatus === "fallback" ? t.referenceSound : t.whistleSound}</span><strong>{progressCurrent} / {progressTotal}</strong></div>
-          <div className="practice-options">
-            <label className="practice-toggle"><input type="checkbox" checked={metronomeEnabled} onChange={(event) => changeMetronome(event.target.checked)} /> <span>{t.metronome}</span></label>
-            <label className="practice-toggle"><input type="checkbox" checked={followEnabled} onChange={(event) => setFollowEnabled(event.target.checked)} /> <span>{t.followNotes}</span></label>
-            <label className="practice-toggle"><input type="checkbox" checked={loopEnabled} onChange={(event) => changeLoop(event.target.checked)} /> <span>{t.loopPhrase}</span></label>
-            <label className="phrase-select" htmlFor="loop-phrase"><span>{t.selectPhrase}</span><select id="loop-phrase" value={selectedPhraseIndex} onChange={(event) => changeSelectedPhrase(Number(event.target.value))} disabled={!loopEnabled}>{phrases.map((_, index) => <option value={index} key={index}>{t.phrase} {String(index + 1).padStart(2, "0")}</option>)}</select></label>
+              </span>
+            </div>
           </div>
         </section>
-        <p className="audio-credit">{t.sampleCredit}: <a href="https://github.com/mrbumpy409/GeneralUser-GS" target="_blank" rel="noreferrer">{t.soundBank}</a> · <a href="https://github.com/surikov/webaudiofontdata" target="_blank" rel="noreferrer">{t.soundConversion}</a> · <a href="https://huggingface.co/AEmotionStudio/windstudio-tin-whistle-samples" target="_blank" rel="noreferrer">{t.fallbackSamples}</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a> · Audio transcription: <a href="https://github.com/spotify/basic-pitch-ts" target="_blank" rel="noreferrer">Spotify Basic Pitch</a> · {t.bpmCredit}: <a href="https://getsongbpm.com" target="_blank" rel="noreferrer">GetSongBPM.com</a></p>
         {unsupported.length > 0 && <div className="warning" role="alert"><strong>{unsupported.length} {t.warningStart}</strong> {t.warningEnd}</div>}
         <div className="phrases">
           {phrases.map((phrase, phraseIndex) => (
@@ -1367,7 +1417,30 @@ export default function Home() {
             </article>
           ))}
         </div>
-        <footer className="score-footer"><span>{allNotes.length} {t.notes} · {phrases.length} {t.phrases}</span><span>Tin Whistle Note Creator MVP · {song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</span></footer>
+        <section className="score-details" aria-labelledby="score-details-title">
+          <div className="score-details-heading"><div><h3 id="score-details-title">{t.detailsTitle}</h3><p>{t.detailsIntro}</p></div></div>
+          {song.sourceStatus !== "manual" && songQuality && <div className={`source-panel quality-${songQuality.tone}`}>
+            <div>
+              <strong>{songQuality.tone === "verified" ? "✓" : songQuality.tone === "warning" ? "!" : "i"} {songQuality.melody === "cross-checked" ? t.verified : songQuality.melody === "omr-unreviewed" ? t.omrUnreviewed : songQuality.melody === "text-estimated" ? t.textEstimated : t.sourcedMelody}</strong>
+              <span>{songQuality.melody === "omr-unreviewed" ? t.omrCaveat : songQuality.rhythm === "score" ? t.scoreRhythm : songQuality.rhythm === "text" ? t.textRhythm : t.sourceCaveat}</span>
+              <div className="quality-facts" aria-label={t.qualitySummary}>
+                <span><b>{t.qualityMelody}:</b> {songQuality.melody === "cross-checked" ? t.verified : songQuality.melody === "omr-unreviewed" ? t.omrUnreviewed : songQuality.melody === "text-estimated" ? t.textEstimated : t.sourcedMelody}</span>
+                <span><b>{t.qualityRhythm}:</b> {songQuality.rhythm === "score" ? t.scoreRhythm : songQuality.rhythm === "text" ? t.textRhythm : t.estimatedRhythm}</span>
+                <span><b>{t.qualityTempo}:</b> {songQuality.tempo === "known" ? t.knownTempo : t.defaultTempoShort}</span>
+              </div>
+            </div>
+            <div className="source-links"><span>{t.sources}:</span>{song.sources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.url}>{source.name} <small>({source.role === "note-source" ? t.primarySource : t.crossCheck})</small></a>)}</div>
+          </div>}
+          <div className="arrangement-panel">
+            <strong>{t.arrangementTitle}</strong>
+            <span>{arrangement.semitoneShift === 0
+              ? (arrangement.octaveAdjustments > 0 ? t.arrangementOctaveAdjusted : t.arrangementOriginal)
+              : `${arrangement.semitoneShift < 0 ? t.arrangementDown : t.arrangementUp} ${Math.abs(arrangement.semitoneShift)} ${t.semitones}. ${t.intervalsPreserved}${arrangement.octaveAdjustments > 0 ? ` ${t.arrangementOctaveAdjusted}` : ""}`}</span>
+            <small>{t.whistleOctaveHelp}</small>
+          </div>
+          <p className="audio-credit">{t.sampleCredit}: <a href="https://github.com/mrbumpy409/GeneralUser-GS" target="_blank" rel="noreferrer">{t.soundBank}</a> · <a href="https://github.com/surikov/webaudiofontdata" target="_blank" rel="noreferrer">{t.soundConversion}</a> · <a href="https://huggingface.co/AEmotionStudio/windstudio-tin-whistle-samples" target="_blank" rel="noreferrer">{t.fallbackSamples}</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a> · {t.audioTranscriptionCredit}: <a href="https://github.com/spotify/basic-pitch-ts" target="_blank" rel="noreferrer">Spotify Basic Pitch</a> · {t.bpmCredit}: <a href="https://getsongbpm.com" target="_blank" rel="noreferrer">GetSongBPM.com</a></p>
+        </section>
+        <footer className="score-footer"><span>{allNotes.length} {t.notes} · {phrases.length} {t.phrases}</span><span>D tin whistle · {song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</span></footer>
       </section> : <section className="workspace empty-workspace shell" aria-live="polite">
         <span className="section-kicker">{t.guide}</span>
         <h2>{t.emptyTitle}</h2>
@@ -1376,7 +1449,7 @@ export default function Home() {
       </section>}
 
       <section className="how shell" id="how-it-works">
-        <div><span className="section-kicker">{t.mvpScope}</span><h2>{t.howTitle}</h2></div>
+        <div><span className="section-kicker">{t.howKicker}</span><h2>{t.howTitle}</h2></div>
         <ol>
           <li><span>01</span><div><strong>{t.step1Title}</strong><p>{t.step1Body}</p></div></li>
           <li><span>02</span><div><strong>{t.step2Title}</strong><p>{t.step2Body}</p></div></li>
