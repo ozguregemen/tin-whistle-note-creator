@@ -40,6 +40,27 @@ export const SOURCE_ADAPTERS = {
   academicPdf: DOCUMENT_SOURCE_ADAPTER,
 };
 
+const SOURCE_QUALITY_BY_MODE = Object.freeze({
+  gp: Object.freeze({ key: "rhythmic-score", rank: 3 }),
+  text: Object.freeze({ key: "melody-only", rank: 2 }),
+  omr: Object.freeze({ key: "machine-read", rank: 1 }),
+  review: Object.freeze({ key: "review-only", rank: 0 }),
+});
+
+export function sourceQualityForMode(processingMode) {
+  return SOURCE_QUALITY_BY_MODE[processingMode] ?? SOURCE_QUALITY_BY_MODE.review;
+}
+
+export function compareSourceCandidates(left, right) {
+  const relevanceDifference = Number(right?.score || 0) - Number(left?.score || 0);
+  if (relevanceDifference !== 0) return relevanceDifference;
+  return sourceQualityForMode(right?.processingMode).rank - sourceQualityForMode(left?.processingMode).rank;
+}
+
+function withSourceQuality(candidate) {
+  return { ...candidate, quality: sourceQualityForMode(candidate.processingMode).key };
+}
+
 async function readLimitedText(response, maxBytes) {
   const declaredLength = Number(response.headers.get("Content-Length") || 0);
   if (declaredLength > maxBytes) throw new Error(`Source response exceeds ${maxBytes} bytes`);
@@ -140,7 +161,7 @@ async function fetchWordPressResults(adapter, query, fetchFn) {
       .reduce((best, variant) => Math.max(best, searchMatchScore(variant, [title, cleanedTitle])), 0);
     if (score < 58) continue;
 
-    const candidate = {
+    const candidate = withSourceQuality({
       id: `${adapter.id}:${item.id}`,
       sourceId: adapter.id,
       sourceName: adapter.name,
@@ -149,7 +170,7 @@ async function fetchWordPressResults(adapter, query, fetchFn) {
       url: item.url,
       processingMode: adapter.processingMode,
       score,
-    };
+    });
     const existing = unique.get(candidate.id);
     if (!existing || existing.score < score) unique.set(candidate.id, candidate);
   }
@@ -197,7 +218,7 @@ async function fetchSongsterrResults(adapter, query, fetchFn) {
     if (item.isJunk || item.hasPlayer === false) continue;
     const score = searchMatchScore(query, [item.title, item.artist, `${item.artist} ${item.title}`]);
     if (score < 58) continue;
-    const candidate = {
+    const candidate = withSourceQuality({
       id: `${adapter.id}:${item.songId}`,
       sourceId: adapter.id,
       sourceName: adapter.name,
@@ -208,7 +229,7 @@ async function fetchSongsterrResults(adapter, query, fetchFn) {
       url: songsterrUrl(item),
       processingMode: adapter.processingMode,
       score,
-    };
+    });
     const existing = unique.get(candidate.id);
     if (!existing || existing.score < score) unique.set(candidate.id, candidate);
   }
@@ -219,7 +240,7 @@ function searchDocumentSources(query) {
   return Object.values(DOCUMENT_SOURCES).flatMap((document) => {
     const score = searchMatchScore(query, [document.title, ...document.aliases]);
     if (score < 58) return [];
-    return [{
+    return [withSourceQuality({
       id: `${document.sourceId}:${document.id}`,
       sourceId: document.sourceId,
       sourceName: document.sourceName,
@@ -228,7 +249,7 @@ function searchDocumentSources(query) {
       url: document.url,
       processingMode: document.processingMode,
       score,
-    }];
+    })];
   });
 }
 
@@ -291,7 +312,7 @@ async function searchWebDiscovery(query, fetchFn) {
       );
       if (score < 58) continue;
       const sourceId = `web:${new URL(item.url).hostname.replace(/^www\./i, "")}`;
-      const candidate = {
+      const candidate = withSourceQuality({
         id: `${sourceId}:${item.url}`,
         sourceId: "web",
         sourceName: item.source.name,
@@ -299,12 +320,12 @@ async function searchWebDiscovery(query, fetchFn) {
         url: item.url,
         processingMode: "review",
         score: Math.max(1, score - 25),
-      };
+      });
       const existing = unique.get(candidate.id);
       if (!existing || existing.score < candidate.score) unique.set(candidate.id, candidate);
     }
   }
-  return [...unique.values()].sort((left, right) => right.score - left.score).slice(0, 5);
+  return [...unique.values()].sort(compareSourceCandidates).slice(0, 5);
 }
 
 export async function searchAllSources(query, fetchFn = fetch) {
@@ -325,7 +346,7 @@ export async function searchAllSources(query, fetchFn = fetch) {
     if (result.status === "fulfilled") results.push(...result.value);
     else unavailableSources.push(adapter.id);
   });
-  const approvedResults = results.sort((left, right) => right.score - left.score).slice(0, 8);
+  const approvedResults = results.sort(compareSourceCandidates).slice(0, 8);
   if (approvedResults.length > 0) return { results: approvedResults, unavailableSources };
 
   try {
