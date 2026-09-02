@@ -1,5 +1,12 @@
 const KNOWN_TEMPO_SOURCES = new Set(["score", "curated", "database"]);
 const RHYTHM_SOURCES = new Set(["score", "text", "transcribed"]);
+const READINESS_RANK = Object.freeze({
+  "review-required": 0,
+  "melody-draft": 1,
+  "rhythmic-draft": 2,
+  ready: 3,
+  personal: 3,
+});
 
 function notePhrases(notes) {
   if (typeof notes !== "string") return [];
@@ -18,8 +25,37 @@ export function assessSongQuality(song) {
   const melody = melodyQuality(song);
   const rhythm = RHYTHM_SOURCES.has(song?.rhythm?.source) ? song.rhythm.source : "equal-beats";
   const tempo = KNOWN_TEMPO_SOURCES.has(song?.rhythm?.tempoSource) ? "known" : "default";
+  const readiness = melody === "manual"
+    ? "personal"
+    : melody === "omr-unreviewed"
+      ? "review-required"
+      : melody === "cross-checked" && rhythm !== "equal-beats"
+        ? "ready"
+        : rhythm !== "equal-beats"
+          ? "rhythmic-draft"
+          : "melody-draft";
   const tone = melody === "cross-checked" ? "verified" : melody === "omr-unreviewed" ? "warning" : "info";
-  return { melody, rhythm, tempo, tone };
+  return { melody, rhythm, tempo, readiness, tone };
+}
+
+export function readinessRank(song) {
+  return READINESS_RANK[assessSongQuality(song).readiness] ?? 0;
+}
+
+export function rankCatalogMatches(matches) {
+  return [...matches].sort((left, right) => {
+    const relevanceDifference = Number(right?.score || 0) - Number(left?.score || 0);
+    if (relevanceDifference !== 0) return relevanceDifference;
+    return readinessRank(right?.item) - readinessRank(left?.item);
+  });
+}
+
+export function rankCatalogSongs(songs) {
+  return [...songs].sort((left, right) => {
+    const readinessDifference = readinessRank(right) - readinessRank(left);
+    if (readinessDifference !== 0) return readinessDifference;
+    return String(left?.title || "").localeCompare(String(right?.title || ""));
+  });
 }
 
 function timedArrayErrors(song, field, phrases) {
@@ -55,6 +91,10 @@ export function auditCatalogQuality(catalog) {
     unreviewedOmr: 0,
     equalBeatFallback: 0,
     defaultTempo: 0,
+    practiceReady: 0,
+    rhythmicDraft: 0,
+    melodyDraft: 0,
+    reviewRequired: 0,
   };
 
   songs.forEach((song, index) => {
@@ -76,6 +116,10 @@ export function auditCatalogQuality(catalog) {
     }
 
     const quality = assessSongQuality(song);
+    if (quality.readiness === "ready") summary.practiceReady += 1;
+    if (quality.readiness === "rhythmic-draft") summary.rhythmicDraft += 1;
+    if (quality.readiness === "melody-draft") summary.melodyDraft += 1;
+    if (quality.readiness === "review-required") summary.reviewRequired += 1;
     if (quality.melody === "cross-checked") summary.crossChecked += 1;
     if (quality.melody === "omr-unreviewed") {
       summary.unreviewedOmr += 1;

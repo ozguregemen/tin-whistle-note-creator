@@ -3,7 +3,7 @@
 import { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { parseAbcScore } from "./abc.mjs";
 import { transcribeAudioFile } from "./audio-transcription.mjs";
-import { assessSongQuality } from "./catalog-quality.mjs";
+import { assessSongQuality, rankCatalogMatches, rankCatalogSongs } from "./catalog-quality.mjs";
 import { arrangePhrasesForDWhistle, estimateDWhistleRegisters, isUpperWhistleRegister } from "./fingerings.mjs";
 import { BPM_MAX, BPM_MIN, bpmFromInputDraft, buildPhraseRanges, buildPlaybackPlan, clampBpm, commitBpmInput, frequencyForWhistleNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "./practice.mjs";
 import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
@@ -54,6 +54,7 @@ type SourceCandidate = {
   title: string;
   url: string;
   processingMode: "text" | "omr" | "gp" | "review";
+  quality?: "rhythmic-score" | "melody-only" | "machine-read" | "review-only";
   score: number;
 };
 
@@ -139,7 +140,7 @@ const COPY = {
     audioTranscribing: "Transcribing pitch and timing locally…",
     audioConverted: "Audio melody converted into D-whistle fingerings",
     audioUnavailable: "No reliable melody was found in this audio. Try a clearer instrumental or isolated track.",
-    catalogPrepared: "Verified web-sourced catalog is ready",
+    catalogPrepared: "Song catalog is ready",
     catalogUpdated: "Latest source catalog loaded from GitHub",
     catalogFound: "Found in the web-sourced catalog",
     searching: "Searching live note sources…",
@@ -215,6 +216,19 @@ const COPY = {
     qualityMelody: "Melody",
     qualityRhythm: "Rhythm",
     qualityTempo: "Tempo",
+    readyToPractice: "Ready to practise",
+    readyToPracticeHelp: "Melody and rhythm have both been checked for practice.",
+    rhythmicDraft: "Rhythmic source · melody not checked",
+    rhythmicDraftHelp: "Timing comes from the score, but the selected melody line may differ from the original vocal melody.",
+    melodyDraft: "Melody only · equal timing",
+    melodyDraftHelp: "The pitch sequence is available, but the original note durations are not.",
+    reviewRequired: "Machine-read draft · review required",
+    reviewRequiredHelp: "Automatic score reading may contain wrong or missing notes.",
+    personalMelody: "Personal note entry",
+    candidateRhythmic: "Rhythm included",
+    candidateMelodyOnly: "Melody only",
+    candidateMachineRead: "Machine-read draft",
+    candidateReviewOnly: "Link only",
     knownTempo: "Original BPM found",
     defaultTempoShort: "Practice default",
     omrCaveat: "Automatic score reading can contain wrong notes. Treat this as a practice draft until it is cross-checked.",
@@ -272,7 +286,7 @@ const COPY = {
     audioTranscribing: "Perde ve zamanlama tarayıcıda çıkarılıyor…",
     audioConverted: "Ses melodisi D-whistle parmaklarına dönüştürüldü",
     audioUnavailable: "Bu seste güvenilir bir melodi bulunamadı. Daha temiz bir enstrümantal veya izole kayıt dene.",
-    catalogPrepared: "Doğrulanmış internet kaynaklı katalog hazır",
+    catalogPrepared: "Şarkı kataloğu hazır",
     catalogUpdated: "Güncel kaynak kataloğu GitHub’dan yüklendi",
     catalogFound: "İnternet kaynaklı katalogda bulundu",
     searching: "Canlı nota kaynaklarında aranıyor…",
@@ -348,6 +362,19 @@ const COPY = {
     qualityMelody: "Ezgi",
     qualityRhythm: "Ritim",
     qualityTempo: "Tempo",
+    readyToPractice: "Çalışmaya hazır",
+    readyToPracticeHelp: "Ezgi ve ritim çalışma için birlikte kontrol edildi.",
+    rhythmicDraft: "Ritimli kaynak · ezgi kontrol edilmedi",
+    rhythmicDraftHelp: "Zamanlama notadan gelir; seçilen melodi kanalı orijinal vokal melodisinden farklı olabilir.",
+    melodyDraft: "Yalnızca ezgi · eşit zamanlama",
+    melodyDraftHelp: "Nota dizisi var ancak orijinal nota süreleri bulunmuyor.",
+    reviewRequired: "Makineyle okunan taslak · kontrol gerekli",
+    reviewRequiredHelp: "Otomatik nota okuma yanlış veya eksik notalar içerebilir.",
+    personalMelody: "Kişisel nota girişi",
+    candidateRhythmic: "Ritim dahil",
+    candidateMelodyOnly: "Yalnızca ezgi",
+    candidateMachineRead: "Makineyle okunan taslak",
+    candidateReviewOnly: "Yalnızca bağlantı",
     knownTempo: "Orijinal BPM bulundu",
     defaultTempoShort: "Pratik varsayılanı",
     omrCaveat: "Otomatik nota okuma hatalı notalar içerebilir. Başka bir kaynakla karşılaştırılana kadar bunu çalışma taslağı olarak kullan.",
@@ -527,6 +554,25 @@ export default function Home() {
   const whistleLoadPromiseRef = useRef<Promise<boolean> | null>(null);
   const t = COPY[language];
   const songQuality = useMemo(() => song ? assessSongQuality(song) : null, [song]);
+  const suggestedSongs = useMemo(() => rankCatalogSongs(catalog).slice(0, 4) as Song[], [catalog]);
+  const readinessLabel = songQuality?.readiness === "ready"
+    ? t.readyToPractice
+    : songQuality?.readiness === "rhythmic-draft"
+      ? t.rhythmicDraft
+      : songQuality?.readiness === "review-required"
+        ? t.reviewRequired
+        : songQuality?.readiness === "personal"
+          ? t.personalMelody
+          : t.melodyDraft;
+  const readinessHelp = songQuality?.readiness === "ready"
+    ? t.readyToPracticeHelp
+    : songQuality?.readiness === "rhythmic-draft"
+      ? t.rhythmicDraftHelp
+      : songQuality?.readiness === "review-required"
+        ? t.reviewRequiredHelp
+        : songQuality?.readiness === "personal"
+          ? ""
+          : t.melodyDraftHelp;
   isPlayingRef.current = isPlaying;
 
   useEffect(() => {
@@ -1092,10 +1138,10 @@ export default function Home() {
     event?.preventDefault();
     setSourceCandidates([]);
     const normalized = normalizeSearchText(query);
-    const match = normalized ? catalog
+    const match = normalized ? rankCatalogMatches(catalog
       .map((item) => ({ item, score: searchMatchScore(query, [item.title, item.artist ?? "", item.artist ? `${item.artist} ${item.title}` : "", ...item.aliases]) }))
       .filter((candidate) => candidate.score > 0)
-      .sort((left, right) => right.score - left.score)[0]?.item : undefined;
+    )[0]?.item as Song | undefined : undefined;
     if (match) { setSong(match); setStatus("catalogFound"); return; }
     if (!normalized) { setSong(null); setStatus("notFound"); return; }
 
@@ -1305,19 +1351,30 @@ export default function Home() {
               </div>
               <div className="suggestions">
                 <span>{t.suggested}</span>
-                {catalog.slice(0, 4).map((item) => <button type="button" onClick={() => chooseSuggestion(item)} key={item.id}>{item.artist ? `${item.artist} · ` : ""}{item.title}</button>)}
+                {suggestedSongs.map((item) => <button type="button" onClick={() => chooseSuggestion(item)} key={item.id}>{item.artist ? `${item.artist} · ` : ""}{item.title}</button>)}
               </div>
               {sourceCandidates.length > 0 && <div className="source-results" aria-label={t.sourceFound}>
-                {sourceCandidates.map((candidate) => <article className="source-result" key={candidate.id}>
-                  <div>
-                    <strong>{candidate.title}</strong>
-                    <span>{candidate.sourceName} · {candidate.processingMode === "text" ? t.textSource : candidate.processingMode === "gp" ? t.gpSource : candidate.processingMode === "review" ? t.webSource : t.scoreSource}</span>
-                  </div>
-                  <div>
-                    <a href={candidate.url} target="_blank" rel="noreferrer">{t.primarySource}</a>
-                    {candidate.processingMode === "review" ? <span className="source-review">{t.reviewSource}</span> : <button type="button" onClick={() => processSource(candidate)}>{t.processSource} →</button>}
-                  </div>
-                </article>)}
+                {sourceCandidates.map((candidate) => {
+                  const candidateQuality = candidate.quality
+                    ?? (candidate.processingMode === "gp" ? "rhythmic-score" : candidate.processingMode === "text" ? "melody-only" : candidate.processingMode === "omr" ? "machine-read" : "review-only");
+                  const candidateQualityLabel = candidateQuality === "rhythmic-score"
+                    ? t.candidateRhythmic
+                    : candidateQuality === "melody-only"
+                      ? t.candidateMelodyOnly
+                      : candidateQuality === "machine-read"
+                        ? t.candidateMachineRead
+                        : t.candidateReviewOnly;
+                  return <article className={`source-result source-quality-${candidateQuality}`} key={candidate.id}>
+                    <div>
+                      <div className="source-result-title"><strong>{candidate.title}</strong><span className="source-quality-badge">{candidateQualityLabel}</span></div>
+                      <span>{candidate.sourceName} · {candidate.processingMode === "text" ? t.textSource : candidate.processingMode === "gp" ? t.gpSource : candidate.processingMode === "review" ? t.webSource : t.scoreSource}</span>
+                    </div>
+                    <div>
+                      <a href={candidate.url} target="_blank" rel="noreferrer">{t.primarySource}</a>
+                      {candidate.processingMode === "review" ? <span className="source-review">{t.reviewSource}</span> : <button type="button" onClick={() => processSource(candidate)}>{t.processSource} →</button>}
+                    </div>
+                  </article>;
+                })}
               </div>}
             </form>
           ) : mode === "paste" ? (
@@ -1344,7 +1401,7 @@ export default function Home() {
 
       {song ? <section className="workspace shell" aria-labelledby="preview-title">
         <div className="workspace-heading">
-          <div><span className="section-kicker">{t.guide}</span><h2 id="preview-title">{song.artist ? `${song.artist} — ` : ""}{song.title}</h2><p>{song.sourceConfidence === "estimated" ? t.textEstimated : song.subtitle[language]} · {song.difficulty[language]} · D tin whistle</p></div>
+          <div><span className="section-kicker">{t.guide}</span><h2 id="preview-title">{song.artist ? `${song.artist} — ` : ""}{song.title}</h2><div className="workspace-subtitle"><p>{song.sourceConfidence === "estimated" ? t.textEstimated : song.subtitle[language]} · {song.difficulty[language]} · D tin whistle</p>{songQuality && <span className={`readiness-badge readiness-${songQuality.readiness}`}>{readinessLabel}</span>}</div></div>
           <div className="workspace-actions">
             <div className="legend"><span className="hole closed" /> {t.closed} <span className="hole half" /> {t.half} <span className="hole open" /> {t.open}</div>
             <button type="button" className="print-button" onClick={() => window.print()}>{t.print}</button>
@@ -1423,8 +1480,8 @@ export default function Home() {
           <div className="score-details-heading"><div><h3 id="score-details-title">{t.detailsTitle}</h3><p>{t.detailsIntro}</p></div></div>
           {song.sourceStatus !== "manual" && songQuality && <div className={`source-panel quality-${songQuality.tone}`}>
             <div>
-              <strong>{songQuality.tone === "verified" ? "✓" : songQuality.tone === "warning" ? "!" : "i"} {songQuality.melody === "cross-checked" ? t.verified : songQuality.melody === "omr-unreviewed" ? t.omrUnreviewed : songQuality.melody === "text-estimated" ? t.textEstimated : t.sourcedMelody}</strong>
-              <span>{songQuality.melody === "omr-unreviewed" ? t.omrCaveat : songQuality.rhythm === "score" ? t.scoreRhythm : songQuality.rhythm === "text" ? t.textRhythm : t.sourceCaveat}</span>
+              <strong>{songQuality.readiness === "ready" ? "✓" : songQuality.readiness === "review-required" ? "!" : "i"} {readinessLabel}</strong>
+              <span>{readinessHelp}</span>
               <div className="quality-facts" aria-label={t.qualitySummary}>
                 <span><b>{t.qualityMelody}:</b> {songQuality.melody === "cross-checked" ? t.verified : songQuality.melody === "omr-unreviewed" ? t.omrUnreviewed : songQuality.melody === "text-estimated" ? t.textEstimated : t.sourcedMelody}</span>
                 <span><b>{t.qualityRhythm}:</b> {songQuality.rhythm === "score" ? t.scoreRhythm : songQuality.rhythm === "text" ? t.textRhythm : t.estimatedRhythm}</span>

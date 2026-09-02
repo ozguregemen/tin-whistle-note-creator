@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { searchAllSources } from "../worker/source-adapters.mjs";
+import { searchAllSources, sourceQualityForMode } from "../worker/source-adapters.mjs";
 
 function response(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -76,6 +76,31 @@ test("küratörlü akademik PDF kaynağını sanatçı olmadan da bulur", async 
   assert.equal(result.results[0].sourceId, "academic-pdf");
   assert.equal(result.results[0].documentId, "ohu-tarkan-kuzu-kuzu");
   assert.equal(result.results[0].processingMode, "omr");
+  assert.equal(result.results[0].quality, "machine-read");
+});
+
+test("eşit ilgide ritim taşıyan kaynakları metin ve OMR taslaklarından önce gösterir", async () => {
+  const fetchMock = async (input) => {
+    const url = new URL(input);
+    if (url.hostname === "www.notalar.net") {
+      return response([{ id: 101, title: "Tarkan Kuzu Kuzu Notaları", url: "https://www.notalar.net/tarkan-kuzu-kuzu/" }]);
+    }
+    if (url.hostname === "www.songsterr.com") {
+      return response([{
+        songId: 202,
+        artist: "Tarkan",
+        title: "Kuzu Kuzu",
+        hasPlayer: true,
+        isJunk: false,
+        tracks: [{ instrument: "Lead Guitar" }],
+      }]);
+    }
+    return response([]);
+  };
+  const result = await searchAllSources("Tarkan Kuzu Kuzu", fetchMock);
+  assert.equal(result.results[0].sourceId, "songsterr");
+  assert.equal(result.results[0].quality, "rhythmic-score");
+  assert.deepEqual(sourceQualityForMode("text"), { key: "melody-only", rank: 2 });
 });
 
 test("yabancı şarkıyı Songsterr kataloğunda sanatçı ve başlıkla bulur", async () => {

@@ -19,6 +19,7 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 - Onaylı kaynaklarda eşleşme yoksa nota odaklı web keşfi (MuseScore ve Kolay Nota); doğrulanmamış sonuçlar içe aktarılmadan önce açıkça işaretlenir
 - Küratörlü akademik PDF kaynağında yalnızca belirlenmiş porte sayfalarını OMR ile okuma ve beklenen nota sayısıyla otomatik doğrulama
 - Seçilen kaynağı güvenli `repository_dispatch` çağrısıyla GitHub Actions işleme kuyruğuna gönderme
+- Katalog ve canlı kaynak sonuçlarında müzikal kalite kapısı: çalışmaya hazır, ritimli taslak, yalnızca ezgi ve kontrol gereken makine okuması ayrımı
 - Metin notalarını otomatik çıkarma; PDF/JPG portelerini Audiveris OMR ile MusicXML'e dönüştürme
 - Uzun süren kaynak işlerini sayfa yenilense bile takip edip tamamlanan sonucu otomatik açma
 - Nota kaynağı ve bağımsız karşılaştırma bağlantılarını sonuçta gösterme
@@ -70,7 +71,7 @@ npm run sync:sources
 
 Kaynak listesi `catalog/sources.json`, web uygulamasının okuduğu üretilmiş katalog ise `catalog/catalog.json` dosyasındadır. Eşitleyici kaynakta beklenmeyen nota veya cümle sayısı görürse yanlış sonucu otomatik yayımlamak yerine hata verir ve daha önce canlı kaynaklardan eklenen katalog kayıtlarını korur.
 
-`npm run audit:catalog`; nota, süre ve es dizilerinin boyutlarını doğrular. Ayrıca karşılaştırılmamış OMR, eşit vuruş fallback'i ve bilinmeyen tempo gibi müzikal kalite boşluklarını ayrı uyarılar olarak raporlar. GitHub Actions hem haftalık kaynak yenilemesinde hem de yeni canlı kaynak işlendiğinde bu denetimi çalıştırır.
+`npm run audit:catalog`; nota, süre ve es dizilerinin boyutlarını doğrular. Ayrıca karşılaştırılmamış OMR, eşit vuruş fallback'i ve bilinmeyen tempo gibi müzikal kalite boşluklarını ayrı uyarılar olarak raporlar. Kayıtları çalışmaya hazır, ritimli taslak, yalnızca ezgi veya kontrol gereken makine okuması olarak sayar. GitHub Actions hem haftalık kaynak yenilemesinde hem de yeni canlı kaynak işlendiğinde bu denetimi çalıştırır.
 
 GitHub Pages statik çıktısını yerelde kontrol etmek için:
 
