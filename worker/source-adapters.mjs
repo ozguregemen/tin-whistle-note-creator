@@ -185,15 +185,24 @@ function songsterrUrl(item) {
   return `https://www.songsterr.com/a/wsa/${slug || "song"}-sheet-s${item.songId}`;
 }
 
+function optionalTrackIndex(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const index = Number(value);
+  return Number.isInteger(index) && index >= 0 ? index : null;
+}
+
 function songsterrMelodyTrack(item) {
   const tracks = Array.isArray(item?.tracks) ? item.tracks : [];
   const usable = (index) => Number.isInteger(index)
     && index >= 0
     && index < tracks.length
     && !/drum|percussion|bass/i.test(String(tracks[index]?.instrument || ""));
-  const vocal = Number(item?.popularTrackVocals);
+  const vocal = optionalTrackIndex(item?.popularTrackVocals);
   if (usable(vocal)) return vocal;
-  const guitar = Number(item?.popularTrackGuitar);
+  const namedMelody = tracks.findIndex((track, index) => usable(index)
+    && /vocal|voice|melody|lead|solo/i.test(`${track?.name || ""} ${track?.instrument || ""}`));
+  if (namedMelody >= 0) return namedMelody;
+  const guitar = optionalTrackIndex(item?.popularTrackGuitar);
   if (usable(guitar)) return guitar;
   return tracks.findIndex((track) => !/drum|percussion|bass/i.test(String(track?.instrument || "")));
 }

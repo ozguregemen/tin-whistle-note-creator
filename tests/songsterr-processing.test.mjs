@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  guitarProScoreToTimedPhrases, midiToScientificPitch, selectSongsterrTrack,
-  songsterrTrackJsonToTimedPhrases,
+  guitarProScoreToTimedPhrases, midiToScientificPitch, rankSongsterrTrackIndices,
+  selectBestSongsterrParsedTrack, selectSongsterrTrack, songsterrTrackJsonToTimedPhrases,
 } from "../scripts/songsterr-processing.mjs";
 
 function beat(start, duration, notes) {
@@ -34,6 +34,78 @@ test("Songsterr'ın popüler gitar kanalını bas ve davul yerine seçer", () =>
   };
   assert.equal(selectSongsterrTrack(meta, score), 1);
   assert.equal(selectSongsterrTrack(meta, score, 0), 1);
+});
+
+test("Songsterr null vokal indeksini sıfırıncı kanal sanmaz", () => {
+  const score = { tracks: [{}, {}] };
+  const meta = {
+    popularTrackVocals: null,
+    popularTrackGuitar: 0,
+    tracks: [
+      { name: "Rhythm Guitar", instrument: "Distortion Guitar" },
+      { name: "Lead Guitar", instrument: "Overdriven Guitar" },
+    ],
+  };
+
+  assert.deepEqual(rankSongsterrTrackIndices(meta, score, 0), [1, 0]);
+  assert.equal(selectSongsterrTrack(meta, score, 0), 1);
+});
+
+test("Songsterr vokal kanalını tercih edilen gitar kanalının önüne alır", () => {
+  const score = { tracks: [{}, {}] };
+  const meta = {
+    popularTrackVocals: 1,
+    popularTrackGuitar: 0,
+    tracks: [
+      { name: "Lead Guitar", instrument: "Distortion Guitar" },
+      { name: "Vocals", instrument: "Tenor Sax" },
+    ],
+  };
+
+  assert.equal(selectSongsterrTrack(meta, score, 0), 1);
+});
+
+test("kanal adları belirsizse tekrarlı akor kanalından melodik kanalı ayırır", () => {
+  const meta = {
+    popularTrackVocals: null,
+    popularTrackGuitar: 0,
+    tracks: [
+      { name: "Guitar 1", instrument: "Electric Guitar" },
+      { name: "Guitar 2", instrument: "Electric Guitar" },
+    ],
+  };
+  const rhythm = {
+    phrases: [["E3", "E3", "E3", "E3", "E3", "E3", "E3", "E3"]],
+    metrics: {
+      noteCount: 8,
+      uniquePitches: 1,
+      pitchSpan: 0,
+      dominantPitchRatio: 1,
+      consecutiveRepeatRatio: 1,
+      notesPerBar: 8,
+      chordRatio: 1,
+    },
+  };
+  const melody = {
+    phrases: [["C4", "D4", "E4", "G4", "A4", "G4", "E4", "D4"]],
+    metrics: {
+      noteCount: 8,
+      uniquePitches: 5,
+      pitchSpan: 9,
+      dominantPitchRatio: 0.25,
+      consecutiveRepeatRatio: 0,
+      notesPerBar: 4,
+      chordRatio: 0,
+    },
+  };
+
+  const selected = selectBestSongsterrParsedTrack([
+    { trackIndex: 0, parsed: rhythm },
+    { trackIndex: 1, parsed: melody },
+  ], meta, 0);
+
+  assert.equal(selected.trackIndex, 1);
+  assert.deepEqual(selected.parsed.phrases, melody.phrases);
 });
 
 test("Guitar Pro akorlarının üst sesini süre ve bağlarıyla melodiye dönüştürür", () => {

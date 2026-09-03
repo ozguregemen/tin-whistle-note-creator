@@ -7,10 +7,11 @@ import { assessSongQuality, rankCatalogMatches, rankCatalogSongs } from "./catal
 import { arrangePhrasesForDWhistle, estimateDWhistleRegisters, isUpperWhistleRegister } from "./fingerings.mjs";
 import { BPM_MAX, BPM_MIN, bpmFromInputDraft, buildPhraseRanges, buildPlaybackPlan, clampBpm, commitBpmInput, frequencyForWhistleNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "./practice.mjs";
 import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
+import { buildSourceAttemptOrder, waitForSourceJob } from "./source-jobs.mjs";
 import { base64AudioBuffer, midiForWhistleNote, playbackRateForMidi, sampleZoneForMidi, soundfontLoopForZone, soundfontTriggerMidiForAudibleMidi, soundfontZoneForMidi, WHISTLE_SAMPLE_ZONES, WHISTLE_SOUNDFONT } from "./whistle-sampler.mjs";
 
 type Language = "en" | "tr";
-type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "discoveryFound" | "queueing" | "processing" | "needsReview" | "liveFound" | "sourceUnavailable" | "audioTranscribing" | "audioConverted" | "audioUnavailable";
+type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "discoveryFound" | "queueing" | "processing" | "sourceRetrying" | "needsReview" | "liveFound" | "sourceUnavailable" | "audioTranscribing" | "audioConverted" | "audioUnavailable";
 
 type SongSource = {
   name: string;
@@ -59,8 +60,9 @@ type SourceCandidate = {
 };
 
 type SourceJob = {
-  requestId: string;
-  status: "queued" | "completed" | "needs-review";
+  requestId?: string;
+  status: "queued" | "completed" | "needs-review" | "failed" | "timeout";
+  cached?: boolean;
   reason?: string;
   song?: Song;
 };
@@ -147,7 +149,8 @@ const COPY = {
     sourceFound: "Matching score sources found. Choose the right result.",
     discoveryFound: "Web results found. Review the source before importing notes.",
     queueing: "Sending the selected score for processing…",
-    processing: "Reading the selected score. This may take a few minutes…",
+    processing: "Reading the selected melody and rhythm…",
+    sourceRetrying: "That source could not be read. Trying the next suitable score…",
     needsReview: "The source was found, but automatic score reading needs review.",
     liveFound: "Live source converted into a fingering guide",
     sourceUnavailable: "The live source could not be reached. Try again or request the song.",
@@ -293,7 +296,8 @@ const COPY = {
     sourceFound: "Eşleşen nota kaynakları bulundu. Doğru sonucu seç.",
     discoveryFound: "Web sonuçları bulundu. Notayı içe aktarmadan önce kaynağı kontrol et.",
     queueing: "Seçilen nota işlenmek üzere gönderiliyor…",
-    processing: "Seçilen nota okunuyor. Bu işlem birkaç dakika sürebilir…",
+    processing: "Seçilen melodi ve ritim okunuyor…",
+    sourceRetrying: "Bu kaynak okunamadı. Sıradaki uygun nota deneniyor…",
     needsReview: "Kaynak bulundu ancak otomatik nota okuma sonucunun kontrol edilmesi gerekiyor.",
     liveFound: "Canlı kaynak parmak rehberine dönüştürüldü",
     sourceUnavailable: "Canlı kaynağa ulaşılamadı. Yeniden deneyebilir veya şarkıyı isteyebilirsin.",
@@ -442,19 +446,6 @@ function sourceApiUrl() {
   return configured.startsWith("http") ? configured.replace(/\/$/, "") : "";
 }
 
-const wait = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
-
-async function waitForSourceJob(api: string, requestId: string) {
-  for (let attempt = 0; attempt < 120; attempt += 1) {
-    await wait(5000);
-    const response = await fetch(`${api}/api/jobs/${requestId}`, { cache: "no-store" });
-    if (!response.ok && response.status !== 202) throw new Error(`Source job status returned ${response.status}`);
-    const job = await response.json() as SourceJob;
-    if (job.status === "completed" || job.status === "needs-review") return job;
-  }
-  return null;
-}
-
 const SOLFEGE: Record<string, string> = { DO: "C", RE: "D", RÉ: "D", MI: "E", FA: "F", SOL: "G", LA: "A", SI: "B" };
 const NOTE_NAMES: Record<string, string> = {
   C: "Do", "C#": "Do♯", D: "Re", "D#": "Re♯", E: "Mi", F: "Fa",
@@ -553,6 +544,7 @@ export default function Home() {
   const whistleBuffersRef = useRef<Map<number, AudioBuffer>>(new Map());
   const whistleLoadPromiseRef = useRef<Promise<boolean> | null>(null);
   const t = COPY[language];
+  const sourceIsBusy = status === "queueing" || status === "processing" || status === "sourceRetrying";
   const songQuality = useMemo(() => song ? assessSongQuality(song) : null, [song]);
   const suggestedSongs = useMemo(() => rankCatalogSongs(catalog).slice(0, 4) as Song[], [catalog]);
   const readinessLabel = songQuality?.readiness === "ready"
@@ -608,13 +600,15 @@ export default function Home() {
     // Resuming a user-started background conversion after reload is intentional.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStatus("processing");
-    waitForSourceJob(api, requestId).then((job) => {
+    waitForSourceJob(api, requestId).then((job: SourceJob) => {
       if (!active || !job) return;
       if (job.status === "completed" && job.song) {
         setSong(job.song);
         setStatus("liveFound");
-      } else {
+      } else if (job.status === "needs-review") {
         setStatus("needsReview");
+      } else {
+        setStatus("sourceUnavailable");
       }
       window.localStorage.removeItem("twnc-pending-source-job");
     }).catch(() => {
@@ -1202,44 +1196,54 @@ export default function Home() {
       || (candidate.postId === undefined && candidate.documentId === undefined && candidate.songId === undefined)) return;
     const api = sourceApiUrl();
     if (!api) { setStatus("sourceUnavailable"); return; }
-    setStatus("queueing");
-    try {
-      const response = await fetch(`${api}/api/jobs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sourceId: candidate.sourceId,
-          ...(candidate.postId !== undefined ? { postId: candidate.postId } : {}),
-          ...(candidate.songId !== undefined ? { songId: candidate.songId } : {}),
-          ...(candidate.trackIndex !== undefined ? { trackIndex: candidate.trackIndex } : {}),
-          ...(candidate.documentId !== undefined ? { documentId: candidate.documentId } : {}),
-          query,
-          title: candidate.title,
-          ...(candidate.artist ? { artist: candidate.artist } : {}),
-        }),
-      });
-      if (!response.ok) throw new Error(`Source job returned ${response.status}`);
-      const queued = await response.json() as SourceJob;
-      setStatus("processing");
-      window.localStorage.setItem("twnc-pending-source-job", queued.requestId);
+    const attempts = buildSourceAttemptOrder(candidate, sourceCandidates) as SourceCandidate[];
+    let reviewRequired = false;
+    for (let index = 0; index < attempts.length; index += 1) {
+      const attempt = attempts[index];
+      setStatus(index === 0 ? "queueing" : "sourceRetrying");
+      try {
+        const response = await fetch(`${api}/api/jobs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sourceId: attempt.sourceId,
+            ...(attempt.postId !== undefined ? { postId: attempt.postId } : {}),
+            ...(attempt.songId !== undefined ? { songId: attempt.songId } : {}),
+            ...(attempt.trackIndex !== undefined ? { trackIndex: attempt.trackIndex } : {}),
+            ...(attempt.documentId !== undefined ? { documentId: attempt.documentId } : {}),
+            query,
+            title: attempt.title,
+            ...(attempt.artist ? { artist: attempt.artist } : {}),
+          }),
+        });
+        if (!response.ok) throw new Error(`Source job returned ${response.status}`);
+        const queued = await response.json() as SourceJob;
+        if (queued.status === "completed" && queued.song) {
+          setSong(queued.song);
+          setSourceCandidates([]);
+          setStatus("liveFound");
+          window.localStorage.removeItem("twnc-pending-source-job");
+          return;
+        }
+        if (!queued.requestId) throw new Error("Source job did not return a request ID");
+        setStatus("processing");
+        window.localStorage.setItem("twnc-pending-source-job", queued.requestId);
 
-      const job = await waitForSourceJob(api, queued.requestId);
-      if (job?.status === "completed" && job.song) {
-        setSong(job.song);
-        setSourceCandidates([]);
-        setStatus("liveFound");
+        const timeoutMs = attempt.processingMode === "omr" ? 300_000 : 180_000;
+        const job = await waitForSourceJob(api, queued.requestId, { timeoutMs }) as SourceJob;
         window.localStorage.removeItem("twnc-pending-source-job");
-        return;
-      }
-      if (job?.status === "needs-review") {
-        setStatus("needsReview");
+        if (job.status === "completed" && job.song) {
+          setSong(job.song);
+          setSourceCandidates([]);
+          setStatus("liveFound");
+          return;
+        }
+        if (job.status === "needs-review") reviewRequired = true;
+      } catch {
         window.localStorage.removeItem("twnc-pending-source-job");
-        return;
       }
-      setStatus("sourceUnavailable");
-    } catch {
-      setStatus("sourceUnavailable");
     }
+    setStatus(reviewRequired ? "needsReview" : "sourceUnavailable");
   }
 
   function convertManual(event?: FormEvent) {
@@ -1371,7 +1375,7 @@ export default function Home() {
                     </div>
                     <div>
                       <a href={candidate.url} target="_blank" rel="noreferrer">{t.primarySource}</a>
-                      {candidate.processingMode === "review" ? <span className="source-review">{t.reviewSource}</span> : <button type="button" onClick={() => processSource(candidate)}>{t.processSource} →</button>}
+                      {candidate.processingMode === "review" ? <span className="source-review">{t.reviewSource}</span> : <button type="button" disabled={sourceIsBusy} onClick={() => processSource(candidate)}>{sourceIsBusy ? "…" : t.processSource} <span aria-hidden="true">→</span></button>}
                     </div>
                   </article>;
                 })}

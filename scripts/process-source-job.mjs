@@ -7,7 +7,10 @@ import {
   addEstimatedOctaves, extractScoreAssets, extractTextTimedPhrases, mergeSongIntoCatalog,
   musicXmlToTimedPhrases, phrasesToString, plainTitle, slugify, stripLeadingArtist,
 } from "./source-processing.mjs";
-import { guitarProScoreToTimedPhrases, songsterrTrackJsonToTimedPhrases } from "./songsterr-processing.mjs";
+import {
+  guitarProScoreToTimedPhrases, rankSongsterrTrackIndices, selectBestSongsterrParsedTrack,
+  songsterrTrackJsonToTimedPhrases,
+} from "./songsterr-processing.mjs";
 import { documentNoteCountIsPlausible, getDocumentSource } from "../worker/document-sources.mjs";
 
 const CATALOG_FILE = new URL("../catalog/catalog.json", import.meta.url);
@@ -23,12 +26,22 @@ const SOURCES = {
 
 const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
 const MAX_METADATA_BYTES = 512 * 1024;
+const SOURCE_REQUEST_TIMEOUT_MS = 15_000;
+const LARGE_DOWNLOAD_TIMEOUT_MS = 45_000;
+const SOURCE_PROCESSING_VERSION = 2;
 const SONGSTERR_TRACK_CDNS = Object.freeze([
   "https://dqsljvtekg760.cloudfront.net",
   "https://d34shlm8p2ums2.cloudfront.net",
   "https://d3cqchs6g3b5ew.cloudfront.net",
   "https://d3d3l6a6rcgkaf.cloudfront.net",
 ]);
+
+function fetchWithTimeout(input, init = {}, timeout = SOURCE_REQUEST_TIMEOUT_MS) {
+  return fetch(input, {
+    ...init,
+    signal: init.signal ?? AbortSignal.timeout(timeout),
+  });
+}
 
 function requestPayload() {
   const sourceId = process.env.SOURCE_ID;
@@ -87,6 +100,7 @@ function buildSong(payload, post, notes, confidence, rhythm) {
   title = stripLeadingArtist(title, artist);
   return {
     id: `${payload.sourceId}-${payload.documentId || payload.songId || payload.postId}-${slugify(title)}`,
+    sourceProcessingVersion: SOURCE_PROCESSING_VERSION,
     title,
     ...(artist ? { artist } : {}),
     aliases: [payload.query, payload.requestedTitle].filter(Boolean),
@@ -128,7 +142,7 @@ async function downloadAssets(urls) {
     const sourceUrl = new URL(urls[index]);
     const extension = extname(sourceUrl.pathname).toLowerCase() || ".jpg";
     const filename = `${String(index + 1).padStart(2, "0")}${extension}`;
-    const response = await fetch(sourceUrl, { headers: { "User-Agent": "tin-whistle-note-creator/0.2" } });
+    const response = await fetchWithTimeout(sourceUrl, { headers: { "User-Agent": "tin-whistle-note-creator/0.3" } }, LARGE_DOWNLOAD_TIMEOUT_MS);
     if (!response.ok) throw new Error(`Score asset returned HTTP ${response.status}`);
     await writeFile(new URL(`input/${filename}`, WORK_DIRECTORY), new Uint8Array(await response.arrayBuffer()));
     files.push(filename);
@@ -137,9 +151,9 @@ async function downloadAssets(urls) {
 }
 
 async function downloadDocument(document) {
-  const response = await fetch(document.url, {
+  const response = await fetchWithTimeout(document.url, {
     headers: { Accept: "application/pdf", "User-Agent": "tin-whistle-note-creator/0.2" },
-  });
+  }, LARGE_DOWNLOAD_TIMEOUT_MS);
   if (!response.ok) throw new Error(`Academic score PDF returned HTTP ${response.status}`);
   const declaredLength = Number(response.headers.get("Content-Length") || 0);
   if (declaredLength > MAX_DOCUMENT_BYTES) throw new Error("Academic score PDF is too large");
@@ -169,7 +183,7 @@ async function loadSongsterrTrackJson(payload, meta, trackIndex) {
     : `/part/${meta.revisionId}/${trackIndex}`;
   let lastStatus = 0;
   for (const cdn of SONGSTERR_TRACK_CDNS) {
-    const response = await fetch(`${cdn}${path}`, {
+    const response = await fetchWithTimeout(`${cdn}${path}`, {
       headers: { Accept: "application/json", "User-Agent": "tin-whistle-note-creator/0.3" },
     });
     if (response.ok) return limitedJson(response, MAX_DOCUMENT_BYTES, "Songsterr track data");
@@ -179,23 +193,8 @@ async function loadSongsterrTrackJson(payload, meta, trackIndex) {
   throw new Error(`Songsterr track data returned HTTP ${lastStatus || 502}`);
 }
 
-function songsterrTrackIndex(meta, preferredTrackIndex) {
-  const tracks = Array.isArray(meta?.tracks) ? meta.tracks : [];
-  const preferred = Number(preferredTrackIndex);
-  const isMelodic = (track) => {
-    const instrument = String(track?.instrument || "").toLowerCase();
-    return !instrument.includes("drum") && !instrument.includes("percussion") && !instrument.includes("bass");
-  };
-  if (Number.isInteger(preferred) && tracks[preferred] && isMelodic(tracks[preferred])) return preferred;
-  const vocal = tracks.findIndex((track) => isMelodic(track) && /vocal|melody|lead/i.test(`${track?.name || ""} ${track?.instrument || ""}`));
-  if (vocal >= 0) return vocal;
-  const guitar = Number(meta?.popularTrackGuitar);
-  if (Number.isInteger(guitar) && tracks[guitar] && isMelodic(tracks[guitar])) return guitar;
-  return tracks.findIndex(isMelodic);
-}
-
 async function loadSongsterrScore(payload) {
-  const metaResponse = await fetch(new URL(`/api/meta/${payload.songId}`, payload.source.origin), {
+  const metaResponse = await fetchWithTimeout(new URL(`/api/meta/${payload.songId}`, payload.source.origin), {
     headers: { Accept: "application/json", "User-Agent": "tin-whistle-note-creator/0.3" },
   });
   const meta = await limitedJson(metaResponse, MAX_METADATA_BYTES, "Songsterr metadata");
@@ -205,7 +204,7 @@ async function loadSongsterrScore(payload) {
 
   const revisionId = Number(meta.revisionId || meta.latestRevisionId);
   if (!Number.isInteger(revisionId) || revisionId <= 0) throw new Error("Songsterr did not return a score revision");
-  const revisionResponse = await fetch(new URL(`/api/revision/${revisionId}`, payload.source.origin), {
+  const revisionResponse = await fetchWithTimeout(new URL(`/api/revision/${revisionId}`, payload.source.origin), {
     headers: { Accept: "application/json", "User-Agent": "tin-whistle-note-creator/0.3" },
   });
   const revision = await limitedJson(revisionResponse, MAX_METADATA_BYTES, "Songsterr revision");
@@ -215,18 +214,35 @@ async function loadSongsterrScore(payload) {
 
   const resolvedMeta = { ...revision, ...meta, popularTrackGuitar: meta.popularTrackGuitar, popularTrackVocals: meta.popularTrackVocals };
   if (!revision.source) {
-    const trackIndex = songsterrTrackIndex(meta, payload.trackIndex);
-    if (trackIndex < 0) throw new Error("Songsterr did not return a melodic track");
-    const track = await loadSongsterrTrackJson(payload, meta, trackIndex);
-    return { meta: resolvedMeta, track, trackIndex, format: "track-json" };
+    const trackIndices = rankSongsterrTrackIndices(meta, null, payload.trackIndex).slice(0, 5);
+    if (!trackIndices.length) throw new Error("Songsterr did not return a melodic track");
+    const settled = await Promise.allSettled(trackIndices.map(async (trackIndex) => {
+      const track = await loadSongsterrTrackJson(payload, meta, trackIndex);
+      return { trackIndex, parsed: songsterrTrackJsonToTimedPhrases(track, meta, trackIndex) };
+    }));
+    const candidates = settled
+      .filter((result) => result.status === "fulfilled")
+      .map((result) => result.value);
+    const selected = selectBestSongsterrParsedTrack(candidates, meta, payload.trackIndex);
+    if (!selected) {
+      const failure = settled.find((result) => result.status === "rejected");
+      throw failure?.reason instanceof Error
+        ? failure.reason
+        : new Error("Songsterr did not return a usable melodic track");
+    }
+    return {
+      meta: resolvedMeta,
+      parsed: { ...selected.parsed, trackIndex: selected.trackIndex, selectionScore: selected.selectionScore },
+      format: "track-json",
+    };
   }
   const sourceUrl = new URL(String(revision.source));
   if (sourceUrl.protocol !== "https:" || sourceUrl.hostname !== "gp.songsterr.com") {
     throw new Error("Songsterr returned an unsupported score source");
   }
-  const scoreResponse = await fetch(sourceUrl, {
+  const scoreResponse = await fetchWithTimeout(sourceUrl, {
     headers: { Accept: "application/octet-stream", "User-Agent": "tin-whistle-note-creator/0.3" },
-  });
+  }, LARGE_DOWNLOAD_TIMEOUT_MS);
   if (!scoreResponse.ok) throw new Error(`Songsterr score returned HTTP ${scoreResponse.status}`);
   const scoreBytes = await limitedResponseBytes(scoreResponse, MAX_DOCUMENT_BYTES, "Songsterr score");
   const settings = new alphaTab.Settings();
@@ -263,7 +279,7 @@ async function prepare() {
       modified: meta.createdAt || null,
     };
     const parsed = loaded.format === "track-json"
-      ? songsterrTrackJsonToTimedPhrases(loaded.track, meta, loaded.trackIndex)
+      ? loaded.parsed
       : guitarProScoreToTimedPhrases(score, meta, payload.trackIndex);
     const noteCount = parsed.phrases.flat().length;
     if (noteCount < 8) {
@@ -292,7 +308,7 @@ async function prepare() {
   } else {
     const postUrl = new URL(`/wp-json/wp/v2/posts/${payload.postId}`, payload.source.origin);
     postUrl.searchParams.set("_fields", "title,link,content,modified");
-    const response = await fetch(postUrl, { headers: { Accept: "application/json", "User-Agent": "tin-whistle-note-creator/0.2" } });
+    const response = await fetchWithTimeout(postUrl, { headers: { Accept: "application/json", "User-Agent": "tin-whistle-note-creator/0.3" } });
     if (!response.ok) throw new Error(`${payload.source.name} returned HTTP ${response.status}`);
     post = await response.json();
   }
@@ -398,7 +414,35 @@ async function finalize() {
   await emitOutput("request_id", payload.requestId);
 }
 
+function publicFailureReason(error) {
+  const message = error instanceof Error ? error.message : String(error || "Unexpected source error");
+  if (/timeout|timed out|abort/i.test(`${error?.name || ""} ${message}`)) {
+    return "The selected source timed out before returning a usable score";
+  }
+  return message.replace(/\s+/g, " ").trim().slice(0, 240) || "The selected source could not be processed";
+}
+
+async function recordFailure(error) {
+  const requestId = process.env.REQUEST_ID || "";
+  if (!/^[0-9a-f-]{36}$/i.test(requestId)) throw error;
+  const reason = publicFailureReason(error);
+  console.error(JSON.stringify({ event: "source_processing_failed", requestId, sourceId: process.env.SOURCE_ID || "", reason }));
+  await writeJob({
+    requestId,
+    status: "failed",
+    reason,
+    retryable: true,
+    sourceId: process.env.SOURCE_ID || "",
+  });
+  await emitOutput("mode", "failed");
+  await emitOutput("request_id", requestId);
+}
+
 const command = process.argv[2];
-if (command === "prepare") await prepare();
-else if (command === "finalize") await finalize();
-else throw new Error(`Unknown command: ${command || "(missing)"}`);
+try {
+  if (command === "prepare") await prepare();
+  else if (command === "finalize") await finalize();
+  else throw new Error(`Unknown command: ${command || "(missing)"}`);
+} catch (error) {
+  await recordFailure(error);
+}
