@@ -6,6 +6,10 @@ function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
 }
 
+function repositoryJson(data) {
+  return jsonResponse({ encoding: "base64", content: Buffer.from(JSON.stringify(data)).toString("base64") });
+}
+
 test("Worker sağlık ve CORS uç noktalarını sunar", async () => {
   const handle = createSourceApi({ ALLOWED_ORIGINS: "https://ozguregemen.github.io" }, async () => jsonResponse([]));
   const response = await handle(new Request("https://worker.test/health", { headers: { Origin: "https://ozguregemen.github.io" } }));
@@ -18,6 +22,7 @@ test("Worker yalnızca desteklenen kaynakları GitHub Actions kuyruğuna gönder
   let dispatchBody;
   const fetchMock = async (input, init) => {
     const url = String(input);
+    if (url.includes("/contents/catalog/catalog.json")) return jsonResponse(null, 404);
     if (url.includes("/dispatches")) {
       dispatchBody = JSON.parse(init.body);
       return new Response(null, { status: 204 });
@@ -84,6 +89,7 @@ test("Worker BPM sonucunu sunar ve kaynak işine aktarır", async () => {
   let dispatchBody;
   const fetchMock = async (input, init = {}) => {
     const url = String(input);
+    if (url.includes("/contents/catalog/catalog.json")) return jsonResponse(null, 404);
     if (url.startsWith("https://api.getsong.co/")) {
       return jsonResponse({ search: [{
         title: "Dudu", tempo: "90", uri: "https://getsongbpm.com/song/dudu/example", artist: { name: "Tarkan" },
@@ -120,4 +126,78 @@ test("Worker BPM sonucunu sunar ve kaynak işine aktarır", async () => {
   assert.equal(dispatchBody.client_payload.tempo.bpm, 90);
   assert.equal(dispatchBody.client_payload.tempo.provider, "getsongbpm");
   assert.equal(dispatchBody.client_payload.artist, "Tarkan");
+});
+
+test("Worker daha önce çevrilen kaynağı yeniden kuyruğa göndermeden katalogdan döndürür", async () => {
+  let dispatchCount = 0;
+  const cachedSong = {
+    id: "songsterr-2206954-loser",
+    sourceProcessingVersion: 2,
+    title: "Loser",
+    artist: "Tame Impala",
+    notes: "D4 E4 F4 G4",
+  };
+  const fetchMock = async (input) => {
+    const url = String(input);
+    if (url.includes("/contents/catalog/catalog.json")) {
+      return repositoryJson({ schemaVersion: 1, songs: [cachedSong] });
+    }
+    if (url.includes("/dispatches")) {
+      dispatchCount += 1;
+      return new Response(null, { status: 204 });
+    }
+    return jsonResponse([]);
+  };
+  const handle = createSourceApi({ GITHUB_TOKEN: "secret", GITHUB_REPOSITORY: "owner/repo" }, fetchMock);
+
+  const response = await handle(new Request("https://worker.test/api/jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sourceId: "songsterr",
+      songId: 2206954,
+      trackIndex: 4,
+      query: "Tame Impala Loser",
+      title: "Tame Impala — Loser",
+      artist: "Tame Impala",
+    }),
+  }));
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { status: "completed", cached: true, song: cachedSong });
+  assert.equal(dispatchCount, 0);
+});
+
+test("Worker eski işleme sürümüyle üretilen sonucu yeni algoritma için tekrar kuyruğa alır", async () => {
+  let dispatchCount = 0;
+  const fetchMock = async (input) => {
+    const url = String(input);
+    if (url.includes("/contents/catalog/catalog.json")) {
+      return repositoryJson({
+        schemaVersion: 1,
+        songs: [{ id: "songsterr-2206954-loser", title: "Loser", notes: "D4 E4" }],
+      });
+    }
+    if (url.includes("/dispatches")) {
+      dispatchCount += 1;
+      return new Response(null, { status: 204 });
+    }
+    return jsonResponse([]);
+  };
+  const handle = createSourceApi({ GITHUB_TOKEN: "secret", GITHUB_REPOSITORY: "owner/repo" }, fetchMock);
+
+  const response = await handle(new Request("https://worker.test/api/jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sourceId: "songsterr",
+      songId: 2206954,
+      query: "Tame Impala Loser",
+      title: "Tame Impala — Loser",
+      artist: "Tame Impala",
+    }),
+  }));
+
+  assert.equal(response.status, 202);
+  assert.equal(dispatchCount, 1);
 });

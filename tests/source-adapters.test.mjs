@@ -128,6 +128,56 @@ test("yabancı şarkıyı Songsterr kataloğunda sanatçı ve başlıkla bulur",
   assert.match(result.results[0].url, /songsterr\.com\/a\/wsa\/the-mayan-factor-warflower-sheet-s1144964$/);
 });
 
+test("Songsterr vokal bilgisi null olduğunda ritim gitarı yerine adlandırılmış melodiyi seçer", async () => {
+  const fetchMock = async (input) => {
+    const url = new URL(input);
+    if (url.hostname !== "www.songsterr.com") return response([]);
+    return response([{
+      songId: 2206954,
+      artist: "Tame Impala",
+      title: "Loser",
+      hasPlayer: true,
+      isJunk: false,
+      popularTrackVocals: null,
+      popularTrackGuitar: 0,
+      tracks: [
+        { name: "Rhythm Guitar", instrument: "Distortion Guitar" },
+        { name: "Lead Guitar", instrument: "Overdriven Guitar" },
+      ],
+    }]);
+  };
+
+  const result = await searchAllSources("Tame Impala Loser", fetchMock);
+  assert.equal(result.results[0].sourceId, "songsterr");
+  assert.equal(result.results[0].trackIndex, 1);
+});
+
+test("Songsterr açıkça verdiği vokal kanalını gitarın önünde seçer", async () => {
+  const fetchMock = async (input) => {
+    const url = new URL(input);
+    if (url.hostname !== "www.songsterr.com") return response([]);
+    return response([{
+      songId: 2206954,
+      artist: "Tame Impala",
+      title: "Loser",
+      hasPlayer: true,
+      isJunk: false,
+      popularTrackVocals: 4,
+      popularTrackGuitar: 0,
+      tracks: [
+        { name: "Guitar", instrument: "Distortion Guitar" },
+        { name: "Guitar 2", instrument: "Overdriven Guitar" },
+        { name: "Bass", instrument: "Electric Bass" },
+        { name: "Drums", instrument: "Drum Kit" },
+        { name: "Vocals", instrument: "Tenor Sax" },
+      ],
+    }]);
+  };
+
+  const result = await searchAllSources("Tame Impala Loser", fetchMock);
+  assert.equal(result.results[0].trackIndex, 4);
+});
+
 test("yabancı şarkıyı yalnızca başlığıyla da Songsterr kataloğunda bulur", async () => {
   const fetchMock = async (input) => {
     const url = new URL(input);

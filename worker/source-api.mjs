@@ -3,6 +3,7 @@ import { getDocumentSource } from "./document-sources.mjs";
 import { resolveTempo } from "./bpm-resolver.mjs";
 
 const DEFAULT_REPOSITORY = "ozguregemen/tin-whistle-note-creator";
+const SOURCE_PROCESSING_VERSION = 2;
 
 function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
@@ -33,15 +34,17 @@ function corsHeaders(request, env) {
 
 async function githubRequest(path, env, fetchFn, init = {}) {
   if (!env.GITHUB_TOKEN) throw new Error("GITHUB_TOKEN is not configured");
+  const { headers: initHeaders = {}, signal, ...requestInit } = init;
   const response = await fetchFn(`https://api.github.com${path}`, {
-    ...init,
+    ...requestInit,
+    signal: signal ?? AbortSignal.timeout(10_000),
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${env.GITHUB_TOKEN}`,
       "Content-Type": "application/json",
       "User-Agent": "tin-whistle-note-source-api",
       "X-GitHub-Api-Version": "2022-11-28",
-      ...(init.headers || {}),
+      ...initHeaders,
     },
   });
   return response;
@@ -67,6 +70,35 @@ async function readRepositoryJson(path, env, fetchFn) {
   return JSON.parse(decodeBase64(payload.content));
 }
 
+function cachedSongPrefix(adapter, { postId, songId, document }) {
+  const identity = adapter.kind === "wordpress"
+    ? postId
+    : adapter.kind === "guitarpro"
+      ? songId
+      : document?.id;
+  return identity ? `${adapter.id}-${identity}-` : "";
+}
+
+async function readCachedSong(adapter, identity, env, fetchFn) {
+  const prefix = cachedSongPrefix(adapter, identity);
+  if (!prefix) return null;
+  try {
+    const catalog = await readRepositoryJson("catalog/catalog.json", env, fetchFn);
+    return Array.isArray(catalog?.songs)
+      ? catalog.songs.find((song) => typeof song?.id === "string"
+        && song.id.startsWith(prefix)
+        && song.sourceProcessingVersion === SOURCE_PROCESSING_VERSION) || null
+      : null;
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: "source_cache_read_failed",
+      sourceId: adapter.id,
+      message: error instanceof Error ? error.message : String(error),
+    }));
+    return null;
+  }
+}
+
 async function queueJob(request, env, fetchFn) {
   const contentLength = Number(request.headers.get("Content-Length") || 0);
   if (contentLength > 4096) return { response: { error: "Request body is too large" }, status: 413 };
@@ -84,6 +116,10 @@ async function queueJob(request, env, fetchFn) {
       : Boolean(document && document.sourceId === adapter?.id);
   if (!adapter || !candidateIsValid) {
     return { response: { error: "Invalid or unsupported source candidate" }, status: 400 };
+  }
+  const cachedSong = await readCachedSong(adapter, { postId, songId, document }, env, fetchFn);
+  if (cachedSong) {
+    return { response: { status: "completed", cached: true, song: cachedSong }, status: 200 };
   }
   const query = typeof body.query === "string" ? body.query.trim().slice(0, 160) : "";
   const title = typeof body.title === "string" ? body.title.trim().slice(0, 200) : "";
