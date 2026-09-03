@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseSongIdentity, resolveTempo, tempoLookupKey, validBpm } from "../worker/bpm-resolver.mjs";
+import { curatedTempo, parseSongIdentity, resolveTempo, tempoLookupKey, validBpm } from "../worker/bpm-resolver.mjs";
 
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -54,6 +54,23 @@ test("D1 önbelleği varsa harici sağlayıcıya gitmez", async () => {
   );
   assert.equal(result.bpm, 149);
   assert.equal(result.cached, true);
+  assert.equal(fetched, false);
+});
+
+test("incelenmiş tempo düzeltmesi eski D1 değerinden önce uygulanır", async () => {
+  const db = memoryD1([{
+    lookup_key: "tame impala|dracula", artist: "Tame Impala", title: "Dracula", bpm: 90,
+    provider: "getsongbpm", providerUrl: "", confidence: 70,
+  }]);
+  let fetched = false;
+  const result = await resolveTempo(
+    { artist: "Tame Impala", title: "Dracula" },
+    { BPM_DB: db, GETSONGBPM_API_KEY: "secret" },
+    async () => { fetched = true; return jsonResponse({ search: [] }); },
+  );
+  assert.deepEqual(curatedTempo({ artist: "Tame Impala", title: "Dracula" }), result);
+  assert.equal(result.bpm, 115);
+  assert.equal(result.provider, "curated");
   assert.equal(fetched, false);
 });
 

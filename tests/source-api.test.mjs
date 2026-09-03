@@ -168,6 +168,40 @@ test("Worker daha önce çevrilen kaynağı yeniden kuyruğa göndermeden katalo
   assert.equal(dispatchCount, 0);
 });
 
+test("Worker önbellekteki Dracula kaydını incelenmiş 115 BPM ile döndürür", async () => {
+  const cachedSong = {
+    id: "songsterr-2413330-dracula",
+    sourceProcessingVersion: 2,
+    title: "Dracula",
+    artist: "Tame Impala",
+    notes: "D4 E4 F#4 G4",
+    rhythm: { bpm: 90, source: "score", tempoSource: "default", durations: [[1, 1, 1, 1]] },
+  };
+  const fetchMock = async (input) => {
+    if (String(input).includes("/contents/catalog/catalog.json")) {
+      return repositoryJson({ schemaVersion: 1, songs: [cachedSong] });
+    }
+    throw new Error("A cached song must not dispatch a new job");
+  };
+  const handle = createSourceApi({ GITHUB_TOKEN: "secret", GITHUB_REPOSITORY: "owner/repo" }, fetchMock);
+  const response = await handle(new Request("https://worker.test/api/jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sourceId: "songsterr",
+      songId: 2413330,
+      query: "Tame Impala Dracula",
+      title: "Dracula",
+      artist: "Tame Impala",
+    }),
+  }));
+
+  const payload = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(payload.song.rhythm.bpm, 115);
+  assert.equal(payload.song.rhythm.tempoSource, "curated");
+});
+
 test("Worker eski işleme sürümüyle üretilen sonucu yeni algoritma için tekrar kuyruğa alır", async () => {
   let dispatchCount = 0;
   const fetchMock = async (input) => {

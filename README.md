@@ -13,6 +13,7 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 - İzin verilen kaynakları WordPress REST API üzerinden okuyan kaynak eşitleyici
 - Yabancı şarkıları Songsterr kataloğunda sanatçı/başlık eşleşmesiyle bulup herkese açık Guitar Pro düzenlemesini zamanlanmış D-whistle notalarına dönüştüren adaptör
 - MP3/WAV/OGG/FLAC dosyalarından melodiyi cihazda çıkarıp D-whistle parmaklarına dönüştüren yerel ses transkripsiyonu
+- MIDI ve MusicXML dosyalarını cihazda okuyup uygun melodi partisini süre, es ve score temposuyla içe aktarma
 - İlk gerçek ve kaynaklı kayıt: Duman — Bu Akşam
 - The Session’ın CORS-açık API’sinde ziyaret anında canlı ABC nota araması
 - Cloudflare Worker üzerinden Notalar.net ve Gitaregitim.net üzerinde canlı, paralel kaynak araması
@@ -29,6 +30,7 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 - GitHub’daki güncel katalog JSON’unu açılışta yükleme
 - Varsayılan İngilizce arayüz ve tek tıkla Türkçe/İngilizce dil geçişi
 - Do/Re/Mi veya C/D/E biçiminde elle nota girişi
+- Gösterilen tek bir notayı nota sayısını ve ritmi bozmadan D-whistle aralığında düzeltme
 - `|` işaretiyle müzik cümlelerini ayırma
 - Clarke D chromatic fingering referansına göre tam, yarım ve açık delikli parmak şemaları
 - Clarke tablosundaki alt ve üst D-whistle registerlarını koruyan oktav yerleşimi
@@ -92,6 +94,8 @@ Worker, Türkçe kaynakların yanında Songsterr'ın yabancı şarkı kataloğun
 
 `Sesi notaya çevir` sekmesi Spotify Basic Pitch modelini yalnızca ihtiyaç olduğunda tarayıcıya yükler. Seçilen ses dosyası bir sunucuya gönderilmez. Çok enstrümanlı tam mikslerde sonuç bir çalışma taslağıdır; belirgin tek enstrüman veya izole melodi kayıtları daha güvenilir sonuç verir.
 
+`Nota dosyası` sekmesi `.mid`, `.midi`, `.musicxml` ve düz `.xml` dosyalarını yine yalnızca tarayıcıda işler. MIDI'de vurmalı kanal dışarıda bırakılır; vokal/melodi/lead adlı kanallar, MusicXML'de ise benzer adlı partiler önceliklendirilir. Bu adlandırmalar yoksa tek sesliliği ve nota çeşitliliği daha yüksek olan uygun parti seçilir.
+
 Worker'ı kontrol etmek ve yayımlamak için:
 
 ```bash
@@ -107,7 +111,7 @@ npm run worker:deploy
 
 ### BPM çözümleme ve önbellek
 
-Worker tempo için şu sırayı kullanır: nota dosyasındaki açık tempo, `BPM_DB` D1 önbelleği, katı sanatçı/şarkı eşleşmesiyle GetSongBPM API ve son olarak açıkça “pratik varsayılanı” diye işaretlenen 90 BPM. Varsayılan değer veritabanına kaydedilmez. Böylece geçici bir kaynak hatası yanlış bir BPM'i kalıcılaştırmaz.
+Worker tempo için şu sırayı kullanır: nota dosyasındaki açık tempo, dar kapsamlı incelenmiş düzeltmeler, `BPM_DB` D1 önbelleği, katı sanatçı/şarkı eşleşmesiyle GetSongBPM API ve son olarak açıkça “pratik varsayılanı” diye işaretlenen 90 BPM. Varsayılan değer veritabanına kaydedilmez. Böylece geçici bir kaynak hatası yanlış bir BPM'i kalıcılaştırmaz. Örneğin Tame Impala — Dracula için doğrulanmış 115 BPM kaydı eski 90 BPM önbelleğinin önüne geçer.
 
 GetSongBPM anahtarı ücretsiz olarak [GetSongBPM API sayfasından](https://getsongbpm.com/api) alınır ve yalnızca Worker secret'ı olarak saklanır. Sağlayıcının zorunlu kaynak bağlantısı uygulamanın pratik panelinde gösterilir. D1 şeması `migrations/0001_create_song_tempos.sql` dosyasındadır; aranan ve güçlü eşleşme alan sonuçlar `song_tempos` tablosuna yazılır. Spotify Audio Features uç noktası artık deprecated olduğu ve yeni geliştirme modu kısıtlarına tabi olduğu için ana BPM bağımlılığı olarak kullanılmaz.
 

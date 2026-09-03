@@ -14,14 +14,16 @@ export function buildSourceAttemptOrder(selected, candidates, maximumAttempts = 
     if (!processableCandidate(candidate) || unique.has(candidate.id)) continue;
     unique.set(candidate.id, candidate);
   }
-  const [first, ...fallbacks] = [...unique.values()];
-  if (!first) return [];
-  fallbacks.sort((left, right) => {
+  const attempts = [...unique.values()];
+  if (!attempts.length) return [];
+  attempts.sort((left, right) => {
     const modeDifference = (PROCESSING_PRIORITY[right.processingMode] || 0)
       - (PROCESSING_PRIORITY[left.processingMode] || 0);
-    return modeDifference || Number(right.score || 0) - Number(left.score || 0);
+    if (modeDifference) return modeDifference;
+    const selectionDifference = Number(right.id === selected?.id) - Number(left.id === selected?.id);
+    return selectionDifference || Number(right.score || 0) - Number(left.score || 0);
   });
-  return [first, ...fallbacks].slice(0, Math.max(1, maximumAttempts));
+  return attempts.slice(0, Math.max(1, maximumAttempts));
 }
 
 const defaultWait = (milliseconds) => new Promise((resolve) => globalThis.setTimeout(resolve, milliseconds));

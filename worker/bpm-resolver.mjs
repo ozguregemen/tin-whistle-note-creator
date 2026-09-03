@@ -1,4 +1,5 @@
 import { normalizeSearchText, searchMatchScore } from "../app/search-relevance.mjs";
+import { curatedTempoForIdentity } from "../app/curated-tempos.mjs";
 
 const DEFAULT_BPM = 90;
 const MIN_BPM = 40;
@@ -40,6 +41,20 @@ export function parseSongIdentity({ title = "", artist = "", query = "" } = {}) 
 
 export function tempoLookupKey({ artist = "", title = "" }) {
   return `${normalizeSearchText(artist)}|${normalizeSearchText(title)}`;
+}
+
+export function curatedTempo(input) {
+  const identity = parseSongIdentity(input);
+  const direct = curatedTempoForIdentity(identity);
+  if (!direct) return null;
+  return {
+    found: true,
+    ...direct,
+    provider: "curated",
+    sourceUrl: "",
+    confidence: 100,
+    cached: true,
+  };
 }
 
 function candidateArtistNames(candidate) {
@@ -209,6 +224,8 @@ async function searchGetSongBpm(identity, apiKey, fetchFn) {
 export async function resolveTempo(input, env, fetchFn = fetch) {
   const identity = parseSongIdentity(input);
   if (!normalizeSearchText(identity.title)) return null;
+  const reviewed = curatedTempo(identity);
+  if (reviewed) return reviewed;
   const lookupKey = tempoLookupKey(identity);
   const cached = await readCachedTempo(env?.BPM_DB, lookupKey);
   if (cached) return cached;

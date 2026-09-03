@@ -6,7 +6,7 @@ function candidate(id, processingMode, score, extra = {}) {
   return { id, sourceId: id.split(":")[0], processingMode, score, postId: 1, ...extra };
 }
 
-test("seçilen kaynağı önce dener ve uygun yedekleri kalite sırasına koyar", () => {
+test("makine-okunabilir kaynağı seçilen metin/OMR kaynağından önce dener", () => {
   const selected = candidate("notalar:1", "text", 95);
   const attempts = buildSourceAttemptOrder(selected, [
     candidate("web:1", "review", 100),
@@ -15,7 +15,17 @@ test("seçilen kaynağı önce dener ve uygun yedekleri kalite sırasına koyar"
     selected,
   ]);
 
-  assert.deepEqual(attempts.map((item) => item.id), ["notalar:1", "songsterr:1", "academic-pdf:1"]);
+  assert.deepEqual(attempts.map((item) => item.id), ["songsterr:1", "notalar:1", "academic-pdf:1"]);
+});
+
+test("aynı dönüştürme türündeki kaynaklarda kullanıcının seçimini korur", () => {
+  const selected = candidate("songsterr:2", "gp", 82, { postId: undefined, songId: 2 });
+  const attempts = buildSourceAttemptOrder(selected, [
+    candidate("songsterr:1", "gp", 99, { postId: undefined, songId: 1 }),
+    selected,
+  ]);
+
+  assert.deepEqual(attempts.map((item) => item.id), ["songsterr:2", "songsterr:1"]);
 });
 
 test("iş durumu geçici hatalardan sonra tamamlanana kadar izlenir", async () => {
