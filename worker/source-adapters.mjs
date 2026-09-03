@@ -53,8 +53,13 @@ export function sourceQualityForMode(processingMode) {
 
 export function compareSourceCandidates(left, right) {
   const relevanceDifference = Number(right?.score || 0) - Number(left?.score || 0);
-  if (relevanceDifference !== 0) return relevanceDifference;
-  return sourceQualityForMode(right?.processingMode).rank - sourceQualityForMode(left?.processingMode).rank;
+  const qualityDifference = sourceQualityForMode(right?.processingMode).rank
+    - sourceQualityForMode(left?.processingMode).rank;
+  // A small search-score difference should not put a lossy OCR/text source
+  // ahead of a machine-readable score for the same song. Large relevance gaps
+  // still win so a merely fuzzy Guitar Pro result cannot displace an exact one.
+  if (Math.abs(relevanceDifference) <= 12 && qualityDifference !== 0) return qualityDifference;
+  return relevanceDifference || qualityDifference;
 }
 
 function withSourceQuality(candidate) {

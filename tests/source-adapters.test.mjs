@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { searchAllSources, sourceQualityForMode } from "../worker/source-adapters.mjs";
+import { compareSourceCandidates, searchAllSources, sourceQualityForMode } from "../worker/source-adapters.mjs";
 
 function response(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -101,6 +101,15 @@ test("eşit ilgide ritim taşıyan kaynakları metin ve OMR taslaklarından önc
   assert.equal(result.results[0].sourceId, "songsterr");
   assert.equal(result.results[0].quality, "rhythmic-score");
   assert.deepEqual(sourceQualityForMode("text"), { key: "melody-only", rank: 2 });
+});
+
+test("küçük ilgi farkında makine-okunabilir kaynağı, büyük farkta doğru eşleşmeyi seçer", () => {
+  const exactText = { score: 100, processingMode: "text" };
+  const closeScore = { score: 90, processingMode: "gp" };
+  const weakScore = { score: 70, processingMode: "gp" };
+
+  assert.equal([exactText, closeScore].sort(compareSourceCandidates)[0], closeScore);
+  assert.equal([exactText, weakScore].sort(compareSourceCandidates)[0], exactText);
 });
 
 test("yabancı şarkıyı Songsterr kataloğunda sanatçı ve başlıkla bulur", async () => {

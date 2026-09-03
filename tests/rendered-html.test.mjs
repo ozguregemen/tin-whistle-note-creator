@@ -29,6 +29,8 @@ test("Tin Whistle Note Creator ana sayfasını sunucu tarafında oluşturur", as
   assert.match(html, /Notalar\.net/);
   assert.match(html, /Cross-checked/);
   assert.match(html, /Paste notes/);
+  assert.match(html, /Import score/);
+  assert.match(html, /Correct notes/);
   assert.match(html, /Practice mode/);
   assert.match(html, /Tin whistle sound/);
   assert.match(html, /CC BY-SA 4\.0/);
@@ -85,6 +87,7 @@ test("temel D tin whistle parmak eşlemelerini içerir", async () => {
   assert.match(page, /\/api\/search\?q=/);
   assert.match(page, /\/api\/jobs/);
   assert.match(page, /sourceCandidates/);
+  assert.match(page, /id="score-input"[^>]+type="file"[^>]+\.musicxml/);
   assert.match(page, /window\.print\(\)/);
 });
 

@@ -1,6 +1,7 @@
 import { getSourceAdapter, searchAllSources, SOURCE_ADAPTERS } from "./source-adapters.mjs";
 import { getDocumentSource } from "./document-sources.mjs";
 import { resolveTempo } from "./bpm-resolver.mjs";
+import { applyCuratedTempo } from "../app/curated-tempos.mjs";
 
 const DEFAULT_REPOSITORY = "ozguregemen/tin-whistle-note-creator";
 const SOURCE_PROCESSING_VERSION = 2;
@@ -119,7 +120,7 @@ async function queueJob(request, env, fetchFn) {
   }
   const cachedSong = await readCachedSong(adapter, { postId, songId, document }, env, fetchFn);
   if (cachedSong) {
-    return { response: { status: "completed", cached: true, song: cachedSong }, status: 200 };
+    return { response: { status: "completed", cached: true, song: applyCuratedTempo(cachedSong) }, status: 200 };
   }
   const query = typeof body.query === "string" ? body.query.trim().slice(0, 160) : "";
   const title = typeof body.title === "string" ? body.title.trim().slice(0, 200) : "";

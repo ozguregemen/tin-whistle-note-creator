@@ -163,6 +163,10 @@ async function downloadDocument(document) {
   await writeFile(new URL("document.pdf", WORK_DIRECTORY), bytes);
 }
 
+function resolvedTempoSource(tempo) {
+  return tempo?.provider === "curated" || tempo?.tempoSource === "curated" ? "curated" : "database";
+}
+
 async function limitedResponseBytes(response, maximumBytes, label) {
   const declaredLength = Number(response.headers.get("Content-Length") || 0);
   if (declaredLength > maximumBytes) throw new Error(`${label} is too large`);
@@ -296,7 +300,7 @@ async function prepare() {
     await complete(payload, post, parsed.phrases, "score-imported", {
       bpm: parsed.tempo || payload.tempo?.bpm || 90,
       source: "score",
-      tempoSource: parsed.tempo ? "score" : payload.tempo ? "database" : "default",
+      tempoSource: parsed.tempo ? "score" : payload.tempo ? resolvedTempoSource(payload.tempo) : "default",
       tempoConfidence: parsed.tempo ? 100 : payload.tempo?.confidence || 0,
       ...(payload.tempo?.sourceUrl && !parsed.tempo ? { tempoUrl: payload.tempo.sourceUrl } : {}),
       durations: parsed.durations,
@@ -329,7 +333,7 @@ async function prepare() {
       bpm: payload.tempo?.bpm || 90,
       source: parsedText.hasRhythm ? "text" : "estimated",
       ...(payload.tempo ? {
-        tempoSource: "database",
+        tempoSource: resolvedTempoSource(payload.tempo),
         tempoConfidence: payload.tempo.confidence,
         ...(payload.tempo.sourceUrl ? { tempoUrl: payload.tempo.sourceUrl } : {}),
       } : {
@@ -386,7 +390,7 @@ async function finalize() {
       : bestScore.tempo
         ? "score"
         : payload.tempo?.bpm
-          ? "database"
+          ? resolvedTempoSource(payload.tempo)
           : "default";
     await complete(payload, post, bestScore.phrases, "omr-unreviewed", {
       bpm,

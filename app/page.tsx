@@ -4,14 +4,17 @@ import { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect,
 import { parseAbcScore } from "./abc.mjs";
 import { transcribeAudioFile } from "./audio-transcription.mjs";
 import { assessSongQuality, rankCatalogMatches, rankCatalogSongs } from "./catalog-quality.mjs";
-import { arrangePhrasesForDWhistle, estimateDWhistleRegisters, isUpperWhistleRegister } from "./fingerings.mjs";
+import { applyCuratedTempo } from "./curated-tempos.mjs";
+import { arrangePhrasesForDWhistle, estimateDWhistleRegisters, fingeringFor, isUpperWhistleRegister } from "./fingerings.mjs";
+import { replacePhraseNote, serializeNotePhrases } from "./note-corrections.mjs";
 import { BPM_MAX, BPM_MIN, bpmFromInputDraft, buildPhraseRanges, buildPlaybackPlan, clampBpm, commitBpmInput, frequencyForWhistleNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "./practice.mjs";
+import { importScoreFile, timedPhrasesToString } from "./score-file-import.mjs";
 import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
 import { buildSourceAttemptOrder, waitForSourceJob } from "./source-jobs.mjs";
 import { base64AudioBuffer, midiForWhistleNote, playbackRateForMidi, sampleZoneForMidi, soundfontLoopForZone, soundfontTriggerMidiForAudibleMidi, soundfontZoneForMidi, WHISTLE_SAMPLE_ZONES, WHISTLE_SOUNDFONT } from "./whistle-sampler.mjs";
 
 type Language = "en" | "tr";
-type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "discoveryFound" | "queueing" | "processing" | "sourceRetrying" | "needsReview" | "liveFound" | "sourceUnavailable" | "audioTranscribing" | "audioConverted" | "audioUnavailable";
+type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "discoveryFound" | "queueing" | "processing" | "sourceRetrying" | "needsReview" | "liveFound" | "sourceUnavailable" | "audioTranscribing" | "audioConverted" | "audioUnavailable" | "scoreImported" | "scoreUnavailable";
 
 type SongSource = {
   name: string;
@@ -38,6 +41,7 @@ type Song = {
   };
   sourceStatus: "cross-checked" | "live" | "manual";
   sourceConfidence?: "estimated" | "omr-unreviewed" | "score-imported";
+  userEdited?: boolean;
   sources: SongSource[];
 };
 
@@ -124,11 +128,12 @@ const COPY = {
     eyebrow: "Songs and melodies, adapted for D tin whistle",
     heroTop: "Turn a melody into",
     heroAccent: "clear fingerings.",
-    intro: "Search for a song, paste notes, or transcribe an audio file—then turn the melody into playable D-whistle fingerings.",
+    intro: "Search for a song, import MIDI/MusicXML, paste notes, or transcribe audio—then turn the melody into playable D-whistle fingerings.",
     inputModes: "Ways to start",
     catalogTab: "Search catalog",
     pasteTab: "Paste notes",
     audioTab: "Transcribe audio",
+    scoreTab: "Import score",
     searchLabel: "What song would you like to play?",
     searchPlaceholder: "Song or folk tune name",
     find: "Find notes",
@@ -142,6 +147,11 @@ const COPY = {
     audioTranscribing: "Transcribing pitch and timing locally…",
     audioConverted: "Audio melody converted into D-whistle fingerings",
     audioUnavailable: "No reliable melody was found in this audio. Try a clearer instrumental or isolated track.",
+    scoreLabel: "Choose a machine-readable score",
+    scoreHint: "MIDI or MusicXML · melody track, rests, note lengths and score tempo are imported locally",
+    scoreChoose: "Choose score",
+    scoreImported: "Score imported with its available rhythm and tempo",
+    scoreUnavailable: "This score could not be read.",
     catalogPrepared: "Song catalog is ready",
     catalogUpdated: "Latest source catalog loaded from GitHub",
     catalogFound: "Found in the web-sourced catalog",
@@ -162,6 +172,11 @@ const COPY = {
     half: "Half",
     open: "Open",
     print: "Print / PDF",
+    correctNotes: "Correct notes",
+    finishCorrection: "Done editing",
+    correctionHint: "Select any displayed note to correct its pitch. Rhythm and note order stay unchanged.",
+    correctionLabel: "Correct note",
+    userCorrected: "locally corrected",
     practice: "Practice mode",
     play: "Play",
     pause: "Pause",
@@ -201,7 +216,7 @@ const COPY = {
     howKicker: "How it works",
     howTitle: "From melody source to playable fingerings.",
     step1Title: "Choose a starting point",
-    step1Body: "Search global song sources, paste notes, or transcribe a local audio file.",
+    step1Body: "Search global song sources, import MIDI/MusicXML, paste notes, or transcribe a local audio file.",
     step2Title: "Adapt for D whistle",
     step2Body: "The melody is fitted to the standard two-register range with clear chromatic fingerings.",
     step3Title: "Listen and practise",
@@ -246,7 +261,7 @@ const COPY = {
     reviewSource: "Open and review",
     webSource: "Web discovery · unverified",
     emptyTitle: "Your fingering guide will appear here",
-    emptyBody: "Search for a song, paste notes, or transcribe audio above. If no suitable source exists yet, you can request the song.",
+    emptyBody: "Search for a song, import a score, paste notes, or transcribe audio above. If no suitable source exists yet, you can request the song.",
     detailsTitle: "Source & arrangement details",
     detailsIntro: "Provenance, source quality, and the D-whistle adaptation used for this guide.",
     sourceCaveat: "Pitch sequence is sourced; rhythm and note durations are not included yet.",
@@ -271,11 +286,12 @@ const COPY = {
     eyebrow: "Şarkılar ve ezgiler, D tin whistle’a uyarlanmış",
     heroTop: "Bir ezgiyi anlaşılır",
     heroAccent: "parmaklara dönüştür.",
-    intro: "Bir şarkı ara, notaları yapıştır veya bir ses dosyasını notaya çevir; ardından ezgiyi çalınabilir D-whistle parmaklarına dönüştür.",
+    intro: "Bir şarkı ara, MIDI/MusicXML içe aktar, notaları yapıştır veya sesi notaya çevir; ardından ezgiyi çalınabilir D-whistle parmaklarına dönüştür.",
     inputModes: "Başlangıç yolları",
     catalogTab: "Katalogda ara",
     pasteTab: "Notaları yapıştır",
     audioTab: "Sesi notaya çevir",
+    scoreTab: "Nota dosyası",
     searchLabel: "Hangi şarkıyı çalmak istiyorsun?",
     searchPlaceholder: "Şarkı veya türkü adı",
     find: "Notaları bul",
@@ -289,6 +305,11 @@ const COPY = {
     audioTranscribing: "Perde ve zamanlama tarayıcıda çıkarılıyor…",
     audioConverted: "Ses melodisi D-whistle parmaklarına dönüştürüldü",
     audioUnavailable: "Bu seste güvenilir bir melodi bulunamadı. Daha temiz bir enstrümantal veya izole kayıt dene.",
+    scoreLabel: "Makine tarafından okunabilen bir nota dosyası seç",
+    scoreHint: "MIDI veya MusicXML · melodi kanalı, esler, nota süreleri ve dosyadaki tempo yerel olarak alınır",
+    scoreChoose: "Nota dosyası seç",
+    scoreImported: "Nota dosyası, mevcut ritim ve temposuyla içe aktarıldı",
+    scoreUnavailable: "Bu nota dosyası okunamadı.",
     catalogPrepared: "Şarkı kataloğu hazır",
     catalogUpdated: "Güncel kaynak kataloğu GitHub’dan yüklendi",
     catalogFound: "İnternet kaynaklı katalogda bulundu",
@@ -309,6 +330,11 @@ const COPY = {
     half: "Yarım",
     open: "Açık",
     print: "Yazdır / PDF",
+    correctNotes: "Notaları düzelt",
+    finishCorrection: "Düzenlemeyi bitir",
+    correctionHint: "Perdesini düzeltmek istediğin notayı seç. Ritim ve nota sırası değişmez.",
+    correctionLabel: "Notayı düzelt",
+    userCorrected: "yerel olarak düzeltildi",
     practice: "Pratik modu",
     play: "Çal",
     pause: "Duraklat",
@@ -348,7 +374,7 @@ const COPY = {
     howKicker: "Nasıl çalışır",
     howTitle: "Ezgi kaynağından çalınabilir parmaklara.",
     step1Title: "Başlangıç yolunu seç",
-    step1Body: "Global şarkı kaynaklarında ara, notaları yapıştır veya yerel bir ses dosyasını notaya çevir.",
+    step1Body: "Global şarkı kaynaklarında ara, MIDI/MusicXML içe aktar, notaları yapıştır veya yerel bir ses dosyasını notaya çevir.",
     step2Title: "D whistle’a uyarla",
     step2Body: "Ezgi, açık kromatik parmaklarla standart iki register aralığına uyarlanır.",
     step3Title: "Dinle ve çalış",
@@ -393,7 +419,7 @@ const COPY = {
     reviewSource: "Aç ve kontrol et",
     webSource: "Web keşfi · doğrulanmadı",
     emptyTitle: "Parmak rehberin burada görünecek",
-    emptyBody: "Yukarıdan bir şarkı ara, notaları yapıştır veya sesi notaya çevir. Uygun kaynak yoksa şarkıyı isteyebilirsin.",
+    emptyBody: "Yukarıdan bir şarkı ara, nota dosyası içe aktar, notaları yapıştır veya sesi notaya çevir. Uygun kaynak yoksa şarkıyı isteyebilirsin.",
     detailsTitle: "Kaynak ve düzenleme ayrıntıları",
     detailsIntro: "Bu rehberde kullanılan kaynak, kalite bilgisi ve D-whistle uyarlaması.",
     sourceCaveat: "Ses dizisi kaynaklıdır; ritim ve nota süreleri henüz dahil değildir.",
@@ -438,7 +464,13 @@ const FALLBACK_SONGS: Song[] = [
 
 const REMOTE_CATALOG_URL = "https://raw.githubusercontent.com/ozguregemen/tin-whistle-note-creator/main/catalog/catalog.json";
 const THE_SESSION_SEARCH_URL = "https://thesession.org/tunes/search?format=json&q=";
-const INPUT_MODES = ["search", "paste", "audio"] as const;
+const INPUT_MODES = ["search", "paste", "score", "audio"] as const;
+type InputMode = typeof INPUT_MODES[number];
+const EDITABLE_WHISTLE_NOTES = [4, 5, 6].flatMap((octave) =>
+  ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    .filter((pitch) => fingeringFor(pitch, octave))
+    .map((pitch) => `${pitch}${octave}`),
+);
 
 function sourceApiUrl() {
   if (typeof window === "undefined") return "";
@@ -484,7 +516,27 @@ function parsePhrases(source: string, estimateRegisters = false): ParsedNote[][]
   return parseArrangement(source, estimateRegisters).phrases;
 }
 
-function Fingering({ note, index, globalIndex, active, language }: { note: ParsedNote; index: number; globalIndex: number; active: boolean; language: Language }) {
+function restoreStoredCorrection(song: Song) {
+  if (typeof window === "undefined") return song;
+  try {
+    const notes = window.localStorage.getItem(`twnc-note-correction:${song.id}`);
+    if (!notes || parsePhrases(notes).flat().length !== parsePhrases(song.notes).flat().length) return song;
+    return { ...song, notes, userEdited: true };
+  } catch {
+    return song;
+  }
+}
+
+function Fingering({ note, index, globalIndex, active, language, editing, correctionLabel, onCorrection }: {
+  note: ParsedNote;
+  index: number;
+  globalIndex: number;
+  active: boolean;
+  language: Language;
+  editing: boolean;
+  correctionLabel: string;
+  onCorrection: (value: string) => void;
+}) {
   const playable = Boolean(note.holes);
   const upperRegister = isUpperWhistleRegister(note.pitch, note.octave);
   const register = language === "en" ? (upperRegister ? "high register" : "low register") : (upperRegister ? "üst register" : "alt register");
@@ -503,19 +555,24 @@ function Fingering({ note, index, globalIndex, active, language }: { note: Parse
       </div>
       <strong>{displayPitch}</strong>
       <small>{writtenPitch} · {register}</small>
+      {editing && <select className="note-correction" value={`${note.pitch}${note.octave}`} aria-label={`${correctionLabel} ${globalIndex + 1}`} onChange={(event) => onCorrection(event.target.value)}>
+        {EDITABLE_WHISTLE_NOTES.map((value) => <option value={value} key={value}>{value}</option>)}
+      </select>}
     </div>
   );
 }
 
 export default function Home() {
   const [language, setLanguage] = useState<Language>("en");
-  const [mode, setMode] = useState<"search" | "paste" | "audio">("search");
+  const [mode, setMode] = useState<InputMode>("search");
   const [catalog, setCatalog] = useState<Song[]>(FALLBACK_SONGS);
   const [query, setQuery] = useState("Duman İçerim Ben Bu Akşam");
   const [manualNotes, setManualNotes] = useState("D4 E4 F#4 G4 | A4 B4 C#5 D5 | D5 C#5 B4 A4 | G4 F#4 E4 D4");
   const [song, setSong] = useState<Song | null>(FALLBACK_SONGS[0]);
   const [sourceCandidates, setSourceCandidates] = useState<SourceCandidate[]>([]);
   const [status, setStatus] = useState<StatusKey>("catalogPrepared");
+  const [sourceError, setSourceError] = useState("");
+  const [editingNotes, setEditingNotes] = useState(false);
   const [bpm, setBpm] = useState(clampBpm(FALLBACK_SONGS[0].rhythm?.bpm ?? 90));
   const [bpmInput, setBpmInput] = useState(String(clampBpm(FALLBACK_SONGS[0].rhythm?.bpm ?? 90)));
   const [tempoStatus, setTempoStatus] = useState<TempoStatus>("idle");
@@ -565,6 +622,8 @@ export default function Home() {
         : songQuality?.readiness === "personal"
           ? ""
           : t.melodyDraftHelp;
+  // Playback scheduling intentionally reads the latest render state from refs.
+  // eslint-disable-next-line react-hooks/refs
   isPlayingRef.current = isPlaying;
 
   useEffect(() => {
@@ -582,8 +641,9 @@ export default function Home() {
       })
       .then((remoteCatalog) => {
         if (!Array.isArray(remoteCatalog.songs) || remoteCatalog.songs.length === 0) return;
-        setCatalog(remoteCatalog.songs);
-        setSong((current) => remoteCatalog.songs.find((item) => item.id === current?.id) ?? current);
+        const correctedSongs = remoteCatalog.songs.map((item) => restoreStoredCorrection(applyCuratedTempo(item) as Song));
+        setCatalog(correctedSongs);
+        setSong((current) => correctedSongs.find((item) => item.id === current?.id) ?? current);
         setStatus("catalogUpdated");
       })
       .catch((error: unknown) => {
@@ -600,19 +660,25 @@ export default function Home() {
     // Resuming a user-started background conversion after reload is intentional.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStatus("processing");
+    setSourceError("");
     waitForSourceJob(api, requestId).then((job: SourceJob) => {
       if (!active || !job) return;
       if (job.status === "completed" && job.song) {
-        setSong(job.song);
+        setSong(restoreStoredCorrection(applyCuratedTempo(job.song) as Song));
         setStatus("liveFound");
       } else if (job.status === "needs-review") {
+        setSourceError(job.reason || "");
         setStatus("needsReview");
       } else {
+        setSourceError(job.reason || "");
         setStatus("sourceUnavailable");
       }
       window.localStorage.removeItem("twnc-pending-source-job");
-    }).catch(() => {
-      if (active) setStatus("sourceUnavailable");
+    }).catch((error: unknown) => {
+      if (active) {
+        setSourceError(error instanceof Error ? error.message : "");
+        setStatus("sourceUnavailable");
+      }
     });
     return () => { active = false; };
   }, []);
@@ -626,10 +692,12 @@ export default function Home() {
   const unsupported = allNotes.filter((note) => !note.holes);
   const playbackPlan = useMemo(() => buildPlaybackPlan(phrases, song?.rhythm, bpm), [phrases, song?.rhythm, bpm]);
   const playbackPlanRef = useRef(playbackPlan);
+  // eslint-disable-next-line react-hooks/refs
   playbackPlanRef.current = playbackPlan;
   const phraseOffsets = useMemo(() => phrases.map((_, index) => phrases.slice(0, index).reduce((sum, phrase) => sum + phrase.length, 0)), [phrases]);
   const phraseRanges = useMemo(() => buildPhraseRanges(phrases), [phrases]);
   const phraseRangesRef = useRef(phraseRanges);
+  // eslint-disable-next-line react-hooks/refs
   phraseRangesRef.current = phraseRanges;
   const visibleLoopRange = loopEnabled ? phraseRanges[selectedPhraseIndex] : null;
   const progressCurrent = activeNoteIndex < 0 ? 0 : visibleLoopRange ? activeNoteIndex - visibleLoopRange.start + 1 : activeNoteIndex + 1;
@@ -668,6 +736,7 @@ export default function Home() {
     setIsPlaying(false);
     setLoopEnabled(false);
     setSelectedPhraseIndex(0);
+    setEditingNotes(false);
     const initialBpm = clampBpm(song?.rhythm?.bpm ?? 90);
     bpmRef.current = initialBpm;
     setBpm(initialBpm);
@@ -699,7 +768,7 @@ export default function Home() {
       .then(async (response) => {
         if (response.status === 404) return null;
         if (!response.ok) throw new Error(`Tempo API returned ${response.status}`);
-        return response.json() as Promise<{ bpm: number; confidence: number; sourceUrl?: string }>;
+        return response.json() as Promise<{ bpm: number; confidence: number; sourceUrl?: string; provider?: string }>;
       })
       .then((tempo) => {
         if (!tempo) { setTempoStatus("unavailable"); return; }
@@ -710,13 +779,15 @@ export default function Home() {
           rhythm: {
             bpm: resolvedBpm,
             source: current.rhythm?.source ?? "estimated",
-            tempoSource: "database",
+            tempoSource: tempo.provider === "curated" ? "curated" : "database",
             tempoConfidence: Number(tempo.confidence) || 0,
             ...(tempo.sourceUrl ? { tempoUrl: tempo.sourceUrl } : {}),
             durations: current.rhythm?.durations ?? [],
             ...(current.rhythm?.gaps ? { gaps: current.rhythm.gaps } : {}),
           },
         } : current);
+        // Preserve the existing in-flight tempo rescheduling behaviour.
+        // eslint-disable-next-line react-hooks/immutability
         changeTempo(resolvedBpm);
         setTempoStatus("resolved");
       })
@@ -1130,6 +1201,7 @@ export default function Home() {
 
   async function findSong(event?: FormEvent) {
     event?.preventDefault();
+    setSourceError("");
     setSourceCandidates([]);
     const normalized = normalizeSearchText(query);
     const match = normalized ? rankCatalogMatches(catalog
@@ -1186,7 +1258,8 @@ export default function Home() {
         sources: [{ name: "The Session", url: result.url, role: "note-source" }],
       });
       setStatus("liveFound");
-    } catch {
+    } catch (error: unknown) {
+      setSourceError(error instanceof Error ? error.message : "");
       setStatus("sourceUnavailable");
     }
   }
@@ -1195,9 +1268,11 @@ export default function Home() {
     if (candidate.processingMode === "review"
       || (candidate.postId === undefined && candidate.documentId === undefined && candidate.songId === undefined)) return;
     const api = sourceApiUrl();
-    if (!api) { setStatus("sourceUnavailable"); return; }
+    setSourceError("");
+    if (!api) { setSourceError("Source API is not configured for this build"); setStatus("sourceUnavailable"); return; }
     const attempts = buildSourceAttemptOrder(candidate, sourceCandidates) as SourceCandidate[];
     let reviewRequired = false;
+    let lastFailureReason = "";
     for (let index = 0; index < attempts.length; index += 1) {
       const attempt = attempts[index];
       setStatus(index === 0 ? "queueing" : "sourceRetrying");
@@ -1219,11 +1294,16 @@ export default function Home() {
         if (!response.ok) throw new Error(`Source job returned ${response.status}`);
         const queued = await response.json() as SourceJob;
         if (queued.status === "completed" && queued.song) {
-          setSong(queued.song);
+          setSong(restoreStoredCorrection(applyCuratedTempo(queued.song) as Song));
           setSourceCandidates([]);
           setStatus("liveFound");
           window.localStorage.removeItem("twnc-pending-source-job");
           return;
+        }
+        if (queued.status === "needs-review" || queued.status === "failed" || queued.status === "timeout") {
+          reviewRequired ||= queued.status === "needs-review";
+          lastFailureReason = queued.reason || `Source processing ended with status: ${queued.status}`;
+          continue;
         }
         if (!queued.requestId) throw new Error("Source job did not return a request ID");
         setStatus("processing");
@@ -1233,21 +1313,25 @@ export default function Home() {
         const job = await waitForSourceJob(api, queued.requestId, { timeoutMs }) as SourceJob;
         window.localStorage.removeItem("twnc-pending-source-job");
         if (job.status === "completed" && job.song) {
-          setSong(job.song);
+          setSong(restoreStoredCorrection(applyCuratedTempo(job.song) as Song));
           setSourceCandidates([]);
           setStatus("liveFound");
           return;
         }
         if (job.status === "needs-review") reviewRequired = true;
-      } catch {
+        lastFailureReason = job.reason || `Source processing ended with status: ${job.status}`;
+      } catch (error: unknown) {
+        lastFailureReason = error instanceof Error ? error.message : "The selected source failed";
         window.localStorage.removeItem("twnc-pending-source-job");
       }
     }
+    setSourceError(lastFailureReason);
     setStatus(reviewRequired ? "needsReview" : "sourceUnavailable");
   }
 
   function convertManual(event?: FormEvent) {
     event?.preventDefault();
+    setSourceError("");
     if (!parsePhrases(manualNotes).flat().length) { setStatus("invalidNotes"); return; }
     setSong({
       id: "manual",
@@ -1290,6 +1374,7 @@ export default function Home() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    setSourceError("");
     setStatus("audioTranscribing");
     setTranscriptionProgress(0);
     try {
@@ -1312,15 +1397,69 @@ export default function Home() {
       });
       changeTempo(result.rhythm.bpm);
       setStatus("audioConverted");
-    } catch {
+    } catch (error: unknown) {
+      setSourceError(error instanceof Error ? error.message : "");
       setStatus("audioUnavailable");
     } finally {
       setTranscriptionProgress(0);
     }
   }
 
+  async function convertScoreFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setSourceError("");
+    try {
+      const parsed = await importScoreFile(file);
+      const notes = timedPhrasesToString(parsed);
+      if (!notes) throw new Error("The score did not contain a readable melody");
+      const title = file.name.replace(/\.[^.]+$/, "").replaceAll(/[_-]+/g, " ").trim() || t.customTitle;
+      setSong({
+        id: `score-${Date.now()}`,
+        title,
+        aliases: [],
+        subtitle: {
+          en: `${parsed.format} score · ${parsed.trackName || "melody part"}`,
+          tr: `${parsed.format} nota dosyası · ${parsed.trackName || "melodi partisi"}`,
+        },
+        difficulty: { en: "Imported score", tr: "İçe aktarılan nota" },
+        notes,
+        rhythm: {
+          bpm: parsed.tempo || 90,
+          source: "score",
+          tempoSource: parsed.tempo ? "score" : "default",
+          tempoConfidence: parsed.tempo ? 100 : 0,
+          durations: parsed.durations,
+          gaps: parsed.gaps,
+        },
+        sourceStatus: "manual",
+        sourceConfidence: "score-imported",
+        sources: [],
+      });
+      changeTempo(parsed.tempo || 90);
+      setStatus("scoreImported");
+    } catch (error: unknown) {
+      setSourceError(error instanceof Error ? error.message : "");
+      setStatus("scoreUnavailable");
+    }
+  }
+
+  function correctArrangedNote(phraseIndex: number, noteIndex: number, value: string) {
+    const replacement = normalizeNote(value);
+    if (!replacement || !fingeringFor(replacement.pitch, replacement.octave)) return;
+    if (isPlaying || activeNoteIndex >= 0) stopPractice();
+    const corrected = replacePhraseNote(phrases, phraseIndex, noteIndex, replacement);
+    const notes = serializeNotePhrases(corrected);
+    setSong((current) => {
+      if (!current) return current;
+      try { window.localStorage.setItem(`twnc-note-correction:${current.id}`, notes); } catch { /* Browser storage may be disabled. */ }
+      return { ...current, notes, userEdited: true };
+    });
+  }
+
   function chooseSuggestion(selected: Song) {
-    setQuery(selected.title); setSong(selected); setStatus("catalogFound"); setMode("search");
+    setSourceError(""); setQuery(selected.title); setSong(selected); setStatus("catalogFound"); setMode("search");
   }
 
   return (
@@ -1343,6 +1482,7 @@ export default function Home() {
           <div className="mode-tabs" role="tablist" aria-label={t.inputModes}>
             <button id="source-tab-search" type="button" role="tab" aria-controls="source-panel-search" aria-selected={mode === "search"} tabIndex={mode === "search" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "search")} onClick={() => setMode("search")}>{t.catalogTab}</button>
             <button id="source-tab-paste" type="button" role="tab" aria-controls="source-panel-paste" aria-selected={mode === "paste"} tabIndex={mode === "paste" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "paste")} onClick={() => setMode("paste")}>{t.pasteTab}</button>
+            <button id="source-tab-score" type="button" role="tab" aria-controls="source-panel-score" aria-selected={mode === "score"} tabIndex={mode === "score" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "score")} onClick={() => setMode("score")}>{t.scoreTab}</button>
             <button id="source-tab-audio" type="button" role="tab" aria-controls="source-panel-audio" aria-selected={mode === "audio"} tabIndex={mode === "audio" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "audio")} onClick={() => setMode("audio")}>{t.audioTab}</button>
           </div>
           {mode === "search" ? (
@@ -1387,6 +1527,16 @@ export default function Home() {
               <textarea id="notes-input" value={manualNotes} onChange={(event) => setManualNotes(event.target.value)} rows={3} />
               <div className="paste-actions"><span>{t.pasteHint}</span><button type="submit">{t.convert} <span aria-hidden="true">→</span></button></div>
             </form>
+          ) : mode === "score" ? (
+            <div id="source-panel-score" className="audio-import" role="tabpanel" aria-labelledby="source-tab-score">
+              <label htmlFor="score-input">{t.scoreLabel}</label>
+              <label className="audio-picker" htmlFor="score-input">
+                <span aria-hidden="true">♫</span>
+                <strong>{t.scoreChoose}</strong>
+                <small>{t.scoreHint}</small>
+              </label>
+              <input id="score-input" type="file" accept="audio/midi,audio/x-midi,application/vnd.recordare.musicxml,application/xml,text/xml,.mid,.midi,.musicxml,.xml" onChange={convertScoreFile} />
+            </div>
           ) : (
             <div id="source-panel-audio" className="audio-import" role="tabpanel" aria-labelledby="source-tab-audio">
               <label htmlFor="audio-input">{t.audioLabel}</label>
@@ -1399,15 +1549,16 @@ export default function Home() {
               {status === "audioTranscribing" && <progress max="100" value={transcriptionProgress}>{transcriptionProgress}%</progress>}
             </div>
           )}
-          <p className={`status status-${status}`} role="status"><span /> {t[status]}</p>
+          <p className={`status status-${status}`} role="status"><span className="status-dot" /><span className="status-message">{t[status]}{sourceError && <small>{sourceError}</small>}</span></p>
         </div>
       </section>
 
       {song ? <section className="workspace shell" aria-labelledby="preview-title">
         <div className="workspace-heading">
-          <div><span className="section-kicker">{t.guide}</span><h2 id="preview-title">{song.artist ? `${song.artist} — ` : ""}{song.title}</h2><div className="workspace-subtitle"><p>{song.sourceConfidence === "estimated" ? t.textEstimated : song.subtitle[language]} · {song.difficulty[language]} · D tin whistle</p>{songQuality && <span className={`readiness-badge readiness-${songQuality.readiness}`}>{readinessLabel}</span>}</div></div>
+          <div><span className="section-kicker">{t.guide}</span><h2 id="preview-title">{song.artist ? `${song.artist} — ` : ""}{song.title}</h2><div className="workspace-subtitle"><p>{song.sourceConfidence === "estimated" ? t.textEstimated : song.subtitle[language]} · {song.difficulty[language]} · D tin whistle{song.userEdited ? ` · ${t.userCorrected}` : ""}</p>{songQuality && <span className={`readiness-badge readiness-${songQuality.readiness}`}>{readinessLabel}</span>}</div></div>
           <div className="workspace-actions">
             <div className="legend"><span className="hole closed" /> {t.closed} <span className="hole half" /> {t.half} <span className="hole open" /> {t.open}</div>
+            <button type="button" className={`correct-notes-button${editingNotes ? " active" : ""}`} aria-pressed={editingNotes} onClick={() => setEditingNotes((current) => !current)}>{editingNotes ? t.finishCorrection : t.correctNotes}</button>
             <button type="button" className="print-button" onClick={() => window.print()}>{t.print}</button>
           </div>
         </div>
@@ -1469,13 +1620,14 @@ export default function Home() {
           </div>
         </section>
         {unsupported.length > 0 && <div className="warning" role="alert"><strong>{unsupported.length} {t.warningStart}</strong> {t.warningEnd}</div>}
+        {editingNotes && <p className="correction-hint">{t.correctionHint}</p>}
         <div className="phrases">
           {phrases.map((phrase, phraseIndex) => (
             <article className={`phrase-card${loopEnabled && phraseIndex === selectedPhraseIndex ? " selected" : ""}`} key={phraseIndex}>
               <div className="phrase-meta"><span>{t.phrase} {String(phraseIndex + 1).padStart(2, "0")}</span><span>{phrase.length} {phrase.length === 1 ? t.note : t.notes}</span></div>
               <div className="notes-grid">{phrase.map((note, index) => {
                 const globalIndex = phraseOffsets[phraseIndex] + index;
-                return <Fingering note={note} index={index} globalIndex={globalIndex} active={activeNoteIndex === globalIndex} language={language} key={`${note.pitch}-${note.octave}-${index}`} />;
+                return <Fingering note={note} index={index} globalIndex={globalIndex} active={activeNoteIndex === globalIndex} language={language} editing={editingNotes} correctionLabel={t.correctionLabel} onCorrection={(value) => correctArrangedNote(phraseIndex, index, value)} key={`${note.pitch}-${note.octave}-${index}`} />;
               })}</div>
             </article>
           ))}

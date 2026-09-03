@@ -1,4 +1,5 @@
 import { estimateDWhistleRegisters } from "../app/fingerings.mjs";
+import { applyCuratedTempo } from "../app/curated-tempos.mjs";
 
 const SOLFEGE = new Map([
   ["do", "C"], ["do#", "C#"], ["re", "D"], ["re#", "D#"], ["ré", "D"],
@@ -238,7 +239,7 @@ export function slugify(value) {
 export function mergeSongIntoCatalog(catalog, song) {
   const songs = Array.isArray(catalog?.songs) ? [...catalog.songs] : [];
   const index = songs.findIndex((item) => item.id === song.id);
-  if (index === -1) songs.push(song);
-  else songs[index] = song;
-  return { schemaVersion: 1, generatedAt: new Date().toISOString(), songs };
+  if (index === -1) songs.push(applyCuratedTempo(song));
+  else songs[index] = applyCuratedTempo(song);
+  return { schemaVersion: 1, generatedAt: new Date().toISOString(), songs: songs.map(applyCuratedTempo) };
 }
