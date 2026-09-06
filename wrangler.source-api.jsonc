@@ -6,6 +6,13 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "preview_urls": false,
+  "ratelimits": [
+    {
+      "name": "AUDIO_RATE_LIMITER",
+      "namespace_id": "2026090601",
+      "simple": { "limit": 6, "period": 60 }
+    }
+  ],
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
@@ -19,6 +26,7 @@
     }
   ],
   "vars": {
+    "AUDIO_ALLOWED_HOSTS": "upload.wikimedia.org",
     "ALLOWED_ORIGINS": "https://ozguregemen.github.io",
     "GITHUB_REPOSITORY": "ozguregemen/tin-whistle-note-creator",
     "GITHUB_RESULT_REF": "main"

@@ -2,7 +2,8 @@
 
 import { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { parseAbcScore } from "./abc.mjs";
-import { transcribeAudioFile } from "./audio-transcription.mjs";
+import { audioInputError, mediaErrorMessage, transcribeAudioInput } from "./media-import.mjs";
+import { MediaError } from "../shared/audio-media.mjs";
 import { assessSongQuality, rankCatalogMatches, rankCatalogSongs } from "./catalog-quality.mjs";
 import { applyCuratedTempo } from "./curated-tempos.mjs";
 import { arrangePhrasesForDWhistle, estimateDWhistleRegisters, fingeringFor, isUpperWhistleRegister } from "./fingerings.mjs";
@@ -14,7 +15,8 @@ import { buildSourceAttemptOrder, waitForSourceJob } from "./source-jobs.mjs";
 import { base64AudioBuffer, midiForWhistleNote, playbackRateForMidi, sampleZoneForMidi, soundfontLoopForZone, soundfontTriggerMidiForAudibleMidi, soundfontZoneForMidi, WHISTLE_SAMPLE_ZONES, WHISTLE_SOUNDFONT } from "./whistle-sampler.mjs";
 
 type Language = "en" | "tr";
-type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "discoveryFound" | "queueing" | "processing" | "sourceRetrying" | "needsReview" | "liveFound" | "sourceUnavailable" | "audioTranscribing" | "audioConverted" | "audioUnavailable" | "scoreImported" | "scoreUnavailable";
+type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "discoveryFound" | "queueing" | "processing" | "sourceRetrying" | "needsReview" | "liveFound" | "sourceUnavailable" | "audioFetching" | "audioPreparing" | "audioImportFailed" | "audioTranscribing" | "audioConverted" | "audioUnavailable" | "scoreImported" | "scoreUnavailable";
+type AudioPhase = "audioFetching" | "audioPreparing" | "audioTranscribing";
 
 type SongSource = {
   name: string;
@@ -144,6 +146,14 @@ const COPY = {
     audioLabel: "Choose an audio file to extract its melody",
     audioHint: "MP3, WAV, OGG or FLAC · processed only in this browser · clearest with one prominent instrument",
     audioChoose: "Choose audio",
+    audioOr: "or use a link",
+    audioUrlLabel: "Direct audio link",
+    audioUrlImport: "Import audio",
+    audioUrlHint: "MP3, WAV, OGG or FLAC · approved hosts only (currently upload.wikimedia.org). YouTube and Spotify links cannot be imported.",
+    audioUrlPrivacy: "Link import fetches audio through our server without saving it; transcription still runs in your browser. File uploads stay in your browser.",
+    audioFetching: "Fetching audio…",
+    audioPreparing: "Preparing audio and transcription model…",
+    audioImportFailed: "Audio was not imported.",
     audioTranscribing: "Transcribing pitch and timing locally…",
     audioConverted: "Melody draft converted into D-whistle fingerings — compare it with the recording",
     audioUnavailable: "No reliable melody was found in this audio. Try a clearer instrumental or isolated track.",
@@ -302,6 +312,14 @@ const COPY = {
     audioLabel: "Melodisini çıkarmak için bir ses dosyası seç",
     audioHint: "MP3, WAV, OGG veya FLAC · yalnızca bu tarayıcıda işlenir · belirgin tek enstrümanda daha iyi sonuç verir",
     audioChoose: "Ses seç",
+    audioOr: "veya bağlantı kullan",
+    audioUrlLabel: "Doğrudan ses bağlantısı",
+    audioUrlImport: "Sesi aktar",
+    audioUrlHint: "MP3, WAV, OGG veya FLAC · yalnızca izinli sunucular (şimdilik upload.wikimedia.org). YouTube ve Spotify bağlantıları aktarılamaz.",
+    audioUrlPrivacy: "Bağlantıdaki ses sunucumuz üzerinden kaydedilmeden indirilir; notaya çevirme tarayıcında yapılır. Dosya yüklemeleri tarayıcında kalır.",
+    audioFetching: "Ses indiriliyor…",
+    audioPreparing: "Ses ve transkripsiyon modeli hazırlanıyor…",
+    audioImportFailed: "Ses içe aktarılamadı.",
     audioTranscribing: "Perde ve zamanlama tarayıcıda çıkarılıyor…",
     audioConverted: "Melodi taslağı D-whistle parmaklarına dönüştürüldü — kayıtla karşılaştırarak kontrol et",
     audioUnavailable: "Bu seste güvenilir bir melodi bulunamadı. Daha temiz bir enstrümantal veya izole kayıt dene.",
@@ -577,6 +595,11 @@ export default function Home() {
   const [bpmInput, setBpmInput] = useState(String(clampBpm(FALLBACK_SONGS[0].rhythm?.bpm ?? 90)));
   const [tempoStatus, setTempoStatus] = useState<TempoStatus>("idle");
   const [transcriptionProgress, setTranscriptionProgress] = useState(0);
+  const [audioUrl, setAudioUrl] = useState("");
+  const [audioBusy, setAudioBusy] = useState(false);
+  const [audioPhase, setAudioPhase] = useState<AudioPhase | null>(null);
+  const [audioError, setAudioError] = useState<MediaError | null>(null);
+  const audioImportRef = useRef<AbortController | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [soundStatus, setSoundStatus] = useState<SoundStatus>("idle");
   const [activeNoteIndex, setActiveNoteIndex] = useState(-1);
@@ -644,13 +667,15 @@ export default function Home() {
         const correctedSongs = remoteCatalog.songs.map((item) => restoreStoredCorrection(applyCuratedTempo(item) as Song));
         setCatalog(correctedSongs);
         setSong((current) => correctedSongs.find((item) => item.id === current?.id) ?? current);
-        setStatus("catalogUpdated");
+        setStatus((current) => current === "catalogPrepared" ? "catalogUpdated" : current);
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
       });
     return () => controller.abort();
   }, []);
+
+  useEffect(() => () => { audioImportRef.current?.abort(); }, []);
 
   useEffect(() => {
     const api = sourceApiUrl();
@@ -1356,7 +1381,7 @@ export default function Home() {
         ? INPUT_MODES.length - 1
         : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + INPUT_MODES.length) % INPUT_MODES.length;
     const nextMode = INPUT_MODES[nextIndex];
-    setMode(nextMode);
+    switchInputMode(nextMode);
     window.requestAnimationFrame(() => document.getElementById(`source-tab-${nextMode}`)?.focus());
   }
 
@@ -1370,24 +1395,53 @@ export default function Home() {
     changeTempo(commitBpmInput(bpmInput, bpmRef.current));
   }
 
+  function switchInputMode(nextMode: InputMode) {
+    if (nextMode !== mode) {
+      audioImportRef.current?.abort();
+      setAudioPhase(null);
+      setAudioError(null);
+    }
+    setMode(nextMode);
+  }
+
   async function convertAudio(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    await runAudioInput(file);
+  }
+
+  async function convertAudioUrl(event: FormEvent) {
+    event.preventDefault();
+    if (audioUrl.trim()) await runAudioInput(audioUrl.trim());
+  }
+
+  async function runAudioInput(source: Blob | string) {
+    // The lock survives tab cancellation until cooperative model cleanup finishes.
+    if (audioImportRef.current) return;
+    const controller = new AbortController();
+    audioImportRef.current = controller;
+    const current = () => audioImportRef.current === controller && !controller.signal.aborted;
+    setAudioBusy(true);
+    setAudioError(null);
     setSourceError("");
-    setStatus("audioTranscribing");
     setTranscriptionProgress(0);
     try {
-      const result = await transcribeAudioFile(file, (progress: number) => setTranscriptionProgress(Math.round(progress * 100)));
+      const { result, name, origin } = await transcribeAudioInput(source, {
+        apiUrl: sourceApiUrl(), signal: controller.signal,
+        onStage: (phase: AudioPhase) => { if (current()) setAudioPhase(phase); },
+        onProgress: (progress: number) => { if (current()) setTranscriptionProgress(Math.round(progress * 100)); },
+      });
+      if (!current()) return;
       if (!result.noteCount || !result.notes) {
         setStatus("audioUnavailable");
         return;
       }
-      const title = file.name.replace(/\.[^.]+$/, "").replaceAll(/[_-]+/g, " ").trim() || t.customTitle;
+      const title = name.replace(/\.[^.]+$/, "").replaceAll(/[_-]+/g, " ").trim() || t.customTitle;
       const evidence = result.melody.confidence.level;
       const transcriptionSubtitle = {
-        en: `Local audio · ${evidence === "high" ? "stronger model evidence" : evidence === "medium" ? "mixed model evidence" : "uncertain melody selection"} · listening review needed`,
-        tr: `Yerel ses · ${evidence === "high" ? "daha güçlü model sinyali" : evidence === "medium" ? "karışık model sinyali" : "melodi seçimi belirsiz"} · dinleyerek kontrol edilmeli`,
+        en: `${origin === "url" ? "Audio link · browser transcription" : "Local audio"} · ${evidence === "high" ? "stronger model evidence" : evidence === "medium" ? "mixed model evidence" : "uncertain melody selection"} · listening review needed`,
+        tr: `${origin === "url" ? "Ses bağlantısı · tarayıcıda transkripsiyon" : "Yerel ses"} · ${evidence === "high" ? "daha güçlü model sinyali" : evidence === "medium" ? "karışık model sinyali" : "melodi seçimi belirsiz"} · dinleyerek kontrol edilmeli`,
       };
       setSong({
         id: `audio-${Date.now()}`,
@@ -1403,10 +1457,17 @@ export default function Home() {
       changeTempo(result.rhythm.bpm);
       setStatus("audioConverted");
     } catch (error: unknown) {
-      setSourceError(error instanceof Error ? error.message : "");
-      setStatus("audioUnavailable");
+      if (current()) {
+        setAudioError(audioInputError(error));
+        setStatus("audioImportFailed");
+      }
     } finally {
-      setTranscriptionProgress(0);
+      if (audioImportRef.current === controller) {
+        audioImportRef.current = null;
+        setAudioBusy(false);
+        setAudioPhase(null);
+        setTranscriptionProgress(0);
+      }
     }
   }
 
@@ -1464,7 +1525,7 @@ export default function Home() {
   }
 
   function chooseSuggestion(selected: Song) {
-    setSourceError(""); setQuery(selected.title); setSong(selected); setStatus("catalogFound"); setMode("search");
+    setSourceError(""); setQuery(selected.title); setSong(selected); setStatus("catalogFound"); switchInputMode("search");
   }
 
   return (
@@ -1485,10 +1546,10 @@ export default function Home() {
 
         <div className="converter-card">
           <div className="mode-tabs" role="tablist" aria-label={t.inputModes}>
-            <button id="source-tab-search" type="button" role="tab" aria-controls="source-panel-search" aria-selected={mode === "search"} tabIndex={mode === "search" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "search")} onClick={() => setMode("search")}>{t.catalogTab}</button>
-            <button id="source-tab-paste" type="button" role="tab" aria-controls="source-panel-paste" aria-selected={mode === "paste"} tabIndex={mode === "paste" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "paste")} onClick={() => setMode("paste")}>{t.pasteTab}</button>
-            <button id="source-tab-score" type="button" role="tab" aria-controls="source-panel-score" aria-selected={mode === "score"} tabIndex={mode === "score" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "score")} onClick={() => setMode("score")}>{t.scoreTab}</button>
-            <button id="source-tab-audio" type="button" role="tab" aria-controls="source-panel-audio" aria-selected={mode === "audio"} tabIndex={mode === "audio" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "audio")} onClick={() => setMode("audio")}>{t.audioTab}</button>
+            <button id="source-tab-search" type="button" role="tab" aria-controls="source-panel-search" aria-selected={mode === "search"} tabIndex={mode === "search" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "search")} onClick={() => switchInputMode("search")}>{t.catalogTab}</button>
+            <button id="source-tab-paste" type="button" role="tab" aria-controls="source-panel-paste" aria-selected={mode === "paste"} tabIndex={mode === "paste" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "paste")} onClick={() => switchInputMode("paste")}>{t.pasteTab}</button>
+            <button id="source-tab-score" type="button" role="tab" aria-controls="source-panel-score" aria-selected={mode === "score"} tabIndex={mode === "score" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "score")} onClick={() => switchInputMode("score")}>{t.scoreTab}</button>
+            <button id="source-tab-audio" type="button" role="tab" aria-controls="source-panel-audio" aria-selected={mode === "audio"} tabIndex={mode === "audio" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "audio")} onClick={() => switchInputMode("audio")}>{t.audioTab}</button>
           </div>
           {mode === "search" ? (
             <form id="source-panel-search" role="tabpanel" aria-labelledby="source-tab-search" onSubmit={findSong}>
@@ -1545,16 +1606,28 @@ export default function Home() {
           ) : (
             <div id="source-panel-audio" className="audio-import" role="tabpanel" aria-labelledby="source-tab-audio">
               <label htmlFor="audio-input">{t.audioLabel}</label>
-              <label className={`audio-picker${status === "audioTranscribing" ? " disabled" : ""}`} htmlFor="audio-input">
+              <label className={`audio-picker${audioBusy ? " disabled" : ""}`} htmlFor="audio-input">
                 <span aria-hidden="true">♪</span>
-                <strong>{status === "audioTranscribing" ? `${t.audioTranscribing} ${transcriptionProgress}%` : t.audioChoose}</strong>
+                <strong>{t.audioChoose}</strong>
                 <small>{t.audioHint}</small>
               </label>
-              <input id="audio-input" type="file" accept="audio/mpeg,audio/wav,audio/ogg,audio/flac,.mp3,.wav,.ogg,.flac" onChange={convertAudio} disabled={status === "audioTranscribing"} />
-              {status === "audioTranscribing" && <progress max="100" value={transcriptionProgress}>{transcriptionProgress}%</progress>}
+              <input id="audio-input" type="file" accept="audio/mpeg,audio/wav,audio/ogg,audio/flac,.mp3,.wav,.ogg,.flac" onChange={convertAudio} disabled={audioBusy} />
+              <p className="audio-alternative">{t.audioOr}</p>
+              <form onSubmit={convertAudioUrl}>
+                <label htmlFor="audio-url">{t.audioUrlLabel}</label>
+                <div className="audio-url-row">
+                  <input id="audio-url" type="text" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={2048}
+                    placeholder="https://…" value={audioUrl} onChange={(event) => { setAudioUrl(event.target.value); setAudioError(null); }}
+                    aria-describedby="audio-url-help audio-url-privacy" disabled={audioBusy} />
+                  <button type="submit" disabled={audioBusy || !audioUrl.trim()}>{t.audioUrlImport}</button>
+                </div>
+                <p className="audio-url-help" id="audio-url-help">{t.audioUrlHint}</p>
+                <p className="audio-url-help" id="audio-url-privacy">{t.audioUrlPrivacy}</p>
+              </form>
+              {audioPhase === "audioTranscribing" && <progress aria-label={t.audioTranscribing} max="100" value={transcriptionProgress}>{transcriptionProgress}%</progress>}
             </div>
           )}
-          <p className={`status status-${status}`} role="status"><span className="status-dot" /><span className="status-message">{t[status]}{sourceError && <small>{sourceError}</small>}</span></p>
+          <p className={`status status-${mode === "audio" && audioPhase ? audioPhase : status}`} role="status"><span className="status-dot" /><span className="status-message">{mode === "audio" && audioError ? mediaErrorMessage(audioError, language) : mode === "audio" && audioPhase ? `${t[audioPhase]}${audioPhase === "audioTranscribing" ? ` ${transcriptionProgress}%` : ""}` : t[status]}{sourceError && <small>{sourceError}</small>}</span></p>
         </div>
       </section>
 

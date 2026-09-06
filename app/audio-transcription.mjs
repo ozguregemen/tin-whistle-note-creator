@@ -1,6 +1,7 @@
 import { melodyFromEvents } from './melody-engine.mjs';
 import { melodyToWhistlePractice } from './melody-whistle-adapter.mjs';
 import { basicPitchEvidenceFromPcm, mixAudioChannels } from './basic-pitch-provider.mjs';
+import { MAX_AUDIO_BYTES, MAX_AUDIO_DURATION_SECONDS } from '../shared/audio-limits.mjs';
 export { audibleMidiToWrittenWhistleToken } from './melody-whistle-adapter.mjs';
 
 // Compatibility boundary; primary engine output stays concert MIDI/seconds.
@@ -25,14 +26,14 @@ export async function transcribePcmToMelody(pcm, options = {}) {
 /** @param {(progress: number) => void} [onProgress] */
 export async function transcribeAudioToMelody(file, onProgress = () => {}, options = {}) {
   if (!(file instanceof Blob)) throw new TypeError('An audio file is required');
-  if (file.size > 30 * 1024 * 1024) throw new RangeError('Audio file must be 30 MB or smaller');
+  if (file.size > MAX_AUDIO_BYTES) throw new RangeError('Audio file must be 30 MB or smaller');
   const AudioContextConstructor = globalThis.AudioContext ?? globalThis.webkitAudioContext;
   if (!AudioContextConstructor) throw new Error('Web Audio is not supported by this browser');
   const context = new AudioContextConstructor({ sampleRate: 22050 });
   const started = performance.now();
   try {
     const decoded = await context.decodeAudioData(await file.arrayBuffer());
-    if (decoded.duration > 600) throw new RangeError('Audio must be 10 minutes or shorter');
+    if (decoded.duration > MAX_AUDIO_DURATION_SECONDS) throw new RangeError('Audio must be 10 minutes or shorter');
     let buffer = decoded;
     if (decoded.sampleRate !== 22050) {
       const OfflineContext = globalThis.OfflineAudioContext ?? globalThis.webkitOfflineAudioContext;

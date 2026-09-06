@@ -2,6 +2,7 @@ import { getSourceAdapter, searchAllSources, SOURCE_ADAPTERS } from "./source-ad
 import { getDocumentSource } from "./document-sources.mjs";
 import { resolveTempo } from "./bpm-resolver.mjs";
 import { applyCuratedTempo } from "../app/curated-tempos.mjs";
+import { handleMediaResolve } from "./media-ingestion.mjs";
 
 const DEFAULT_REPOSITORY = "ozguregemen/tin-whistle-note-creator";
 const SOURCE_PROCESSING_VERSION = 2;
@@ -159,6 +160,9 @@ export function createSourceApi(env, fetchFn = fetch) {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
 
     try {
+      if (request.method === "POST" && url.pathname === "/api/media/resolve") {
+        return await handleMediaResolve(request, env, fetchFn, cors);
+      }
       if (request.method === "GET" && url.pathname === "/health") {
         return json({
           ok: true,
