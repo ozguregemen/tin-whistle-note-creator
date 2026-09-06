@@ -13,6 +13,7 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 - İzin verilen kaynakları WordPress REST API üzerinden okuyan kaynak eşitleyici
 - Yabancı şarkıları Songsterr kataloğunda sanatçı/başlık eşleşmesiyle bulup herkese açık Guitar Pro düzenlemesini zamanlanmış D-whistle notalarına dönüştüren adaptör
 - MP3/WAV/OGG/FLAC dosyalarından melodiyi cihazda çıkarıp D-whistle parmaklarına dönüştüren yerel ses transkripsiyonu
+- İzinli sunuculardaki doğrudan HTTPS ses bağlantısını geçici olarak indirip aynı transkripsiyon motoruna aktarma (ilk sunucu: `upload.wikimedia.org`; YouTube/Spotify indirme yok). [Kurulum, güvenlik sınırları ve test](engineering/media-url-import.md)
 - MIDI ve MusicXML dosyalarını cihazda okuyup uygun melodi partisini süre, es ve score temposuyla içe aktarma
 - İlk gerçek ve kaynaklı kayıt: Duman — Bu Akşam
 - The Session’ın CORS-açık API’sinde ziyaret anında canlı ABC nota araması
