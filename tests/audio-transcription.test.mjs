@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { audibleMidiToWrittenWhistleToken, melodyFromTranscriptionEvents } from "../app/audio-transcription.mjs";
+import { buildPlaybackPlan } from "../app/practice.mjs";
 
 test("duyulan MIDI perdesini high-D whistle yazımına bir oktav aşağı çevirir", () => {
   assert.equal(audibleMidiToWrittenWhistleToken(74), "D4");
@@ -30,7 +31,8 @@ test("uzun sessizlikte cümleyi böler ve zamanlamayı vuruşa çevirir", () => 
     { pitchMidi: 78, amplitude: 0.9, startTimeSeconds: 2.3, durationSeconds: 0.5 },
   ]);
   assert.equal(result.notes, "D4 E4 | F#4");
-  assert.deepEqual(result.rhythm.gaps.map((phrase) => phrase.map((gap) => Number(gap.toFixed(3)))), [[0, 0.15], [0]]);
+  // Phrase layout must not erase the 1.3-second musical rest (1.95 beats).
+  assert.deepEqual(result.rhythm.gaps.map((phrase) => phrase.map((gap) => Number(gap.toFixed(3)))), [[0, 0.15], [1.95]]);
 });
 
 test("gürültü seviyesindeki kısa ve zayıf tahminleri atar", () => {
@@ -50,4 +52,16 @@ test("modelin aynı perde için ürettiği bitişik parçaları tek notada birle
   assert.equal(result.notes, "A3");
   assert.equal(result.noteCount, 1);
   assert.equal(Number(result.rhythm.durations[0][0].toFixed(2)), 2.97);
+});
+
+test("nötr melodi ve whistle adaptörü uzun sesleri/esleri çalma planına kayıpsız taşır", () => {
+  const result = melodyFromTranscriptionEvents([
+    { midi: 81, startSeconds: 0.2, durationSeconds: 8, salience: 0.9 },
+    { midi: 83, startSeconds: 12, durationSeconds: 0.5, salience: 0.9 },
+  ]);
+  assert.deepEqual(result.melody.notes.map((n) => n.midi), [81, 83]);
+  assert.equal(result.notes, "A4 | B4");
+  const plan = buildPlaybackPlan([[{}], [{}]], result.rhythm, result.rhythm.bpm);
+  assert.equal(plan[0].durationMs, 8000);
+  assert.ok(Math.abs(plan[1].delayMs - 3800) < 0.001);
 });
