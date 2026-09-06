@@ -145,7 +145,7 @@ const COPY = {
     audioHint: "MP3, WAV, OGG or FLAC · processed only in this browser · clearest with one prominent instrument",
     audioChoose: "Choose audio",
     audioTranscribing: "Transcribing pitch and timing locally…",
-    audioConverted: "Audio melody converted into D-whistle fingerings",
+    audioConverted: "Melody draft converted into D-whistle fingerings — compare it with the recording",
     audioUnavailable: "No reliable melody was found in this audio. Try a clearer instrumental or isolated track.",
     scoreLabel: "Choose a machine-readable score",
     scoreHint: "MIDI or MusicXML · melody track, rests, note lengths and score tempo are imported locally",
@@ -303,7 +303,7 @@ const COPY = {
     audioHint: "MP3, WAV, OGG veya FLAC · yalnızca bu tarayıcıda işlenir · belirgin tek enstrümanda daha iyi sonuç verir",
     audioChoose: "Ses seç",
     audioTranscribing: "Perde ve zamanlama tarayıcıda çıkarılıyor…",
-    audioConverted: "Ses melodisi D-whistle parmaklarına dönüştürüldü",
+    audioConverted: "Melodi taslağı D-whistle parmaklarına dönüştürüldü — kayıtla karşılaştırarak kontrol et",
     audioUnavailable: "Bu seste güvenilir bir melodi bulunamadı. Daha temiz bir enstrümantal veya izole kayıt dene.",
     scoreLabel: "Makine tarafından okunabilen bir nota dosyası seç",
     scoreHint: "MIDI veya MusicXML · melodi kanalı, esler, nota süreleri ve dosyadaki tempo yerel olarak alınır",
@@ -1384,11 +1384,16 @@ export default function Home() {
         return;
       }
       const title = file.name.replace(/\.[^.]+$/, "").replaceAll(/[_-]+/g, " ").trim() || t.customTitle;
+      const evidence = result.melody.confidence.level;
+      const transcriptionSubtitle = {
+        en: `Local audio · ${evidence === "high" ? "stronger model evidence" : evidence === "medium" ? "mixed model evidence" : "uncertain melody selection"} · listening review needed`,
+        tr: `Yerel ses · ${evidence === "high" ? "daha güçlü model sinyali" : evidence === "medium" ? "karışık model sinyali" : "melodi seçimi belirsiz"} · dinleyerek kontrol edilmeli`,
+      };
       setSong({
         id: `audio-${Date.now()}`,
         title,
         aliases: [],
-        subtitle: { en: "Locally transcribed audio melody", tr: "Tarayıcıda sesten çıkarılan melodi" },
+        subtitle: transcriptionSubtitle,
         difficulty: { en: "Machine transcription", tr: "Makine transkripsiyonu" },
         notes: result.notes,
         rhythm: result.rhythm,

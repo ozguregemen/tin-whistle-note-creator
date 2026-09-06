@@ -8,3 +8,4 @@ const destination = resolve(root, "public/models/basic-pitch");
 
 await mkdir(destination, { recursive: true });
 await cp(source, destination, { recursive: true, force: true });
+await cp(resolve(root, "node_modules/@spotify/basic-pitch/LICENSE"), resolve(destination, "LICENSE"));
