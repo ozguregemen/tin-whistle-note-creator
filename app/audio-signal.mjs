@@ -61,10 +61,14 @@ function harmonicSupport(magnitude, sampleRate, p, row) {
     const prominence = Math.max(0, Math.log1p(magnitude[k] / floor) - 1);
     if (prominence > 0) peaks.push({ hz: (k + offset) * sampleRate / p.fftSize, prominence });
   }
-  const atFrequency = hz => {
+  const insertionAt = hz => {
     // Binary search keeps work bounded even in noise with many spectral peaks.
     let a = 0, b = peaks.length;
     while (a < b) { const m = (a + b) >>> 1; if (peaks[m].hz < hz) a = m + 1; else b = m; }
+    return a;
+  };
+  const atFrequency = hz => {
+    const a = insertionAt(hz);
     let value = 0;
     for (const index of [a - 1, a]) {
       const q = peaks[index];
@@ -74,7 +78,18 @@ function harmonicSupport(magnitude, sampleRate, p, row) {
   };
   let best = 0;
   for (let i = 0; i < row.length; i++) {
-    const hz = frequency(p.minimumMidi + i), fundamental = atFrequency(hz);
+    const midi = p.minimumMidi + i;
+    // A real note may be detuned/vibrating within its semitone bin. Anchor the
+    // whole harmonic comb to the measured fundamental, not equal temperament.
+    // Half-open bins give a spectral peak only one note identity; missing
+    // fundamentals still cannot be manufactured from upper partials alone.
+    const lower = frequency(midi - 0.5), upper = frequency(midi + 0.5);
+    let anchor = null;
+    for (let k = insertionAt(lower); k < peaks.length && peaks[k].hz < upper; k++) {
+      if (!anchor || peaks[k].prominence > anchor.prominence) anchor = peaks[k];
+    }
+    if (!anchor) { row[i] = 0; continue; }
+    const hz = anchor.hz, fundamental = anchor.prominence;
     let value = fundamental;
     for (let h = 2; h <= p.harmonics && hz * h < sampleRate / 2; h++) value += atFrequency(hz * h) / h ** p.harmonicDecay;
     // No invented subharmonic if only its upper partials exist. This is deliberately

@@ -48,6 +48,36 @@ test('spectral harmonic evidence favors the fundamental, not an octave or an unr
   }
 });
 
+test('detuned fundamentals keep their harmonic support without promoting a neighboring semitone', async () => {
+  for (const midi of [57, 81, 87]) for (const cents of [-45, -35, 20, 35, 45]) {
+    const signal = await analyzeAudioSignal(mix(0.7, [{ midi: midi + cents / 100, harmonics: 4 }]));
+    const support = pitch => supportForEvent(signal, { midi: pitch, startSeconds: 0.15, durationSeconds: 0.4 });
+    assert.ok(support(midi) > 0.85, `${midi} ${cents} cents support ${support(midi)}`);
+    assert.ok(support(midi) > support(midi + 1) + 0.3);
+    assert.ok(support(midi) > support(midi - 1) + 0.3);
+    if (midi + 19 <= 96) assert.ok(support(midi) > support(midi + 19), 'third harmonic is not the fundamental');
+  }
+});
+
+test('detuning follows a real sustained bend but never invents a missing fundamental', async () => {
+  const pcm = new Float32Array(rate);
+  let phase = 0;
+  for (let i = 0; i < pcm.length; i++) {
+    const t = i / rate, hz = 440 * 2 ** ((87 - 69 + 0.4 * Math.sin(2 * Math.PI * 5 * t)) / 12);
+    phase += 2 * Math.PI * hz / rate;
+    pcm[i] = (Math.sin(phase) + Math.sin(phase * 2) / 2 + Math.sin(phase * 3) / 3) * 0.2;
+  }
+  const signal = await analyzeAudioSignal(pcm);
+  const event = { midi: 87, startSeconds: 0.1, durationSeconds: 0.8, salience: 0.85 };
+  assert.deepEqual(melodyFromEvents([event], { acousticEvidence: signal }).notes.map(n => n.midi), [87]);
+  assert.ok(supportForEvent(signal, event) > 0.75);
+  const missing = mix(0.8, [{ midi: 69.35, harmonics: 4 }]);
+  const fundamental = mix(0.8, [{ midi: 69.35 }]);
+  for (let i = 0; i < missing.length; i++) missing[i] -= fundamental[i];
+  const absent = await analyzeAudioSignal(missing);
+  assert.ok(supportForEvent(absent, { midi: 69, startSeconds: 0.1, durationSeconds: 0.6 }) < 0.1);
+});
+
 test('independent audio evidence can reject strong model bass hallucination without deleting real low melodies', async () => {
   const pitches = [67, 69, 71, 69];
   const notes = pitches.map((midi, i) => ({ midi, start: i * 0.5, duration: 0.45, harmonics: 5, amplitude: 0.15 }));

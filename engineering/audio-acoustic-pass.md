@@ -6,6 +6,10 @@ Caddelerde Rüzgar MP3 after the [initial event-engine pass](audio-melody.md).
 Audio decoding, inference, evidence analysis and listening renders stayed local.
 Neither the recording nor generated reports/renders are published or committed.
 
+Follow-up: [Fairytale detuning diagnosis and untimed motif evaluation](audio-fairytale-pass.md)
+documents the next targeted correction, including its mixed Nilüfer countercheck.
+The measurements below remain the historical baseline for this initial pass.
+
 ## Diagnosis
 
 The earlier tests exercised event selection and simple generated tones, not this

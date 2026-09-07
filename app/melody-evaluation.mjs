@@ -53,6 +53,72 @@ export function sequenceEditDistance(a, b) {
   }
   return previous[b.length];
 }
+
+/** Diagnostic for an untimed arrangement in another key. A single global
+ * transposition and contiguous excerpt are allowed, never per-note octave folds.
+ * Best motif agreement is NOT transcription accuracy or rhythmic ground truth.
+ * This evaluator is not imported by the transcription engine. */
+export function compareMelodyMotif(predicted, reference, options = {}) {
+  const all = validateNotes(predicted.notes ?? predicted);
+  if (!Array.isArray(reference) || reference.length < 4 || reference.length > 64
+    || reference.some(p => !Number.isInteger(p) || p < 0 || p > 127)) throw new TypeError('Use 4–64 concert MIDI pitches for a motif');
+  const start = options.startSeconds ?? 0, stop = options.endSeconds ?? Infinity;
+  const minimum = options.minimumTranspose ?? -24, maximum = options.maximumTranspose ?? 24;
+  if (!Number.isFinite(start) || start < 0 || !(stop > start)
+    || ![minimum, maximum].every(Number.isInteger) || minimum < -48 || maximum > 48 || maximum < minimum) throw new RangeError('Invalid motif interval/transposition bounds');
+  const notes = all.filter(n => end(n) > start && n.startSeconds < stop);
+  const m = reference.length, n = notes.length, shifts = maximum - minimum + 1;
+  if (n * m * shifts > 20_000_000) throw new RangeError('Use a shorter excerpt for motif comparison');
+  if (!n) return null;
+  let best = null;
+  for (let shift = minimum; shift <= maximum; shift++) {
+    if (reference.some(p => p + shift < 0 || p + shift > 127)) continue;
+    const trace = new Uint8Array((m + 1) * (n + 1));
+    let previous = new Uint32Array(n + 1); // free recording prefix, not free motif deletions
+    let previousMatches = new Uint8Array(n + 1); // at most 64 reference notes
+    for (let i = 1; i <= m; i++) {
+      const current = new Uint32Array(n + 1); current[0] = i;
+      const currentMatches = new Uint8Array(n + 1);
+      for (let j = 1; j <= n; j++) {
+        const match = notes[j - 1].midi === reference[i - 1] + shift ? 1 : 0;
+        const substitution = previous[j - 1] + 1 - match;
+        const deletion = previous[j] + 1, insertion = current[j - 1] + 1;
+        let cost = substitution, matches = previousMatches[j - 1] + match, direction = 0;
+        // Match counts must break ties inside the alignment too, not just when
+        // comparing transpositions; otherwise the reported agreement is arbitrary.
+        if (deletion < cost || deletion === cost && previousMatches[j] > matches) {
+          cost = deletion; matches = previousMatches[j]; direction = 1;
+        }
+        if (insertion < cost || insertion === cost && currentMatches[j - 1] > matches) {
+          cost = insertion; matches = currentMatches[j - 1]; direction = 2;
+        }
+        current[j] = cost; currentMatches[j] = matches;
+        trace[i * (n + 1) + j] = direction;
+      }
+      previous = current; previousMatches = currentMatches;
+    }
+    let last = 1;
+    for (let j = 2; j <= n; j++) {
+      if (previous[j] < previous[last] || previous[j] === previous[last] && previousMatches[j] > previousMatches[last]) last = j;
+    }
+    let i = m, j = last, matches = 0;
+    while (i > 0 && j > 0) {
+      const direction = trace[i * (n + 1) + j];
+      if (direction === 0) { if (notes[j - 1].midi === reference[i - 1] + shift) matches++; i--; j--; }
+      else if (direction === 1) i--;
+      else j--;
+    }
+    const result = { kind: 'untimed-motif-agreement', transposeSemitones: shift,
+      pitchEdits: previous[last], exactPitchMatches: matches, referenceNotes: m,
+      comparedNotes: last - j, startSeconds: notes[j].startSeconds, endSeconds: end(notes[last - 1]),
+      caveat: 'Best transposed excerpt match; not an accuracy score. Does not validate rhythm, voice identity or whole-song correctness.' };
+    if (!best || result.pitchEdits < best.pitchEdits
+      || result.pitchEdits === best.pitchEdits && result.exactPitchMatches > best.exactPitchMatches
+      || result.pitchEdits === best.pitchEdits && result.exactPitchMatches === best.exactPitchMatches
+        && Math.abs(shift) < Math.abs(best.transposeSemitones)) best = result;
+  }
+  return best;
+}
 export function evaluateMelody(predicted, expected, options = {}) {
   let prediction = validateNotes(predicted.notes ?? predicted), reference = validateNotes(expected.notes ?? expected);
   const start = options.startSeconds ?? 0;
