@@ -1,8 +1,12 @@
 # Browser-local main melody engine
 
-Engineering pass: 2026-09-06. This is a measured improvement to a heuristic
+Initial engineering pass: 2026-09-06. This is a measured improvement to a heuristic
 melody extractor, **not a claim of reliable transcription of commercial mixes**.
-No commercial recording or human listening panel was supplied for this pass.
+No commercial recording or human listening panel was supplied for that initial pass.
+The subsequent user-supplied Nilüfer recording, acoustic guidance, pulse estimation,
+and current measurements are documented in [the acoustic follow-up](audio-acoustic-pass.md).
+The pipeline and measurements below are the historical event-engine baseline;
+the follow-up describes what now runs by default in the browser.
 
 ## Audit: what the old pipeline actually did
 

@@ -25,3 +25,29 @@ export function readPcmWav(buffer) {
   }
   return { channels, sampleRate };
 }
+
+/** Evaluation-only neutral concert-pitch sine render. Not the whistle sampler. */
+export function renderMelodyWav(notes, sampleRate = 22050) {
+  let seconds = 0;
+  for (const n of notes) {
+    if (![n.midi, n.startSeconds, n.durationSeconds].every(Number.isFinite)
+      || n.midi < 0 || n.midi > 127 || n.startSeconds < 0 || n.durationSeconds <= 0) throw new Error('Invalid melody');
+    seconds = Math.max(seconds, n.startSeconds + n.durationSeconds);
+  }
+  if (seconds > 600 || sampleRate !== 22050) throw new RangeError('Render requires at most 10 minutes at 22050 Hz');
+  const samples = Math.ceil((seconds + 0.1) * sampleRate), dataBytes = samples * 2;
+  const b = Buffer.alloc(44 + dataBytes);
+  b.write('RIFF'); b.writeUInt32LE(b.length - 8, 4); b.write('WAVEfmt ', 8);
+  b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22);
+  b.writeUInt32LE(sampleRate, 24); b.writeUInt32LE(sampleRate * 2, 28);
+  b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(dataBytes, 40);
+  for (const n of notes) {
+    const start = Math.round(n.startSeconds * sampleRate), length = Math.round(n.durationSeconds * sampleRate);
+    const hz = 440 * 2 ** ((n.midi - 69) / 12);
+    for (let i = 0; i < length && start + i < samples; i++) {
+      const envelope = Math.min(1, i / (sampleRate * 0.01), (length - i) / (sampleRate * 0.025));
+      b.writeInt16LE(Math.round(6500 * envelope * Math.sin(2 * Math.PI * hz * i / sampleRate)), 44 + (start + i) * 2);
+    }
+  }
+  return b;
+}

@@ -35,7 +35,7 @@ type Song = {
   rhythm?: {
     bpm: number;
     source: "score" | "text" | "estimated" | "transcribed";
-    tempoSource?: "score" | "curated" | "database" | "default";
+    tempoSource?: "score" | "curated" | "database" | "default" | "audio-estimate";
     tempoConfidence?: number;
     tempoUrl?: string;
     durations: number[][];
@@ -197,6 +197,8 @@ const COPY = {
     originalTempo: "Original tempo · BPM database",
     scoreTempo: "Tempo from score",
     defaultTempo: "90 BPM practice default · original tempo not found",
+    audioTempo: "Pulse estimated from audio · half/double time may differ",
+    audioReferenceTempo: "Reference tempo · recorded note timing retained; beat not identified",
     bpmCredit: "BPM data",
     metronome: "Metronome",
     followNotes: "Follow active note",
@@ -363,6 +365,8 @@ const COPY = {
     originalTempo: "Orijinal tempo · BPM veritabanı",
     scoreTempo: "Nota kaynağındaki tempo",
     defaultTempo: "90 BPM pratik varsayılanı · orijinal tempo bulunamadı",
+    audioTempo: "Sesten tahmini tempo · yarım/çift hız yorumu farklı olabilir",
+    audioReferenceTempo: "Referans tempo · nota zamanları korundu; vuruş belirlenemedi",
     bpmCredit: "BPM verisi",
     metronome: "Metronom",
     followNotes: "Aktif notayı takip et",
@@ -773,7 +777,7 @@ export default function Home() {
   useEffect(() => {
     const api = sourceApiUrl();
     const tempoSource = song?.rhythm?.tempoSource;
-    const alreadyResolved = tempoSource === "score" || tempoSource === "curated" || tempoSource === "database";
+    const alreadyResolved = tempoSource === "score" || tempoSource === "curated" || tempoSource === "database" || tempoSource === "audio-estimate";
     if (!song || song.sourceStatus === "manual" || alreadyResolved) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTempoStatus(alreadyResolved ? "resolved" : "idle");
@@ -1692,7 +1696,9 @@ export default function Home() {
                     : t.originalTempo
                   : song.rhythm?.tempoSource === "score" || song.rhythm?.tempoSource === "curated"
                     ? t.scoreTempo
-                    : t.defaultTempo}
+                    : song.rhythm?.tempoSource === "audio-estimate"
+                      ? t.audioTempo
+                      : song.rhythm?.source === "transcribed" ? t.audioReferenceTempo : t.defaultTempo}
               </span>
             </div>
           </div>

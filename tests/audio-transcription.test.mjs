@@ -2,6 +2,22 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { audibleMidiToWrittenWhistleToken, melodyFromTranscriptionEvents } from "../app/audio-transcription.mjs";
 import { buildPlaybackPlan } from "../app/practice.mjs";
+import { melodyToWhistlePractice } from '../app/melody-whistle-adapter.mjs';
+
+test('audio pulse tempo changes the beat coordinate without speeding up or quantizing recorded notes', () => {
+  const melody = { notes: [{ midi: 81, startSeconds: 0.2, durationSeconds: 0.73 },
+    { midi: 83, startSeconds: 1.1, durationSeconds: 0.37 }], phrases: [{ noteIndices: [0, 1] }],
+    estimatedTempo: { bpm: 115, kind: 'pulse-estimate' } };
+  const result = melodyToWhistlePractice(melody);
+  assert.equal(result.rhythm.bpm, 115); assert.equal(result.rhythm.tempoSource, 'audio-estimate');
+  const plan = buildPlaybackPlan([[{}, {}]], result.rhythm, result.rhythm.bpm);
+  assert.ok(Math.abs(plan[0].durationMs - 730) < 1e-6);
+  assert.ok(Math.abs(plan[1].delayMs - 170) < 1e-6);
+  assert.ok(Math.abs(plan[1].durationMs - 370) < 1e-6);
+  melody.estimatedTempo = null;
+  assert.equal(melodyToWhistlePractice(melody).rhythm.bpm, 90);
+  assert.equal(melodyToWhistlePractice(melody).rhythm.tempoSource, 'default');
+});
 
 test("duyulan MIDI perdesini high-D whistle yazımına bir oktav aşağı çevirir", () => {
   assert.equal(audibleMidiToWrittenWhistleToken(74), "D4");

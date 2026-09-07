@@ -1,3 +1,4 @@
+import { supportForEvent } from './audio-signal.mjs';
 /** Instrument-independent concert-pitch melody engine. Scores are heuristics,
  * not probabilities of correctness. No whistle range/notation is used here. */
 export const MELODY_PARAMETERS = Object.freeze({
@@ -19,6 +20,7 @@ export const MELODY_PARAMETERS = Object.freeze({
   strongOnset: 0.72,
   phraseGapSeconds: 1.1,
   maximumPhraseNotes: 12,
+  acousticWeight: 0.45, // independent harmonic evidence; never a correctness probability
 });
 
 const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
@@ -53,7 +55,10 @@ function annotateEvidence(events, p) {
     while (right < events.length && events[right].startSeconds <= e.startSeconds + p.onsetWindowSeconds) right++;
     const simultaneous = right - left;
     const chordness = Math.min(1, Math.max(0, simultaneous - 2) / 3);
-    const support = e.contourSupport == null ? e.salience : e.salience * 0.8 + e.contourSupport * 0.2;
+    const modelSupport = e.contourSupport == null ? e.salience : e.salience * 0.8 + e.contourSupport * 0.2;
+    const acoustic = supportForEvent(p.acousticEvidence, e);
+    const support = acoustic == null ? modelSupport : modelSupport * (1 - p.acousticWeight) + acoustic * p.acousticWeight;
+    e.acousticSupport = acoustic;
     // Reliable isolated lead evidence can survive simultaneous chord attacks.
     const weakSupport = Math.max(0, (0.86 - support) / 0.5);
     const bassness = Math.min(1, Math.max(0, (55 - e.midi) / 19));
@@ -160,7 +165,7 @@ export function extractPredominantMelody(rawEvents, options = {}) {
     } else notes.push({ midi: e.midi, startSeconds: start, durationSeconds: roundTime(duration),
       salience: e.salience, onsetConfidence: Math.abs(start - e.startSeconds) < 0.02 ? e.onsetConfidence : null,
       contourSupport: e.contourSupport, eventId: e.id,
-      confidence: { kind: 'uncalibrated-evidence', modelSupport: e.salience, selectionMargin: margin },
+      confidence: { kind: 'uncalibrated-evidence', modelSupport: e.salience, acousticSupport: e.acousticSupport, selectionMargin: margin },
     });
   }
   return { notes, diagnostics: { inputEvents: rawEvents?.length || 0, usableEvents: events.length,
