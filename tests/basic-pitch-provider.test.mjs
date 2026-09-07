@@ -72,6 +72,18 @@ test('provider rejects wrong rate and releases its busy guard after failure', as
   const result = await basicPitchEvidenceFromPcm(new Float32Array(2205), { runtime: { tf, model: zeroModel, decoder } });
   assert.deepEqual(result.events, []);
 });
+
+test('replacement evidence providers can bypass acoustic guidance, and cancellation stops before inference', async () => {
+  let calls = 0;
+  const provider = async () => { calls++; return { events: [], provider: 'isolated-vocal-provider',
+    estimatedTempo: { kind: 'pulse-estimate', bpm: 115 }, diagnostics: {} }; };
+  const result = await transcribePcmToMelody(new Float32Array(22050), { provider });
+  assert.equal(result.estimatedTempo.bpm, 115);
+  assert.equal(result.diagnostics.acousticGuidance, false);
+  const controller = new AbortController(); controller.abort();
+  await assert.rejects(transcribePcmToMelody(new Float32Array(22050), { provider, signalAnalysis: true, signal: controller.signal }), { name: 'AbortError' });
+  assert.equal(calls, 1);
+});
 test('browser decoder mixes stereo before neutral provider and always closes context', async () => {
   const original = globalThis.AudioContext;
   let closed = 0, failDecode = false;

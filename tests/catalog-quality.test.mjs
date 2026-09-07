@@ -4,6 +4,11 @@ import test from "node:test";
 
 import { assessSongQuality, auditCatalogQuality, rankCatalogMatches, rankCatalogSongs } from "../app/catalog-quality.mjs";
 
+test('an audio transcription is an unreviewed draft, never verified/personal melody or known original tempo', () => {
+  assert.deepEqual(assessSongQuality({ sourceStatus: 'manual', rhythm: { source: 'transcribed', tempoSource: 'audio-estimate' } }),
+    { melody: 'audio-draft', rhythm: 'transcribed', tempo: 'estimated', readiness: 'review-required', tone: 'warning' });
+});
+
 test("kaynak kalitesini melodi, ritim ve tempo için ayrı değerlendirir", () => {
   assert.deepEqual(assessSongQuality({
     sourceStatus: "cross-checked",

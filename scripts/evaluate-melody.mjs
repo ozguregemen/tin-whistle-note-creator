@@ -6,7 +6,7 @@ import { melodyFromEvents, simplifyMelody } from '../app/melody-engine.mjs';
 import { transcribePcmToMelody } from '../app/audio-transcription.mjs';
 import { loadBasicPitchRuntime, disposeBasicPitchRuntime, mixAudioChannels } from '../app/basic-pitch-provider.mjs';
 import { evaluateMelody, sequenceEditDistance } from '../app/melody-evaluation.mjs';
-import { readPcmWav } from './melody-wav.mjs';
+import { readPcmWav, renderMelodyWav } from './melody-wav.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -55,9 +55,25 @@ async function audioEvaluation(smoke = false) {
     const wav = readPcmWav(await readFile(resolve(value('--audio'))));
     if (wav.sampleRate !== 22050) throw new Error('For repeatable offline inference provide 22050 Hz WAV; see engineering/audio-melody.md');
     pcm = mixAudioChannels(wav.channels);
-    reference = await json(value('--reference'));
+    reference = value('--reference') ? await json(value('--reference')) : null;
   }
   if (pcm.length > 22050 * 600) throw new RangeError('Maximum audio duration is 10 minutes');
+  if (value('--reuse-evidence')) {
+    const before = await json(value('--reuse-evidence'));
+    const evidence = before.melody?.evidence ?? before.events;
+    if (!Array.isArray(evidence)) throw new Error('Baseline must contain captured evidence');
+    if (Math.abs((before.diagnostics?.audioSeconds ?? pcm.length / 22050) - pcm.length / 22050) > 0.05) {
+      throw new Error('Baseline and audio duration differ; supply the exact same excerpt');
+    }
+    const melody = await transcribePcmToMelody(pcm, { captureEvidence: true,
+      signalAnalysis: !args.includes('--no-signal'), provider: async () => ({ events: evidence,
+        provider: before.melody?.provider || 'reused-evidence', diagnostics: { audioSeconds: pcm.length / 22050 } }) });
+    return { type: 'reused-evidence-comparison', melody, diagnostics: melody.diagnostics,
+      before: before.melody,
+      evaluation: reference ? evaluateMelody(melody, reference, reference.interval || {}) : null,
+      beforeEvaluation: reference && before.melody ? evaluateMelody(before.melody, reference, reference.interval || {}) : null,
+      caveat: 'Same recording/timing required. Without annotations, different notes do not prove higher accuracy.' };
+  }
   // Reuse installed TFJS CPU backend, not a new native dependency/model download.
   const tf = await import('@tensorflow/tfjs');
   const modelPath = resolve(root, 'node_modules/@spotify/basic-pitch/model');
@@ -70,15 +86,16 @@ async function audioEvaluation(smoke = false) {
   const modelLoadMs = performance.now() - start;
   try {
     let reported = -1;
-    const melody = await transcribePcmToMelody(pcm, { runtime, captureEvidence: true, onProgress: (p) => {
+    const melody = await transcribePcmToMelody(pcm, { runtime, captureEvidence: true, signalAnalysis: !args.includes('--no-signal'), onProgress: (p) => {
       const tenth = Math.floor(p * 10);
       if (tenth !== reported) { reported = tenth; process.stderr.write(`Inference ${Math.round(p * 100)}%\n`); }
     } });
-    const evaluation = evaluateMelody(melody, reference, reference.interval || {});
+    // Unannotated recordings are useful for diagnostics, never accuracy scores.
+    const evaluation = reference ? evaluateMelody(melody, reference, reference.interval || {}) : null;
     const diagnostics = { ...melody.diagnostics, modelLoadMs, modelWeightBytes: weights.byteLength, totalMs: performance.now() - start };
     const repeat = smoke ? await transcribePcmToMelody(new Float32Array(22050), { runtime }) : null;
     await disposeBasicPitchRuntime();
-    return { type: smoke ? 'generated-tones-and-silence-smoke-not-commercial-audio' : 'annotated-audio', evaluation, melody, diagnostics,
+    return { type: smoke ? 'generated-tones-and-silence-smoke-not-commercial-audio' : reference ? 'annotated-audio' : 'unannotated-audio-no-accuracy-claim', evaluation, melody, diagnostics,
       repeatedSilence: repeat && { notes: repeat.notes.length, diagnostics: repeat.diagnostics },
       memory: { before: baseline, afterDisposal: tf.memory() } };
   } finally { await disposeBasicPitchRuntime(); }
@@ -87,18 +104,25 @@ async function audioEvaluation(smoke = false) {
 let report;
 if (args.includes('--synthetic')) report = await syntheticBenchmark();
 else if (args.includes('--smoke')) report = await audioEvaluation(true);
-else if (value('--audio') && value('--reference')) report = await audioEvaluation();
+else if (value('--audio')) report = await audioEvaluation();
 else if ((value('--events') || value('--prediction')) && value('--reference')) {
   const input = await json(value('--events') || value('--prediction'));
   const reference = await json(value('--reference'));
   const melody = value('--events') ? melodyFromEvents(input.events ?? input) : input;
   report = { melody, evaluation: evaluateMelody(melody, reference, reference.interval || {}) };
-} else throw new Error('Use --synthetic | --smoke | --audio clip.wav --reference truth.json | --events evidence.json --reference truth.json | --prediction melody.json --reference truth.json [--out report.json]');
+} else throw new Error('Use --synthetic | --smoke | --audio clip.wav [--reference truth.json] [--reuse-evidence baseline.json] [--no-signal] | --events evidence.json --reference truth.json | --prediction melody.json --reference truth.json [--out report.json] [--render listening.wav]');
+if (value('--render')) {
+  if (!report.melody?.notes) throw new Error('--render requires a melody result');
+  const path = resolve(value('--render'));
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, renderMelodyWav(report.melody.notes));
+  if (report.before?.notes) await writeFile(path.replace(/\.wav$/i, '') + '-before.wav', renderMelodyWav(report.before.notes));
+}
 if (value('--out')) {
   const path = resolve(value('--out'));
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, JSON.stringify(report, null, 2) + '\n');
   process.stdout.write(`Saved ${path}\n`);
   // Keep large raw evidence off the terminal.
-  process.stdout.write(JSON.stringify(report.evaluation || report.stress, null, 2) + '\n');
+  process.stdout.write(JSON.stringify(report.evaluation || report.stress || report.diagnostics, null, 2) + '\n');
 } else process.stdout.write(JSON.stringify(report, null, 2) + '\n');

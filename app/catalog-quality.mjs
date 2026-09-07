@@ -14,6 +14,7 @@ function notePhrases(notes) {
 }
 
 function melodyQuality(song) {
+  if (song?.rhythm?.source === "transcribed") return "audio-draft";
   if (song?.sourceStatus === "manual") return "manual";
   if (song?.sourceStatus === "cross-checked") return "cross-checked";
   if (song?.sourceConfidence === "omr-unreviewed") return "omr-unreviewed";
@@ -24,17 +25,18 @@ function melodyQuality(song) {
 export function assessSongQuality(song) {
   const melody = melodyQuality(song);
   const rhythm = RHYTHM_SOURCES.has(song?.rhythm?.source) ? song.rhythm.source : "equal-beats";
-  const tempo = KNOWN_TEMPO_SOURCES.has(song?.rhythm?.tempoSource) ? "known" : "default";
+  const tempo = song?.rhythm?.tempoSource === "audio-estimate" ? "estimated"
+    : KNOWN_TEMPO_SOURCES.has(song?.rhythm?.tempoSource) ? "known" : "default";
   const readiness = melody === "manual"
     ? "personal"
-    : melody === "omr-unreviewed"
+    : melody === "omr-unreviewed" || melody === "audio-draft"
       ? "review-required"
       : melody === "cross-checked" && rhythm !== "equal-beats"
         ? "ready"
         : rhythm !== "equal-beats"
           ? "rhythmic-draft"
           : "melody-draft";
-  const tone = melody === "cross-checked" ? "verified" : melody === "omr-unreviewed" ? "warning" : "info";
+  const tone = melody === "cross-checked" ? "verified" : melody === "omr-unreviewed" || melody === "audio-draft" ? "warning" : "info";
   return { melody, rhythm, tempo, readiness, tone };
 }
 

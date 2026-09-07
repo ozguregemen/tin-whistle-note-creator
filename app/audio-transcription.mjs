@@ -2,6 +2,7 @@ import { melodyFromEvents } from './melody-engine.mjs';
 import { melodyToWhistlePractice } from './melody-whistle-adapter.mjs';
 import { basicPitchEvidenceFromPcm, mixAudioChannels } from './basic-pitch-provider.mjs';
 import { MAX_AUDIO_BYTES, MAX_AUDIO_DURATION_SECONDS } from '../shared/audio-limits.mjs';
+import { analyzeAudioSignal } from './audio-signal.mjs';
 export { audibleMidiToWrittenWhistleToken } from './melody-whistle-adapter.mjs';
 
 // Compatibility boundary; primary engine output stays concert MIDI/seconds.
@@ -16,10 +17,18 @@ export function melodyFromTranscriptionEvents(events, options = {}) {
 
 /** Replaceable audio-evidence boundary for a future source-separated backend. */
 export async function transcribePcmToMelody(pcm, options = {}) {
-  const evidence = await (options.provider || basicPitchEvidenceFromPcm)(pcm, options);
-  const melody = melodyFromEvents(evidence.events, options);
+  // A replacement provider can supply its own stronger evidence. Never force
+  // browser DSP on an isolated/backend result unless explicitly requested.
+  const analyze = options.signalAnalysis !== false && (!options.provider || options.signalAnalysis === true);
+  const signal = analyze ? await analyzeAudioSignal(pcm, { ...options,
+    onProgress: p => options.onProgress?.(p * 0.1) }) : null;
+  const evidence = await (options.provider || basicPitchEvidenceFromPcm)(pcm, { ...options,
+    onProgress: p => options.onProgress?.((analyze ? 0.1 : 0) + p * (analyze ? 0.9 : 1)) });
+  const melody = melodyFromEvents(evidence.events, { ...options, acousticEvidence: signal });
+  melody.estimatedTempo = evidence.estimatedTempo ?? signal?.tempo ?? null;
   melody.provider = evidence.provider;
-  melody.diagnostics = { ...evidence.diagnostics, ...melody.diagnostics };
+  melody.diagnostics = { ...evidence.diagnostics, ...signal?.diagnostics, ...melody.diagnostics,
+    acousticGuidance: !!signal };
   return options.captureEvidence ? { ...melody, evidence: evidence.events } : melody;
 }
 

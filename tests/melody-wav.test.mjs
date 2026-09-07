@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readPcmWav } from '../scripts/melody-wav.mjs';
+import { readPcmWav, renderMelodyWav } from '../scripts/melody-wav.mjs';
 function wav(bits = 16, code = 1) {
   const b = Buffer.alloc(44 + 2 * bits / 8);
   b.write('RIFF'); b.writeUInt32LE(b.length - 8, 4); b.write('WAVEfmt ', 8);
@@ -9,6 +9,16 @@ function wav(bits = 16, code = 1) {
   b.write('data', 36); b.writeUInt32LE(b.length - 44, 40);
   return b;
 }
+
+test('evaluation render preserves concert pitch, leading silence and duration without whistle transposition', () => {
+  const result = readPcmWav(renderMelodyWav([{ midi: 69, startSeconds: 0.2, durationSeconds: 0.5 }]));
+  const pcm = result.channels[0];
+  assert.equal(pcm.slice(0, 4410).every(x => x === 0), true);
+  let crossings = 0;
+  for (let i = 6616; i < 11025; i++) if (pcm[i - 1] <= 0 && pcm[i] > 0) crossings++;
+  assert.ok(Math.abs(crossings / 0.2 - 440) <= 5);
+  assert.throws(() => renderMelodyWav([{ midi: NaN, startSeconds: 0, durationSeconds: 1 }]), /Invalid/);
+});
 test('offline WAV reader decodes signed interleaved stereo PCM16', () => {
   const b = wav(); b.writeInt16LE(16384, 44); b.writeInt16LE(-16384, 46);
   const result = readPcmWav(b);
