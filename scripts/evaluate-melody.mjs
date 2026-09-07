@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { melodyFromEvents, simplifyMelody } from '../app/melody-engine.mjs';
 import { transcribePcmToMelody } from '../app/audio-transcription.mjs';
 import { loadBasicPitchRuntime, disposeBasicPitchRuntime, mixAudioChannels } from '../app/basic-pitch-provider.mjs';
-import { evaluateMelody, sequenceEditDistance } from '../app/melody-evaluation.mjs';
+import { evaluateMelody, sequenceEditDistance, compareMelodyMotif } from '../app/melody-evaluation.mjs';
 import { readPcmWav, renderMelodyWav } from './melody-wav.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -110,7 +110,13 @@ else if ((value('--events') || value('--prediction')) && value('--reference')) {
   const reference = await json(value('--reference'));
   const melody = value('--events') ? melodyFromEvents(input.events ?? input) : input;
   report = { melody, evaluation: evaluateMelody(melody, reference, reference.interval || {}) };
-} else throw new Error('Use --synthetic | --smoke | --audio clip.wav [--reference truth.json] [--reuse-evidence baseline.json] [--no-signal] | --events evidence.json --reference truth.json | --prediction melody.json --reference truth.json [--out report.json] [--render listening.wav]');
+} else throw new Error('Use --synthetic | --smoke | --audio clip.wav [--reference truth.json] [--reuse-evidence baseline.json] [--no-signal] | --events evidence.json --reference truth.json | --prediction melody.json --reference truth.json [--out report.json] [--render listening.wav] [--motif untimed-pitches.json]');
+if (value('--motif')) {
+  const motif = await json(value('--motif'));
+  if (!report.melody) throw new Error('--motif requires a melody result');
+  report.motifComparison = compareMelodyMotif(report.melody, motif.pitches, motif.interval || {});
+  if (report.before) report.beforeMotifComparison = compareMelodyMotif(report.before, motif.pitches, motif.interval || {});
+}
 if (value('--render')) {
   if (!report.melody?.notes) throw new Error('--render requires a melody result');
   const path = resolve(value('--render'));
