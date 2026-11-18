@@ -3,6 +3,7 @@ import { melodyToWhistlePractice } from './melody-whistle-adapter.mjs';
 import { basicPitchEvidenceFromPcm, mixAudioChannels } from './basic-pitch-provider.mjs';
 import { MAX_AUDIO_BYTES, MAX_AUDIO_DURATION_SECONDS } from '../shared/audio-limits.mjs';
 import { analyzeAudioSignal } from './audio-signal.mjs';
+import { MUSCRIPTOR_LARGE, transcribeWithMuscriptor } from './muscriptor.mjs';
 export { audibleMidiToWrittenWhistleToken } from './melody-whistle-adapter.mjs';
 
 // Compatibility boundary; primary engine output stays concert MIDI/seconds.
@@ -40,29 +41,41 @@ export async function transcribeAudioToMelody(file, onProgress = () => {}, optio
   if (!AudioContextConstructor) throw new Error('Web Audio is not supported by this browser');
   const context = new AudioContextConstructor({ sampleRate: 22050 });
   const started = performance.now();
+  const useMuscriptor = options.model === MUSCRIPTOR_LARGE;
+  let decodeMs;
   try {
     const decoded = await context.decodeAudioData(await file.arrayBuffer());
     if (decoded.duration > MAX_AUDIO_DURATION_SECONDS) throw new RangeError('Audio must be 10 minutes or shorter');
-    let buffer = decoded;
-    if (decoded.sampleRate !== 22050) {
-      const OfflineContext = globalThis.OfflineAudioContext ?? globalThis.webkitOfflineAudioContext;
-      if (!OfflineContext) throw new Error('Audio resampling is not supported by this browser');
-      const offline = new OfflineContext(decoded.numberOfChannels, Math.ceil(decoded.duration * 22050), 22050);
-      const source = offline.createBufferSource();
-      source.buffer = decoded;
-      source.connect(offline.destination);
-      source.start();
-      buffer = await offline.startRendering();
+    options.signal?.throwIfAborted();
+    if (!useMuscriptor) {
+      let buffer = decoded;
+      if (decoded.sampleRate !== 22050) {
+        const OfflineContext = globalThis.OfflineAudioContext ?? globalThis.webkitOfflineAudioContext;
+        if (!OfflineContext) throw new Error('Audio resampling is not supported by this browser');
+        const offline = new OfflineContext(decoded.numberOfChannels, Math.ceil(decoded.duration * 22050), 22050);
+        const source = offline.createBufferSource();
+        source.buffer = decoded;
+        source.connect(offline.destination);
+        source.start();
+        buffer = await offline.startRendering();
+      }
+      const pcm = mixAudioChannels(Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i)));
+      decodeMs = performance.now() - started;
+      const result = await transcribePcmToMelody(pcm, { ...options, sampleRate: 22050,
+        modelUrl: options.modelUrl ?? new URL('models/basic-pitch/model.json', document.baseURI).href, onProgress });
+      result.diagnostics.decodeMs = decodeMs;
+      result.diagnostics.totalMs = performance.now() - started;
+      onProgress(1);
+      return result;
     }
-    const pcm = mixAudioChannels(Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i)));
-    const decodeMs = performance.now() - started;
-    const result = await transcribePcmToMelody(pcm, { ...options, sampleRate: 22050,
-      modelUrl: options.modelUrl ?? new URL('models/basic-pitch/model.json', document.baseURI).href, onProgress });
-    result.diagnostics.decodeMs = decodeMs;
-    result.diagnostics.totalMs = performance.now() - started;
-    onProgress(1);
-    return result;
+    decodeMs = performance.now() - started;
   } finally { await context.close(); }
+
+  const events = await transcribeWithMuscriptor(file, onProgress, { signal: options.signal });
+  const melody = melodyFromEvents(events, { minimumSeconds: 0.005, ...options });
+  melody.provider = MUSCRIPTOR_LARGE;
+  melody.diagnostics = { ...melody.diagnostics, decodeMs, totalMs: performance.now() - started };
+  return options.captureEvidence ? { ...melody, evidence: events } : melody;
 }
 
 /** @param {(progress: number) => void} [onProgress] */

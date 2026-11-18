@@ -1,6 +1,7 @@
 import { MAX_AUDIO_BYTES, MEDIA_FETCH_TIMEOUT_MS, MediaError, audioMime,
   cancelMediaBody, mediaDeadline, readLimitedBody, resolveMediaUrl, validateAudioPrefix, AUDIO_SNIFF_BYTES } from '../shared/audio-media.mjs';
 import { transcribeAudioFile } from './audio-transcription.mjs';
+import { downloadYoutubeAudio, youtubeVideoId } from './youtube-audio.mjs';
 
 /**
  * HTTP acquisition only: the result is an instrument-independent Blob.
@@ -51,22 +52,33 @@ export async function importAudioUrl(value, { apiUrl = '', signal, fetchFn = fet
 }
 
 /**
- * Both input methods converge HERE; the existing decoder/engine/adapter stays intact.
+ * File, direct-link, and YouTube inputs converge on the same transcription pipeline.
  * @param {Blob | string} source
  * @param {{apiUrl?: string, signal?: AbortSignal,
- * onStage?: (stage: 'audioFetching' | 'audioPreparing' | 'audioTranscribing') => void,
+ * model?: 'basic-pitch' | 'muscriptor-large', youtubeEnabled?: boolean,
+ * onStage?: (stage: 'audioFetching' | 'audioConverting' | 'audioPreparing' | 'audioTranscribing') => void,
+ * onYoutubeFile?: (file: File) => void, resolveYoutube?: typeof downloadYoutubeAudio,
  * onProgress?: (progress: number) => void, resolve?: typeof importAudioUrl,
  * transcribe?: typeof transcribeAudioFile}} [options]
  */
 export async function transcribeAudioInput(source, {
   apiUrl = '', signal, onStage = () => {}, onProgress = () => {},
   resolve = importAudioUrl, transcribe = transcribeAudioFile,
+  model, youtubeEnabled = false, onYoutubeFile = () => {}, resolveYoutube = downloadYoutubeAudio,
 } = {}) {
   signal?.throwIfAborted();
   let blob = source;
   let name = source?.name || 'Audio';
   const origin = typeof source === 'string' ? 'url' : 'file';
-  if (origin === 'url') {
+  const videoId = typeof source === 'string' && youtubeEnabled ? youtubeVideoId(source) : null;
+  if (videoId) {
+    onStage('audioConverting');
+    const file = await resolveYoutube(videoId, { signal });
+    signal?.throwIfAborted();
+    onYoutubeFile(file);
+    blob = file;
+    name = file.name;
+  } else if (typeof source === 'string') {
     onStage('audioFetching');
     ({ blob, name } = await resolve(source, { apiUrl, signal }));
   }
@@ -78,7 +90,7 @@ export async function transcribeAudioInput(source, {
     if (signal?.aborted) return;
     onStage('audioTranscribing');
     onProgress(progress);
-  }, { signal });
+  }, { signal, ...(model ? { model } : {}) });
   signal?.throwIfAborted();
   return { result, name, origin };
 }
@@ -98,6 +110,7 @@ export const ERROR_COPY = {
     unsupported_provider: 'This kind of link is not supported. Use a direct audio link or upload a file.',
     provider_restricted: 'This provider does not offer direct audio import here. Upload an audio file instead.',
     youtube: 'Direct YouTube audio import is not available. Upload an audio file instead.',
+    youtube_failed: 'This YouTube video could not be converted to MP3. Try another video or upload an audio file.',
     spotify: 'Spotify links do not provide a downloadable full-track audio file. Upload an audio file instead.',
     host_not_allowed: 'This audio host is not enabled for link import. Upload the file instead; trusted hosts can be enabled by the app operator.',
     not_audio: 'The link did not return a recognized audio file. Web pages and playlists cannot be imported.',
@@ -118,6 +131,7 @@ export const ERROR_COPY = {
     unsupported_provider: 'Bu bağlantı türü desteklenmiyor. Doğrudan ses bağlantısı kullan veya dosya yükle.',
     provider_restricted: 'Bu sağlayıcıdan doğrudan ses aktarma desteklenmiyor. Bunun yerine bir ses dosyası yükle.',
     youtube: 'YouTube’dan doğrudan ses aktarma desteklenmiyor. Bunun yerine bir ses dosyası yükleyebilirsin.',
+    youtube_failed: 'Bu YouTube videosu MP3’e dönüştürülemedi. Başka bir video dene veya ses dosyası yükle.',
     spotify: 'Spotify bağlantıları indirilebilir tam şarkı dosyası sağlamaz. Bunun yerine bir ses dosyası yükleyebilirsin.',
     host_not_allowed: 'Bu ses sunucusu bağlantıyla aktarma için etkin değil. Dosyayı yükleyebilirsin; güvenilir sunucuları uygulama yöneticisi ekleyebilir.',
     not_audio: 'Bağlantı tanınan bir ses dosyası döndürmedi. Web sayfaları ve çalma listeleri aktarılamaz.',

@@ -136,6 +136,6 @@ test('page routes both controls to the shared pipeline and tab switches cancel p
   assert.match(page, /audioImportRef\.current\?\.abort\(\)/);
   assert.match(page, /if \(!current\(\)\) return/);
   assert.match(page, /onSubmit=\{convertAudioUrl\}/);
-  assert.match(page, /disabled=\{audioBusy \|\| !audioUrl\.trim\(\)\}/);
+  assert.match(page, /disabled=\{audioDisabled \|\| !audioUrl\.trim\(\)\}/);
   assert.equal((page.match(/setMode\(/g) || []).length, 1);
 });

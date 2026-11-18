@@ -3,6 +3,8 @@
 import { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { parseAbcScore } from "./abc.mjs";
 import { audioInputError, mediaErrorMessage, transcribeAudioInput } from "./media-import.mjs";
+import { detectAudioCapabilities, MUSCRIPTOR_LARGE } from "./muscriptor.mjs";
+import { youtubeVideoId } from "./youtube-audio.mjs";
 import { MediaError } from "../shared/audio-media.mjs";
 import { assessSongQuality, rankCatalogMatches, rankCatalogSongs } from "./catalog-quality.mjs";
 import { applyCuratedTempo } from "./curated-tempos.mjs";
@@ -16,7 +18,7 @@ import { base64AudioBuffer, midiForWhistleNote, playbackRateForMidi, sampleZoneF
 
 type Language = "en" | "tr";
 type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "discoveryFound" | "queueing" | "processing" | "sourceRetrying" | "needsReview" | "liveFound" | "sourceUnavailable" | "audioFetching" | "audioPreparing" | "audioImportFailed" | "audioTranscribing" | "audioConverted" | "audioUnavailable" | "scoreImported" | "scoreUnavailable";
-type AudioPhase = "audioFetching" | "audioPreparing" | "audioTranscribing";
+type AudioPhase = "audioFetching" | "audioConverting" | "audioPreparing" | "audioTranscribing";
 
 type SongSource = {
   name: string;
@@ -149,6 +151,16 @@ const COPY = {
     audioOr: "or use a link",
     audioUrlLabel: "Direct audio link",
     audioUrlImport: "Import audio",
+    audioServerHint: "MP3, WAV, OGG or FLAC · transcribed by MuScriptor Large on the server",
+    audioChecking: "Checking audio services…",
+    audioYoutubeLabel: "Direct audio or YouTube link",
+    audioYoutubeConvert: "Convert to MP3",
+    audioYoutubeDownload: "Download MP3",
+    audioYoutubeHint: "Use a YouTube video you have permission to download, or a direct audio link from an approved host.",
+    audioYoutubeLocalPrivacy: "The server retrieves linked audio. Transcription runs in your browser.",
+    audioServerPrivacy: "Audio is sent to MuScriptor Large for transcription.",
+    audioConverting: "Converting YouTube audio to MP3…",
+    audioServerTranscribing: "Transcribing with MuScriptor Large…",
     audioUrlHint: "MP3, WAV, OGG or FLAC · approved hosts only (currently upload.wikimedia.org). YouTube and Spotify links cannot be imported.",
     audioUrlPrivacy: "Link import fetches audio through our server without saving it; transcription still runs in your browser. File uploads stay in your browser.",
     audioFetching: "Fetching audio…",
@@ -317,6 +329,16 @@ const COPY = {
     audioOr: "veya bağlantı kullan",
     audioUrlLabel: "Doğrudan ses bağlantısı",
     audioUrlImport: "Sesi aktar",
+    audioServerHint: "MP3, WAV, OGG veya FLAC · MuScriptor Large ile sunucuda işlenir",
+    audioChecking: "Ses hizmetleri kontrol ediliyor…",
+    audioYoutubeLabel: "Doğrudan ses veya YouTube bağlantısı",
+    audioYoutubeConvert: "MP3’e dönüştür",
+    audioYoutubeDownload: "MP3’ü indir",
+    audioYoutubeHint: "İndirme iznin olan bir YouTube videosu veya izinli bir sunucudaki doğrudan ses bağlantısını kullan.",
+    audioYoutubeLocalPrivacy: "Bağlantıdaki ses sunucudan alınır. Notaya çevirme tarayıcında yapılır.",
+    audioServerPrivacy: "Ses, notaya çevrilmesi için MuScriptor Large’a gönderilir.",
+    audioConverting: "YouTube sesi MP3’e dönüştürülüyor…",
+    audioServerTranscribing: "MuScriptor Large ile notaya çevriliyor…",
     audioUrlHint: "MP3, WAV, OGG veya FLAC · yalnızca izinli sunucular (şimdilik upload.wikimedia.org). YouTube ve Spotify bağlantıları aktarılamaz.",
     audioUrlPrivacy: "Bağlantıdaki ses sunucumuz üzerinden kaydedilmeden indirilir; notaya çevirme tarayıcında yapılır. Dosya yüklemeleri tarayıcında kalır.",
     audioFetching: "Ses indiriliyor…",
@@ -603,7 +625,12 @@ export default function Home() {
   const [audioBusy, setAudioBusy] = useState(false);
   const [audioPhase, setAudioPhase] = useState<AudioPhase | null>(null);
   const [audioError, setAudioError] = useState<MediaError | null>(null);
+  const [audioCapabilities, setAudioCapabilities] = useState<Awaited<ReturnType<typeof detectAudioCapabilities>> | null>(null);
+  const [audioDownload, setAudioDownload] = useState<{ url: string; name: string } | null>(null);
   const audioImportRef = useRef<AbortController | null>(null);
+  const audioUsesServer = audioCapabilities?.provider === MUSCRIPTOR_LARGE;
+  const audioYoutubeEnabled = audioCapabilities?.youtubeMp3 === true;
+  const audioDisabled = audioBusy || !audioCapabilities;
   const [isPlaying, setIsPlaying] = useState(false);
   const [soundStatus, setSoundStatus] = useState<SoundStatus>("idle");
   const [activeNoteIndex, setActiveNoteIndex] = useState(-1);
@@ -628,6 +655,8 @@ export default function Home() {
   const whistleBuffersRef = useRef<Map<number, AudioBuffer>>(new Map());
   const whistleLoadPromiseRef = useRef<Promise<boolean> | null>(null);
   const t = COPY[language];
+  const audioPhaseText = audioPhase === "audioTranscribing" && audioUsesServer
+    ? t.audioServerTranscribing : audioPhase ? t[audioPhase] : "";
   const sourceIsBusy = status === "queueing" || status === "processing" || status === "sourceRetrying";
   const songQuality = useMemo(() => song ? assessSongQuality(song) : null, [song]);
   const suggestedSongs = useMemo(() => rankCatalogSongs(catalog).slice(0, 4) as Song[], [catalog]);
@@ -680,6 +709,18 @@ export default function Home() {
   }, []);
 
   useEffect(() => () => { audioImportRef.current?.abort(); }, []);
+  useEffect(() => {
+    if (mode !== "audio") return;
+    let active = true;
+    void detectAudioCapabilities().then((capabilities) => {
+      if (active) setAudioCapabilities(capabilities);
+    });
+    return () => { active = false; };
+  }, [mode]);
+  useEffect(() => {
+    const url = audioDownload?.url;
+    if (url) return () => { URL.revokeObjectURL(url); };
+  }, [audioDownload]);
 
   useEffect(() => {
     const api = sourceApiUrl();
@@ -1232,6 +1273,12 @@ export default function Home() {
     event?.preventDefault();
     setSourceError("");
     setSourceCandidates([]);
+    if (youtubeVideoId(query)) {
+      setAudioUrl(query.trim());
+      setAudioDownload(null);
+      switchInputMode("audio");
+      return;
+    }
     const normalized = normalizeSearchText(query);
     const match = normalized ? rankCatalogMatches(catalog
       .map((item) => ({ item, score: searchMatchScore(query, [item.title, item.artist ?? "", item.artist ? `${item.artist} ${item.title}` : "", ...item.aliases]) }))
@@ -1404,6 +1451,7 @@ export default function Home() {
       audioImportRef.current?.abort();
       setAudioPhase(null);
       setAudioError(null);
+      if (nextMode === "audio") setAudioCapabilities(null);
     }
     setMode(nextMode);
   }
@@ -1422,17 +1470,22 @@ export default function Home() {
 
   async function runAudioInput(source: Blob | string) {
     // The lock survives tab cancellation until cooperative model cleanup finishes.
-    if (audioImportRef.current) return;
+    if (audioImportRef.current || !audioCapabilities) return;
     const controller = new AbortController();
     audioImportRef.current = controller;
     const current = () => audioImportRef.current === controller && !controller.signal.aborted;
     setAudioBusy(true);
     setAudioError(null);
+    setAudioDownload(null);
     setSourceError("");
     setTranscriptionProgress(0);
     try {
       const { result, name, origin } = await transcribeAudioInput(source, {
         apiUrl: sourceApiUrl(), signal: controller.signal,
+        model: audioCapabilities.provider, youtubeEnabled: audioCapabilities.youtubeMp3,
+        onYoutubeFile: (file) => {
+          if (current()) setAudioDownload({ url: URL.createObjectURL(file), name: file.name });
+        },
         onStage: (phase: AudioPhase) => { if (current()) setAudioPhase(phase); },
         onProgress: (progress: number) => { if (current()) setTranscriptionProgress(Math.round(progress * 100)); },
       });
@@ -1443,7 +1496,10 @@ export default function Home() {
       }
       const title = name.replace(/\.[^.]+$/, "").replaceAll(/[_-]+/g, " ").trim() || t.customTitle;
       const evidence = result.melody.confidence.level;
-      const transcriptionSubtitle = {
+      const transcriptionSubtitle = result.melody.provider === MUSCRIPTOR_LARGE ? {
+        en: "MuScriptor Large · listening review needed",
+        tr: "MuScriptor Large · dinleyerek kontrol edilmeli",
+      } : {
         en: `${origin === "url" ? "Audio link · browser transcription" : "Local audio"} · ${evidence === "high" ? "stronger model evidence" : evidence === "medium" ? "mixed model evidence" : "uncertain melody selection"} · listening review needed`,
         tr: `${origin === "url" ? "Ses bağlantısı · tarayıcıda transkripsiyon" : "Yerel ses"} · ${evidence === "high" ? "daha güçlü model sinyali" : evidence === "medium" ? "karışık model sinyali" : "melodi seçimi belirsiz"} · dinleyerek kontrol edilmeli`,
       };
@@ -1610,28 +1666,29 @@ export default function Home() {
           ) : (
             <div id="source-panel-audio" className="audio-import" role="tabpanel" aria-labelledby="source-tab-audio">
               <label htmlFor="audio-input">{t.audioLabel}</label>
-              <label className={`audio-picker${audioBusy ? " disabled" : ""}`} htmlFor="audio-input">
+              <label className={`audio-picker${audioDisabled ? " disabled" : ""}`} htmlFor="audio-input">
                 <span aria-hidden="true">♪</span>
                 <strong>{t.audioChoose}</strong>
-                <small>{t.audioHint}</small>
+                <small>{!audioCapabilities ? t.audioChecking : audioUsesServer ? t.audioServerHint : t.audioHint}</small>
               </label>
-              <input id="audio-input" type="file" accept="audio/mpeg,audio/wav,audio/ogg,audio/flac,.mp3,.wav,.ogg,.flac" onChange={convertAudio} disabled={audioBusy} />
+              <input id="audio-input" type="file" accept="audio/mpeg,audio/wav,audio/ogg,audio/flac,.mp3,.wav,.ogg,.flac" onChange={convertAudio} disabled={audioDisabled} />
               <p className="audio-alternative">{t.audioOr}</p>
               <form onSubmit={convertAudioUrl}>
-                <label htmlFor="audio-url">{t.audioUrlLabel}</label>
+                <label htmlFor="audio-url">{audioYoutubeEnabled ? t.audioYoutubeLabel : t.audioUrlLabel}</label>
                 <div className="audio-url-row">
                   <input id="audio-url" type="text" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={2048}
-                    placeholder="https://…" value={audioUrl} onChange={(event) => { setAudioUrl(event.target.value); setAudioError(null); }}
-                    aria-describedby="audio-url-help audio-url-privacy" disabled={audioBusy} />
-                  <button type="submit" disabled={audioBusy || !audioUrl.trim()}>{t.audioUrlImport}</button>
+                    placeholder="https://…" value={audioUrl} onChange={(event) => { setAudioUrl(event.target.value); setAudioError(null); setAudioDownload(null); }}
+                    aria-describedby="audio-url-help audio-url-privacy" disabled={audioDisabled} />
+                  <button type="submit" disabled={audioDisabled || !audioUrl.trim()}>{audioYoutubeEnabled && youtubeVideoId(audioUrl) ? t.audioYoutubeConvert : t.audioUrlImport}</button>
                 </div>
-                <p className="audio-url-help" id="audio-url-help">{t.audioUrlHint}</p>
-                <p className="audio-url-help" id="audio-url-privacy">{t.audioUrlPrivacy}</p>
+                <p className="audio-url-help" id="audio-url-help">{audioYoutubeEnabled ? t.audioYoutubeHint : t.audioUrlHint}</p>
+                <p className="audio-url-help" id="audio-url-privacy">{!audioCapabilities ? t.audioChecking : audioUsesServer ? t.audioServerPrivacy : audioYoutubeEnabled ? t.audioYoutubeLocalPrivacy : t.audioUrlPrivacy}</p>
+                {audioDownload && <p className="audio-url-help"><a href={audioDownload.url} download={audioDownload.name}>{t.audioYoutubeDownload}</a></p>}
               </form>
-              {audioPhase === "audioTranscribing" && <progress aria-label={t.audioTranscribing} max="100" value={transcriptionProgress}>{transcriptionProgress}%</progress>}
+              {audioPhase === "audioTranscribing" && <progress aria-label={audioPhaseText} max="100" value={transcriptionProgress}>{transcriptionProgress}%</progress>}
             </div>
           )}
-          <p className={`status status-${mode === "audio" && audioPhase ? audioPhase : status}`} role="status"><span className="status-dot" /><span className="status-message">{mode === "audio" && audioError ? mediaErrorMessage(audioError, language) : mode === "audio" && audioPhase ? `${t[audioPhase]}${audioPhase === "audioTranscribing" ? ` ${transcriptionProgress}%` : ""}` : t[status]}{sourceError && <small>{sourceError}</small>}</span></p>
+          <p className={`status status-${mode === "audio" && audioPhase ? audioPhase : status}`} role="status"><span className="status-dot" /><span className="status-message">{mode === "audio" && audioError ? mediaErrorMessage(audioError, language) : mode === "audio" && audioPhase ? `${audioPhaseText}${audioPhase === "audioTranscribing" ? ` ${transcriptionProgress}%` : ""}` : t[status]}{sourceError && <small>{sourceError}</small>}</span></p>
         </div>
       </section>
 

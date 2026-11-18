@@ -13,7 +13,8 @@ The site is published by GitHub Pages from the versioned `docs` directory on `ma
 - İzin verilen kaynakları WordPress REST API üzerinden okuyan kaynak eşitleyici
 - Yabancı şarkıları Songsterr kataloğunda sanatçı/başlık eşleşmesiyle bulup herkese açık Guitar Pro düzenlemesini zamanlanmış D-whistle notalarına dönüştüren adaptör
 - MP3/WAV/OGG/FLAC dosyalarından melodiyi cihazda çıkarıp D-whistle parmaklarına dönüştüren yerel ses transkripsiyonu
-- İzinli sunuculardaki doğrudan HTTPS ses bağlantısını geçici olarak indirip aynı transkripsiyon motoruna aktarma (ilk sunucu: `upload.wikimedia.org`; YouTube/Spotify indirme yok). [Kurulum, güvenlik sınırları ve test](engineering/media-url-import.md)
+- İzinli sunuculardaki doğrudan HTTPS ses bağlantısını geçici olarak indirip aynı transkripsiyon motoruna aktarma (ilk sunucu `upload.wikimedia.org`). [Kurulum, güvenlik sınırları ve test](engineering/media-url-import.md)
+- Ses hizmeti bağlı dağıtımlarda MuScriptor Large ile transkripsiyon ve YouTube bağlantısından MP3 indirme.
 - MIDI ve MusicXML dosyalarını cihazda okuyup uygun melodi partisini süre, es ve score temposuyla içe aktarma
 - İlk gerçek ve kaynaklı kayıt: Duman — Bu Akşam
 - The Session’ın CORS-açık API’sinde ziyaret anında canlı ABC nota araması
@@ -93,9 +94,23 @@ Canlı API: `https://tin-whistle-note-source-api.ozguregemenbusiness.workers.dev
 
 Worker, Türkçe kaynakların yanında Songsterr'ın yabancı şarkı kataloğunu da sanatçı ve başlıkla arar. Seçilen Songsterr kaydının herkese açık zamanlanmış parça verisi veya Guitar Pro kaynağı GitHub Actions içinde okunur. Vokal/melodi izi önceliklidir; bu bilgi yoksa kanal adı ile nota çeşitliliği, tekrar ve akor yoğunluğu birlikte değerlendirilerek en melodik iz seçilir. Bir iz okunamazsa diğer uygun izler de denenir. Akorlarda en üst ses alınarak D-whistle için tek sesli, ritimli bir çalışma düzenlemesi üretilir. Gitar düzenlemesinden çıkarılan sonuç her zaman vokal melodisinin birebir kopyası olmayabileceğinden kaynak düzenlemesi olarak etiketlenir. Onaylı adaptörlerde eşleşme bulunamazsa Worker, yalnızca nota odaklı izinli alan adlarında (MuseScore ve Kolay Nota) arama motoru keşfi yapar. Bu sonuçlar güvenilirlik kontrolü için bağlantı olarak gösterilir; otomatik içe aktarma yalnızca işleyicisi bulunan adaptörlerde kullanılabilir. Belge adaptörleri tam internet taraması yapmaz: kaynak URL'si, nota sayfaları ve beklenen nota aralığı kodda izinli listeyle sınırlandırılır.
 
-`Sesi notaya çevir` sekmesi Spotify Basic Pitch modelini yalnızca ihtiyaç olduğunda tarayıcıya yükler. Seçilen ses dosyası bir sunucuya gönderilmez. Çok enstrümanlı tam mikslerde sonuç bir çalışma taslağıdır; belirgin tek enstrüman veya izole melodi kayıtları daha güvenilir sonuç verir.
+`Sesi notaya çevir` sekmesi ses hizmeti bağlı olduğunda MuScriptor Large kullanır. GitHub Pages ve ses hizmetine erişemeyen dağıtımlar Spotify Basic Pitch modelini ihtiyaç olduğunda tarayıcıya yükler ve dosyaları yerel olarak işler. Tam mikslerden çıkarılan ezgi bir çalışma taslağıdır. Tek enstrümanlı ve izole melodi kayıtları daha güvenilir sonuç verir.
 
 `Nota dosyası` sekmesi `.mid`, `.midi`, `.musicxml` ve düz `.xml` dosyalarını yine yalnızca tarayıcıda işler. MIDI'de vurmalı kanal dışarıda bırakılır; vokal/melodi/lead adlı kanallar, MusicXML'de ise benzer adlı partiler önceliklendirilir. Bu adlandırmalar yoksa tek sesliliği ve nota çeşitliliği daha yüksek olan uygun parti seçilir.
+
+### MuScriptor Large ve YouTube MP3
+
+1. Hugging Face’te model koşullarını incele ve kabul et. Ağırlıklar CC BY-NC 4.0 lisanslıdır. [MuScriptor Large](https://huggingface.co/MuScriptor/muscriptor-large)
+2. Ses hizmetini çalıştıracak makinede Hugging Face erişimini (`HF_TOKEN`), ses hizmetinin Bearer anahtarını (`AUDIO_SERVICE_TOKEN`) ve gerekiyorsa PyTorch cihazını (`MUSCRIPTOR_DEVICE`, örneğin `cuda`) yapılandır. YouTube dönüşümü için `libmp3lame` destekli FFmpeg’i ve yt-dlp’nin önerdiği JavaScript çalışma zamanını PATH’e ekle. [yt-dlp bağımlılıkları](https://github.com/yt-dlp/yt-dlp#dependencies)
+
+   ```sh
+   uv run --python 3.13 --with muscriptor==0.4.0 --with 'yt-dlp[default]' python services/audio/server.py
+   ```
+
+3. Yerel 8222 portunu bir HTTPS ters vekil veya Cloudflare Tunnel üzerinden erişilebilir kıl. Sites uygulamasında veya `worker/index.ts` ile çalışan dağıtımda `AUDIO_SERVICE_URL` ve `AUDIO_SERVICE_TOKEN` değerlerini çalışma ortamı değişkeni ve secret olarak yapılandır. Hugging Face anahtarı yalnızca model sunucusunda kullanılır. Bu özellikler için aynı kökende Worker uç noktaları gerektiğinden GitHub Pages sürümü Basic Pitch kullanır.
+4. `Sesi notaya çevir` sekmesinde kısa bir ses dosyası dene. YouTube dönüşümünde indirme yetkin olan, en fazla 10 dakikalık bir video bağlantısı kullan. MP3 indirmeye hazır olduğunda bir bağlantı gösterilir ve ses notaya çevirme işlemine aktarılır.
+
+### Kaynak Worker’ını yayımlama
 
 Worker'ı kontrol etmek ve yayımlamak için:
 

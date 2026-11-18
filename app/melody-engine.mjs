@@ -100,7 +100,8 @@ export function extractPredominantMelody(rawEvents, options = {}) {
     for (const e of active.values()) {
       const current = byPitch.get(e.midi);
       // A fresh articulated attack supersedes the same pitch's reverb/tail.
-      const retrigger = current && e.startSeconds > current.startSeconds && e.onsetConfidence >= p.strongOnset;
+      const retrigger = current && e.startSeconds > current.startSeconds
+        && (e.explicitOnset || e.onsetConfidence >= p.strongOnset);
       if (!current || retrigger || (current.onsetConfidence < p.strongOnset && current.utility < e.utility)) byPitch.set(e.midi, e);
     }
     const ranked = [...byPitch.values()].sort((a, b) => b.utility - a.utility || a.midi - b.midi);
@@ -120,7 +121,7 @@ export function extractPredominantMelody(rawEvents, options = {}) {
         if (anchor && e && anchor.midi !== e.midi) {
           const jump = Math.abs(anchor.midi - e.midi);
           // Onset evidence allows genuine articulated leaps; never octave-fold.
-          const articulation = e.onsetConfidence >= p.strongOnset
+          const articulation = (e.explicitOnset && Math.abs(t - e.startSeconds) < 0.000001) || e.onsetConfidence >= p.strongOnset
             ? (ranked.length === 1 ? p.isolatedAttackTransitionFactor : p.articulatedTransitionFactor) : 1;
           cost = articulation * (p.switchCost + Math.min(24, jump) * p.semitoneCost
             + (jump >= 12 ? p.octaveSwitchCost : 0));
@@ -164,6 +165,7 @@ export function extractPredominantMelody(rawEvents, options = {}) {
       previous.confidence.selectionMargin = Math.min(previous.confidence.selectionMargin, margin);
     } else notes.push({ midi: e.midi, startSeconds: start, durationSeconds: roundTime(duration),
       salience: e.salience, onsetConfidence: Math.abs(start - e.startSeconds) < 0.02 ? e.onsetConfidence : null,
+      explicitOnset: e.explicitOnset && Math.abs(start - e.startSeconds) < 0.000001,
       contourSupport: e.contourSupport, eventId: e.id,
       confidence: { kind: 'uncalibrated-evidence', modelSupport: e.salience, acousticSupport: e.acousticSupport, selectionMargin: margin },
     });
@@ -223,7 +225,7 @@ export function simplifyMelody(rawNotes, options = {}) {
       && !(n.onsetConfidence >= p.strongOnset && n.salience >= 0.65)) { edits.removedNoise++; continue; }
     const previous = cleaned.at(-1);
     if (previous && previous.midi === n.midi && n.startSeconds <= end(previous) + p.fragmentGapSeconds
-      && !(n.onsetConfidence >= p.strongOnset)) {
+      && !n.explicitOnset && !(n.onsetConfidence >= p.strongOnset)) {
       const weight = previous.durationSeconds + n.durationSeconds;
       previous.salience = (previous.salience * previous.durationSeconds + n.salience * n.durationSeconds) / weight;
       previous.confidence = { ...previous.confidence, modelSupport: previous.salience,
