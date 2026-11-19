@@ -3,6 +3,9 @@ import { getDocumentSource } from "./document-sources.mjs";
 import { resolveTempo } from "./bpm-resolver.mjs";
 import { applyCuratedTempo } from "../app/curated-tempos.mjs";
 import { handleMediaResolve } from "./media-ingestion.mjs";
+import { MUSCRIPTOR_API_PATH } from "../app/muscriptor.mjs";
+import { YOUTUBE_AUDIO_API_PATH } from "../app/youtube-audio.mjs";
+import { handleAudioTranscription, handleYoutubeAudio } from "./muscriptor.mjs";
 
 const DEFAULT_REPOSITORY = "ozguregemen/tin-whistle-note-creator";
 const SOURCE_PROCESSING_VERSION = 2;
@@ -32,6 +35,20 @@ function corsHeaders(request, env) {
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     Vary: "Origin",
   } : {};
+}
+
+async function serveAudio(request, env, fetchFn, cors, handler) {
+  if (request.method === "POST") {
+    if (!request.headers.get("Origin")) return json({ error: "Origin is required" }, 403, cors);
+    if (!env.AUDIO_RATE_LIMITER) return json({ error: "Audio service is not configured" }, 503, cors);
+    const key = `audio-service:${request.headers.get("CF-Connecting-IP") || "anonymous"}`;
+    const { success } = await env.AUDIO_RATE_LIMITER.limit({ key });
+    if (!success) return json({ error: "Too many audio requests" }, 429, cors);
+  }
+  const response = await handler(request, env, fetchFn);
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(cors)) headers.set(key, value);
+  return new Response(response.body, { status: response.status, headers });
 }
 
 async function githubRequest(path, env, fetchFn, init = {}) {
@@ -157,9 +174,13 @@ export function createSourceApi(env, fetchFn = fetch) {
     const url = new URL(request.url);
     const cors = corsHeaders(request, env);
     if (request.headers.get("Origin") && !allowedOrigin(request, env)) return json({ error: "Origin is not allowed" }, 403);
+    const audioHandler = url.pathname === `/${MUSCRIPTOR_API_PATH}` ? handleAudioTranscription
+      : url.pathname === `/${YOUTUBE_AUDIO_API_PATH}` ? handleYoutubeAudio : null;
+    if (audioHandler) cors["Access-Control-Allow-Headers"] = "Content-Type, X-Transcription-Provider";
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
 
     try {
+      if (audioHandler) return await serveAudio(request, env, fetchFn, cors, audioHandler);
       if (request.method === "POST" && url.pathname === "/api/media/resolve") {
         return await handleMediaResolve(request, env, fetchFn, cors);
       }

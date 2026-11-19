@@ -1,10 +1,15 @@
 export const MUSCRIPTOR_API_PATH = "api/audio-transcription";
 export const MUSCRIPTOR_LARGE = "muscriptor-large";
 
+export function audioApiUrl(path) {
+  const origin = globalThis.window?.__TWNC_AUDIO_API_URL__;
+  return new URL(path, origin ? `${origin.replace(/\/$/, "")}/` : document.baseURI);
+}
+
 /** @returns {Promise<{provider: "basic-pitch" | "muscriptor-large", youtubeMp3: boolean}>} */
 export async function detectAudioCapabilities() {
   try {
-    const response = await fetch(new URL(MUSCRIPTOR_API_PATH, document.baseURI), {
+    const response = await fetch(audioApiUrl(MUSCRIPTOR_API_PATH), {
       cache: "no-store",
       signal: AbortSignal.timeout(4000),
     });
@@ -29,7 +34,7 @@ export async function transcribeWithMuscriptor(file, onProgress, { signal } = {}
   form.set("detect_tempo", "false");
 
   const timeout = AbortSignal.timeout(15 * 60 * 1000);
-  const response = await fetch(new URL(MUSCRIPTOR_API_PATH, document.baseURI), {
+  const response = await fetch(audioApiUrl(MUSCRIPTOR_API_PATH), {
     method: "POST",
     headers: { "X-Transcription-Provider": MUSCRIPTOR_LARGE },
     body: form,

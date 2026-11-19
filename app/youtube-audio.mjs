@@ -1,5 +1,6 @@
 import { AUDIO_SNIFF_BYTES, MAX_AUDIO_BYTES, MediaError, cancelMediaBody,
   mediaDeadline, readLimitedBody, validateAudioPrefix } from "../shared/audio-media.mjs";
+import { audioApiUrl } from "./muscriptor.mjs";
 
 export const YOUTUBE_AUDIO_API_PATH = "api/youtube-audio";
 const VIDEO_ID = /^[\w-]{11}$/;
@@ -36,7 +37,7 @@ export async function downloadYoutubeAudio(videoId, { signal } = {}) {
   const deadline = mediaDeadline(100_000, signal);
   let response;
   try {
-    response = await deadline.wait(fetch(new URL(YOUTUBE_AUDIO_API_PATH, document.baseURI), {
+    response = await deadline.wait(fetch(audioApiUrl(YOUTUBE_AUDIO_API_PATH), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ videoId }),
@@ -45,6 +46,7 @@ export async function downloadYoutubeAudio(videoId, { signal } = {}) {
     if (response.status === 413 || Number(response.headers.get("Content-Length")) > MAX_AUDIO_BYTES) {
       throw new MediaError("file_too_large");
     }
+    if (response.status === 429) throw new MediaError("rate_limited");
     if (!response.ok || !response.headers.get("Content-Type")?.startsWith("audio/mpeg")) {
       throw new MediaError("youtube_failed");
     }

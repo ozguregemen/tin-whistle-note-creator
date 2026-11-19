@@ -33,9 +33,9 @@ function audioError(status) {
   return Response.json({ error: "Audio transcription unavailable" }, { status, headers: NO_STORE });
 }
 
-async function audioCapabilities(service) {
+async function audioCapabilities(service, fetchFn) {
   try {
-    const response = service && await fetch(new URL("capabilities", service.url).href, {
+    const response = service && await fetchFn(new URL("capabilities", service.url).href, {
       headers: { Authorization: service.authorization },
       redirect: "manual",
       signal: AbortSignal.timeout(2600),
@@ -57,13 +57,13 @@ async function audioCapabilities(service) {
   return { provider: "basic-pitch", youtubeMp3: false };
 }
 
-export async function handleAudioTranscription(request, env) {
+export async function handleAudioTranscription(request, env, fetchFn = fetch) {
   const service = getAudioService(env);
   if (request.method === "GET") {
     if (!service && (env.AUDIO_SERVICE_URL || env.AUDIO_SERVICE_TOKEN || globalThis.process?.env?.AUDIO_SERVICE_URL)) {
       console.warn("Audio service configuration is incomplete or invalid");
     }
-    return Response.json(await audioCapabilities(service), { headers: NO_STORE });
+    return Response.json(await audioCapabilities(service, fetchFn), { headers: NO_STORE });
   }
   if (request.method !== "POST") return audioError(405);
   if (!service) return audioError(503);
@@ -84,7 +84,7 @@ export async function handleAudioTranscription(request, env) {
   const useByteTransport = service.url.hostname.endsWith(".trycloudflare.com");
   if (useByteTransport) headers.set("X-Audio-Transport", BYTE_TRANSPORT);
   try {
-    const response = await fetch(new URL("transcribe", service.url).href, {
+    const response = await fetchFn(new URL("transcribe", service.url).href, {
       method: "POST",
       headers,
       body: request.body,
@@ -106,7 +106,7 @@ export async function handleAudioTranscription(request, env) {
   return audioError(502);
 }
 
-export async function handleYoutubeAudio(request, env) {
+export async function handleYoutubeAudio(request, env, fetchFn = fetch) {
   if (request.method !== "POST") return audioError(405);
   const service = getAudioService(env);
   if (!service) return audioError(503);
@@ -118,7 +118,7 @@ export async function handleYoutubeAudio(request, env) {
   if (!isYoutubeVideoId(body?.videoId)) return audioError(400);
 
   try {
-    const response = await fetch(new URL(`youtube/${body.videoId}/mp3`, service.url).href, {
+    const response = await fetchFn(new URL(`youtube/${body.videoId}/mp3`, service.url).href, {
       method: "POST",
       headers: { Accept: "audio/mpeg", Authorization: service.authorization },
       redirect: "manual",

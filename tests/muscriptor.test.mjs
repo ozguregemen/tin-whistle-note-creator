@@ -2,9 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { transcribeAudioFile } from "../app/audio-transcription.mjs";
 import { transcribeAudioInput } from "../app/media-import.mjs";
-import { detectAudioCapabilities, readMuscriptorEvents } from "../app/muscriptor.mjs";
+import { audioApiUrl, detectAudioCapabilities, readMuscriptorEvents } from "../app/muscriptor.mjs";
 import { downloadYoutubeAudio, youtubeVideoId } from "../app/youtube-audio.mjs";
 import { handleAudioTranscription, handleYoutubeAudio } from "../worker/muscriptor.mjs";
+
+test("GitHub Pages audio routes target the configured Worker and Sites uses the current origin", (t) => {
+  const original = { document: globalThis.document, window: globalThis.window };
+  t.after(() => Object.assign(globalThis, original));
+  globalThis.document = { baseURI: "https://ozguregemen.github.io/tin-whistle-note-creator/" };
+  globalThis.window = { __TWNC_AUDIO_API_URL__: "https://worker.example/" };
+  assert.equal(audioApiUrl("api/youtube-audio").href, "https://worker.example/api/youtube-audio");
+  globalThis.document = { baseURI: "https://site.example/" };
+  globalThis.window = {};
+  assert.equal(audioApiUrl("api/audio-transcription").href, "https://site.example/api/audio-transcription");
+});
 
 test("MuScriptor yapılandırıldığında ses isteğini iletir ve notaları parmak rehberine dönüştürür", async (t) => {
   const baseURI = "https://site.example/";
