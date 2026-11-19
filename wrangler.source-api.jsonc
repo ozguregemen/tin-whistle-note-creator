@@ -6,6 +6,12 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "preview_urls": false,
+  "vpc_services": [
+    {
+      "binding": "AUDIO_ORIGIN",
+      "service_id": "01a1f593-cad4-7881-b06d-f6fb0963b104"
+    }
+  ],
   "ratelimits": [
     {
       "name": "AUDIO_RATE_LIMITER",

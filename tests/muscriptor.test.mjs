@@ -17,6 +17,35 @@ test("GitHub Pages audio routes target the configured Worker and Sites uses the 
   assert.equal(audioApiUrl("api/audio-transcription").href, "https://site.example/api/audio-transcription");
 });
 
+test("The Worker uses the private audio binding when configured", async () => {
+  const mp3 = "validated audio data";
+  const contacted = [];
+  const env = {
+    AUDIO_SERVICE_URL: "https://retired.example",
+    AUDIO_SERVICE_TOKEN: "audio-test-token",
+    AUDIO_ORIGIN: {
+      async fetch(url, init) {
+        assert.equal(this, env.AUDIO_ORIGIN);
+        assert.equal(new Headers(init.headers).get("Authorization"), "Bearer audio-test-token");
+        contacted.push(url);
+        if (url.endsWith("/capabilities")) {
+          return Response.json({ model: "muscriptor-large", youtubeMp3: true });
+        }
+        return new Response(mp3, { headers: { "Content-Type": "audio/mpeg", "Content-Length": String(mp3.length) } });
+      },
+    },
+  };
+  const publicFetch = async () => assert.fail("The private binding must use its own transport");
+  const capabilities = await handleAudioTranscription(new Request("https://site.example/api/audio-transcription"), env, publicFetch);
+  assert.deepEqual(await capabilities.json(), { provider: "muscriptor-large", youtubeMp3: true });
+  const request = new Request("https://site.example/api/youtube-audio", {
+    method: "POST", headers: { "Content-Type": "application/json", "Content-Length": "25" },
+    body: '{"videoId":"abcdefghijk"}',
+  });
+  assert.equal(await (await handleYoutubeAudio(request, env, publicFetch)).text(), mp3);
+  assert.deepEqual(contacted, ["http://audio.internal/capabilities", "http://audio.internal/youtube/abcdefghijk/mp3"]);
+});
+
 test("MuScriptor yapılandırıldığında ses isteğini iletir ve notaları parmak rehberine dönüştürür", async (t) => {
   const baseURI = "https://site.example/";
   const serviceUrl = "https://inference.example/";

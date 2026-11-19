@@ -107,7 +107,7 @@ Worker, Türkçe kaynakların yanında Songsterr'ın yabancı şarkı kataloğun
    uv run --python 3.13 --with muscriptor==0.4.0 --with 'yt-dlp[default]' python services/audio/server.py
    ```
 
-3. Ses hizmetini bir HTTPS ters vekil veya Cloudflare Tunnel üzerinden erişilebilir kıl. `AUDIO_SERVICE_URL` ve `AUDIO_SERVICE_TOKEN` değerlerini Sites dağıtımında veya GitHub Pages’in bağlandığı `tin-whistle-note-source-api` Worker’ında çalışma zamanı secret’ları olarak ayarla. GitHub Pages, `static-pages/index.html` içindeki ses API adresine bağlanır. Worker’ın `ALLOWED_ORIGINS` ayarında ön yüzün kökeni bulunmalıdır. Hugging Face anahtarı model sunucusunda kullanılır.
+3. GitHub Pages’in bağlandığı `tin-whistle-note-source-api` Worker’ında `AUDIO_ORIGIN` adlı Workers VPC bağlantısı ses sunucusunun 8222 portuna erişir. Kendi dağıtımında bu bağlantıya, ses sunucunu gören adlandırılmış bir Cloudflare Tunnel üzerinden bir HTTP VPC servisi bağla. Sites gibi VPC bağlantısı kullanmayan dağıtımlarda hizmeti bir HTTPS ters vekil üzerinden sun ve adresini `AUDIO_SERVICE_URL` olarak ayarla. Her iki dağıtımda da `AUDIO_SERVICE_TOKEN` değerini çalışma zamanı secret’ı olarak ayarla. Worker’ın `ALLOWED_ORIGINS` ayarında ön yüzün kökeni bulunmalıdır. Hugging Face anahtarı model sunucusunda kullanılır.
 4. `Sesi notaya çevir` sekmesinde kısa bir ses dosyası dene. YouTube dönüşümünde indirme yetkin olan, en fazla 10 dakikalık bir video bağlantısı kullan. MP3 indirmeye hazır olduğunda bir bağlantı gösterilir ve ses notaya çevirme işlemine aktarılır.
 
 ### Kaynak Worker’ını yayımlama
