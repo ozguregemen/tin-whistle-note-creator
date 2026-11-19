@@ -61,8 +61,10 @@ test("GitHub Pages can discover the audio model and download MP3 through the Wor
 
 test("Audio jobs reject a missing or disallowed origin and honor the rate limiter", async () => {
   const origin = "https://ozguregemen.github.io";
+  const sitesOrigin = "https://private.site.example";
   const handle = createSourceApi({
-    ALLOWED_ORIGINS: origin, AUDIO_RATE_LIMITER: { limit: async () => ({ success: false }) },
+    ALLOWED_ORIGINS: origin, AUDIO_SERVICE_ORIGINS: sitesOrigin,
+    AUDIO_RATE_LIMITER: { limit: async () => ({ success: false }) },
   }, async () => assert.fail("A rejected request must not reach the audio service"));
   const url = "https://worker.test/api/youtube-audio";
   for (const headers of [{}, { Origin: "https://other.example" }]) {
@@ -71,6 +73,10 @@ test("Audio jobs reject a missing or disallowed origin and honor the rate limite
   const response = await handle(new Request(url, { method: "POST", headers: { Origin: origin } }));
   assert.equal(response.status, 429);
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), origin);
+  const siteRequest = { headers: { Origin: sitesOrigin } };
+  const siteAudio = await handle(new Request("https://worker.test/api/audio-transcription", siteRequest));
+  assert.equal(siteAudio.headers.get("Access-Control-Allow-Origin"), sitesOrigin);
+  assert.equal((await handle(new Request("https://worker.test/api/catalog", siteRequest))).status, 403);
 });
 
 test("Worker yalnızca desteklenen kaynakları GitHub Actions kuyruğuna gönderir", async () => {

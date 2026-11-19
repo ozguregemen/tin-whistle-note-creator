@@ -1,7 +1,8 @@
-import { MAX_AUDIO_BYTES, MEDIA_FETCH_TIMEOUT_MS, MediaError, audioMime,
+import { MAX_AUDIO_BYTES, MAX_AUDIO_DURATION_SECONDS, MEDIA_FETCH_TIMEOUT_MS, MediaError, audioMime,
   cancelMediaBody, mediaDeadline, readLimitedBody, resolveMediaUrl, validateAudioPrefix, AUDIO_SNIFF_BYTES } from '../shared/audio-media.mjs';
 import { transcribeAudioFile } from './audio-transcription.mjs';
 import { downloadYoutubeAudio, youtubeVideoId } from './youtube-audio.mjs';
+import { extractAudioClip } from './audio-clip.mjs';
 
 /**
  * HTTP acquisition only: the result is an instrument-independent Blob.
@@ -52,30 +53,25 @@ export async function importAudioUrl(value, { apiUrl = '', signal, fetchFn = fet
 }
 
 /**
- * File, direct-link, and YouTube inputs converge on the same transcription pipeline.
+ * Load audio for preview. Transcription begins only when a prepared selection is submitted.
  * @param {Blob | string} source
  * @param {{apiUrl?: string, signal?: AbortSignal,
- * model?: 'basic-pitch' | 'muscriptor-large', youtubeEnabled?: boolean,
- * onStage?: (stage: 'audioFetching' | 'audioConverting' | 'audioPreparing' | 'audioTranscribing') => void,
- * onYoutubeFile?: (file: File) => void, resolveYoutube?: typeof downloadYoutubeAudio,
- * onProgress?: (progress: number) => void, resolve?: typeof importAudioUrl,
- * transcribe?: typeof transcribeAudioFile}} [options]
+ * youtubeEnabled?: boolean, onStage?: (stage: 'audioFetching' | 'audioConverting') => void,
+ * resolveYoutube?: typeof downloadYoutubeAudio, resolve?: typeof importAudioUrl}} [options]
  */
-export async function transcribeAudioInput(source, {
-  apiUrl = '', signal, onStage = () => {}, onProgress = () => {},
-  resolve = importAudioUrl, transcribe = transcribeAudioFile,
-  model, youtubeEnabled = false, onYoutubeFile = () => {}, resolveYoutube = downloadYoutubeAudio,
+export async function prepareAudioInput(source, {
+  apiUrl = '', signal, onStage = () => {}, resolve = importAudioUrl,
+  youtubeEnabled = false, resolveYoutube = downloadYoutubeAudio,
 } = {}) {
   signal?.throwIfAborted();
   let blob = source;
-  let name = source?.name || 'Audio';
+  let name = source instanceof File ? source.name : 'Audio';
   const origin = typeof source === 'string' ? 'url' : 'file';
   const videoId = typeof source === 'string' && youtubeEnabled ? youtubeVideoId(source) : null;
   if (videoId) {
     onStage('audioConverting');
     const file = await resolveYoutube(videoId, { signal });
     signal?.throwIfAborted();
-    onYoutubeFile(file);
     blob = file;
     name = file.name;
   } else if (typeof source === 'string') {
@@ -83,10 +79,34 @@ export async function transcribeAudioInput(source, {
     ({ blob, name } = await resolve(source, { apiUrl, signal }));
   }
   signal?.throwIfAborted();
-  if (!(blob instanceof Blob)) throw new MediaError('not_audio');
+  if (!(blob instanceof Blob) || !blob.size) throw new MediaError('not_audio');
   if (blob.size > MAX_AUDIO_BYTES) throw new MediaError('file_too_large');
+  return { blob, name, origin, youtube: !!videoId };
+}
+
+/**
+ * @param {Blob | string} source
+ * @param {{apiUrl?: string, signal?: AbortSignal, range?: {start: number, end: number},
+ * model?: 'basic-pitch' | 'muscriptor-large', youtubeEnabled?: boolean,
+ * onStage?: (stage: 'audioFetching' | 'audioConverting' | 'audioPreparing' | 'audioTranscribing') => void,
+ * onYoutubeFile?: (file: File) => void, resolveYoutube?: typeof downloadYoutubeAudio,
+ * onProgress?: (progress: number) => void, resolve?: typeof importAudioUrl,
+ * transcribe?: typeof transcribeAudioFile}} [options]
+ */
+export async function transcribeAudioInput(source, {
+  apiUrl, signal, onStage = () => {}, onProgress = () => {}, range,
+  resolve, transcribe = transcribeAudioFile,
+  model, youtubeEnabled, onYoutubeFile = () => {}, resolveYoutube,
+} = {}) {
+  const { blob, name, origin, youtube } = await prepareAudioInput(source, { apiUrl, signal, onStage, resolve, youtubeEnabled, resolveYoutube });
+  signal?.throwIfAborted();
+  if (youtube && blob instanceof File) onYoutubeFile(blob);
   onStage('audioPreparing');
-  const result = await transcribe(blob, (progress) => {
+  const selectedAudio = range
+    ? await extractAudioClip(blob, range, { signal, maxBytes: MAX_AUDIO_BYTES, maxSeconds: MAX_AUDIO_DURATION_SECONDS })
+    : blob;
+  signal?.throwIfAborted();
+  const result = await transcribe(selectedAudio, (progress) => {
     if (signal?.aborted) return;
     onStage('audioTranscribing');
     onProgress(progress);

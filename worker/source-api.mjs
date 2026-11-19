@@ -17,18 +17,18 @@ function json(data, status = 200, headers = {}) {
   });
 }
 
-function allowedOrigin(request, env) {
+function allowedOrigin(request, env, audioRoute) {
   const origin = request.headers.get("Origin");
   if (!origin) return "*";
-  const configured = (env.ALLOWED_ORIGINS || "https://ozguregemen.github.io")
-    .split(",").map((value) => value.trim()).filter(Boolean);
+  const primary = env.ALLOWED_ORIGINS || "https://ozguregemen.github.io";
+  const audio = audioRoute ? env.AUDIO_SERVICE_ORIGINS || "" : "";
+  const configured = `${primary},${audio}`.split(",").map((value) => value.trim()).filter(Boolean);
   if (configured.includes(origin)) return origin;
   if (/^http:\/\/localhost:\d+$/.test(origin)) return origin;
   return null;
 }
 
-function corsHeaders(request, env) {
-  const origin = allowedOrigin(request, env);
+function corsHeaders(origin) {
   return origin ? {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Headers": "Content-Type",
@@ -172,10 +172,11 @@ async function queueJob(request, env, fetchFn) {
 export function createSourceApi(env, fetchFn = fetch) {
   return async function handle(request) {
     const url = new URL(request.url);
-    const cors = corsHeaders(request, env);
-    if (request.headers.get("Origin") && !allowedOrigin(request, env)) return json({ error: "Origin is not allowed" }, 403);
     const audioHandler = url.pathname === `/${MUSCRIPTOR_API_PATH}` ? handleAudioTranscription
       : url.pathname === `/${YOUTUBE_AUDIO_API_PATH}` ? handleYoutubeAudio : null;
+    const origin = allowedOrigin(request, env, Boolean(audioHandler));
+    const cors = corsHeaders(origin);
+    if (!origin) return json({ error: "Origin is not allowed" }, 403);
     if (audioHandler) cors["Access-Control-Allow-Headers"] = "Content-Type, X-Transcription-Provider";
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
 

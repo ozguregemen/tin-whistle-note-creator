@@ -34,6 +34,7 @@
   "vars": {
     "AUDIO_ALLOWED_HOSTS": "upload.wikimedia.org",
     "ALLOWED_ORIGINS": "https://ozguregemen.github.io",
+    "AUDIO_SERVICE_ORIGINS": "https://nefes-tin-whistle.ozguregemenbusiness.chatgpt.site",
     "GITHUB_REPOSITORY": "ozguregemen/tin-whistle-note-creator",
     "GITHUB_RESULT_REF": "main"
   }

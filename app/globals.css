@@ -69,6 +69,22 @@ textarea:focus,.search-row:focus-within { border-color:var(--green); box-shadow:
 .audio-url-row input:disabled { opacity:.6; cursor:wait; }
 .audio-url-row button { min-height:44px; white-space:nowrap; }
 .audio-url-help { margin:8px 0 0; color:var(--muted); font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+.clip-picker { display:grid; gap:12px; margin-top:18px; padding:16px; border:1px solid var(--line); border-radius:12px; background:var(--green-soft); }
+.clip-header,.clip-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; }
+.clip-header { justify-content:space-between; }
+.clip-header h3 { margin:0; color:var(--ink); font-size:1rem; }
+.clip-length,.clip-name { margin:0; color:var(--muted); font-size:.875rem; font-variant-numeric:tabular-nums; }
+.clip-name { overflow-wrap:anywhere; }
+.clip-picker audio { display:block; width:100%; }
+.clip-controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%, 220px),1fr)); gap:12px; }
+.clip-controls .clip-boundary { display:grid; gap:7px; margin:0; font-size:.875rem; }
+.clip-boundary span { display:flex; justify-content:space-between; gap:8px; }
+.clip-boundary strong { font-variant-numeric:tabular-nums; }
+.clip-boundary input { display:block; width:100%; min-height:28px; margin:0; accent-color:var(--green); }
+.clip-actions button { min-height:44px; border:1px solid var(--green); border-radius:8px; padding:9px 13px; color:#fff; background:var(--green); font:inherit; font-size:.875rem; font-weight:700; }
+.clip-actions .clip-listen { color:var(--green); background:var(--card); }
+.clip-actions button:disabled { opacity:.55; }
+.clip-error { margin:0; color:var(--warning); font-size:.875rem; }
 .status { display:flex; align-items:flex-start; gap:9px; min-height:18px; margin:14px 0 0; color:var(--muted); font-size:12px; line-height:1.45; }
 .status-dot { width:7px; height:7px; flex:0 0 7px; margin-top:5px; border-radius:50%; background:#6f947f; box-shadow:0 0 0 4px rgba(111,148,127,.14); }
 .status-message { display:flex; min-width:0; flex-direction:column; gap:3px; }

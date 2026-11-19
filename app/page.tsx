@@ -2,7 +2,9 @@
 
 import { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { parseAbcScore } from "./abc.mjs";
-import { audioInputError, mediaErrorMessage, transcribeAudioInput } from "./media-import.mjs";
+import { AudioClipPicker, type AudioClipRange } from "./audio-clip-picker";
+import { formatClipTime } from "./audio-clip.mjs";
+import { audioInputError, mediaErrorMessage, prepareAudioInput, transcribeAudioInput } from "./media-import.mjs";
 import { detectAudioCapabilities, MUSCRIPTOR_LARGE } from "./muscriptor.mjs";
 import { youtubeVideoId } from "./youtube-audio.mjs";
 import { MediaError } from "../shared/audio-media.mjs";
@@ -17,8 +19,14 @@ import { buildSourceAttemptOrder, waitForSourceJob } from "./source-jobs.mjs";
 import { base64AudioBuffer, midiForWhistleNote, playbackRateForMidi, sampleZoneForMidi, soundfontLoopForZone, soundfontTriggerMidiForAudibleMidi, soundfontZoneForMidi, WHISTLE_SAMPLE_ZONES, WHISTLE_SOUNDFONT } from "./whistle-sampler.mjs";
 
 type Language = "en" | "tr";
-type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "discoveryFound" | "queueing" | "processing" | "sourceRetrying" | "needsReview" | "liveFound" | "sourceUnavailable" | "audioFetching" | "audioPreparing" | "audioImportFailed" | "audioTranscribing" | "audioConverted" | "audioUnavailable" | "scoreImported" | "scoreUnavailable";
+type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "discoveryFound" | "queueing" | "processing" | "sourceRetrying" | "needsReview" | "liveFound" | "sourceUnavailable" | "audioFetching" | "audioReady" | "audioPreparing" | "audioImportFailed" | "audioTranscribing" | "audioConverted" | "audioUnavailable" | "scoreImported" | "scoreUnavailable";
 type AudioPhase = "audioFetching" | "audioConverting" | "audioPreparing" | "audioTranscribing";
+type AudioAction = (context: {
+  signal: AbortSignal;
+  isCurrent: () => boolean;
+  onStage: (phase: AudioPhase) => void;
+  onProgress: (progress: number) => void;
+}) => Promise<void>;
 
 type SongSource = {
   name: string;
@@ -158,17 +166,18 @@ const COPY = {
     audioYoutubeDownload: "Download MP3",
     audioYoutubeHint: "Use a YouTube video you have permission to download, or a direct audio link from an approved host.",
     audioYoutubeLocalPrivacy: "The server retrieves linked audio. Transcription runs in your browser.",
-    audioServerPrivacy: "Audio is sent to MuScriptor Large for transcription.",
+    audioServerPrivacy: "Only the selected section is sent to MuScriptor Large for transcription.",
     audioConverting: "Converting YouTube audio to MP3…",
     audioServerTranscribing: "Transcribing with MuScriptor Large…",
     audioUrlHint: "MP3, WAV, OGG or FLAC · approved hosts only (currently upload.wikimedia.org). YouTube and Spotify links cannot be imported.",
     audioUrlPrivacy: "Link import fetches audio through our server without saving it; transcription still runs in your browser. File uploads stay in your browser.",
     audioFetching: "Fetching audio…",
-    audioPreparing: "Preparing audio and transcription model…",
+    audioReady: "Audio is ready.",
+    audioPreparing: "Preparing the selected audio…",
     audioImportFailed: "Audio was not imported.",
     audioTranscribing: "Transcribing pitch and timing locally…",
     audioConverted: "Melody draft converted into D-whistle fingerings — compare it with the recording",
-    audioUnavailable: "No reliable melody was found in this audio. Try a clearer instrumental or isolated track.",
+    audioUnavailable: "No reliable melody was found in this section. Try a different part.",
     scoreLabel: "Choose a machine-readable score",
     scoreHint: "MIDI or MusicXML · melody track, rests, note lengths and score tempo are imported locally",
     scoreChoose: "Choose score",
@@ -336,17 +345,18 @@ const COPY = {
     audioYoutubeDownload: "MP3’ü indir",
     audioYoutubeHint: "İndirme iznin olan bir YouTube videosu veya izinli bir sunucudaki doğrudan ses bağlantısını kullan.",
     audioYoutubeLocalPrivacy: "Bağlantıdaki ses sunucudan alınır. Notaya çevirme tarayıcında yapılır.",
-    audioServerPrivacy: "Ses, notaya çevrilmesi için MuScriptor Large’a gönderilir.",
+    audioServerPrivacy: "Yalnızca seçili bölüm, notaya çevrilmesi için MuScriptor Large’a gönderilir.",
     audioConverting: "YouTube sesi MP3’e dönüştürülüyor…",
     audioServerTranscribing: "MuScriptor Large ile notaya çevriliyor…",
     audioUrlHint: "MP3, WAV, OGG veya FLAC · yalnızca izinli sunucular (şimdilik upload.wikimedia.org). YouTube ve Spotify bağlantıları aktarılamaz.",
     audioUrlPrivacy: "Bağlantıdaki ses sunucumuz üzerinden kaydedilmeden indirilir; notaya çevirme tarayıcında yapılır. Dosya yüklemeleri tarayıcında kalır.",
     audioFetching: "Ses indiriliyor…",
-    audioPreparing: "Ses ve transkripsiyon modeli hazırlanıyor…",
+    audioReady: "Ses hazır.",
+    audioPreparing: "Seçili bölüm hazırlanıyor…",
     audioImportFailed: "Ses içe aktarılamadı.",
     audioTranscribing: "Perde ve zamanlama tarayıcıda çıkarılıyor…",
     audioConverted: "Melodi taslağı D-whistle parmaklarına dönüştürüldü — kayıtla karşılaştırarak kontrol et",
-    audioUnavailable: "Bu seste güvenilir bir melodi bulunamadı. Daha temiz bir enstrümantal veya izole kayıt dene.",
+    audioUnavailable: "Bu bölümde güvenilir bir melodi bulunamadı. Farklı bir aralık dene.",
     scoreLabel: "Makine tarafından okunabilen bir nota dosyası seç",
     scoreHint: "MIDI veya MusicXML · melodi kanalı, esler, nota süreleri ve dosyadaki tempo yerel olarak alınır",
     scoreChoose: "Nota dosyası seç",
@@ -626,7 +636,7 @@ export default function Home() {
   const [audioPhase, setAudioPhase] = useState<AudioPhase | null>(null);
   const [audioError, setAudioError] = useState<MediaError | null>(null);
   const [audioCapabilities, setAudioCapabilities] = useState<Awaited<ReturnType<typeof detectAudioCapabilities>> | null>(null);
-  const [audioDownload, setAudioDownload] = useState<{ url: string; name: string } | null>(null);
+  const [preparedAudio, setPreparedAudio] = useState<(Awaited<ReturnType<typeof prepareAudioInput>> & { url: string }) | null>(null);
   const audioImportRef = useRef<AbortController | null>(null);
   const audioUsesServer = audioCapabilities?.provider === MUSCRIPTOR_LARGE;
   const audioYoutubeEnabled = audioCapabilities?.youtubeMp3 === true;
@@ -718,9 +728,9 @@ export default function Home() {
     return () => { active = false; };
   }, [mode]);
   useEffect(() => {
-    const url = audioDownload?.url;
+    const url = preparedAudio?.url;
     if (url) return () => { URL.revokeObjectURL(url); };
-  }, [audioDownload]);
+  }, [preparedAudio]);
 
   useEffect(() => {
     const api = sourceApiUrl();
@@ -1275,7 +1285,6 @@ export default function Home() {
     setSourceCandidates([]);
     if (youtubeVideoId(query)) {
       setAudioUrl(query.trim());
-      setAudioDownload(null);
       switchInputMode("audio");
       return;
     }
@@ -1460,64 +1469,33 @@ export default function Home() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    await runAudioInput(file);
+    await loadAudioInput(file);
   }
 
   async function convertAudioUrl(event: FormEvent) {
     event.preventDefault();
-    if (audioUrl.trim()) await runAudioInput(audioUrl.trim());
+    if (audioUrl.trim()) await loadAudioInput(audioUrl.trim());
   }
 
-  async function runAudioInput(source: Blob | string) {
+  async function runAudioAction(action: AudioAction) {
     // The lock survives tab cancellation until cooperative model cleanup finishes.
     if (audioImportRef.current || !audioCapabilities) return;
     const controller = new AbortController();
     audioImportRef.current = controller;
-    const current = () => audioImportRef.current === controller && !controller.signal.aborted;
+    const isCurrent = () => audioImportRef.current === controller && !controller.signal.aborted;
     setAudioBusy(true);
     setAudioError(null);
-    setAudioDownload(null);
     setSourceError("");
     setTranscriptionProgress(0);
     try {
-      const { result, name, origin } = await transcribeAudioInput(source, {
-        apiUrl: sourceApiUrl(), signal: controller.signal,
-        model: audioCapabilities.provider, youtubeEnabled: audioCapabilities.youtubeMp3,
-        onYoutubeFile: (file) => {
-          if (current()) setAudioDownload({ url: URL.createObjectURL(file), name: file.name });
-        },
-        onStage: (phase: AudioPhase) => { if (current()) setAudioPhase(phase); },
-        onProgress: (progress: number) => { if (current()) setTranscriptionProgress(Math.round(progress * 100)); },
+      await action({
+        signal: controller.signal,
+        isCurrent,
+        onStage: phase => { if (isCurrent()) setAudioPhase(phase); },
+        onProgress: progress => { if (isCurrent()) setTranscriptionProgress(Math.round(progress * 100)); },
       });
-      if (!current()) return;
-      if (!result.noteCount || !result.notes) {
-        setStatus("audioUnavailable");
-        return;
-      }
-      const title = name.replace(/\.[^.]+$/, "").replaceAll(/[_-]+/g, " ").trim() || t.customTitle;
-      const evidence = result.melody.confidence.level;
-      const transcriptionSubtitle = result.melody.provider === MUSCRIPTOR_LARGE ? {
-        en: "MuScriptor Large · listening review needed",
-        tr: "MuScriptor Large · dinleyerek kontrol edilmeli",
-      } : {
-        en: `${origin === "url" ? "Audio link · browser transcription" : "Local audio"} · ${evidence === "high" ? "stronger model evidence" : evidence === "medium" ? "mixed model evidence" : "uncertain melody selection"} · listening review needed`,
-        tr: `${origin === "url" ? "Ses bağlantısı · tarayıcıda transkripsiyon" : "Yerel ses"} · ${evidence === "high" ? "daha güçlü model sinyali" : evidence === "medium" ? "karışık model sinyali" : "melodi seçimi belirsiz"} · dinleyerek kontrol edilmeli`,
-      };
-      setSong({
-        id: `audio-${Date.now()}`,
-        title,
-        aliases: [],
-        subtitle: transcriptionSubtitle,
-        difficulty: { en: "Machine transcription", tr: "Makine transkripsiyonu" },
-        notes: result.notes,
-        rhythm: result.rhythm,
-        sourceStatus: "manual",
-        sources: [],
-      });
-      changeTempo(result.rhythm.bpm);
-      setStatus("audioConverted");
     } catch (error: unknown) {
-      if (current()) {
+      if (isCurrent()) {
         setAudioError(audioInputError(error));
         setStatus("audioImportFailed");
       }
@@ -1529,6 +1507,55 @@ export default function Home() {
         setTranscriptionProgress(0);
       }
     }
+  }
+
+  async function loadAudioInput(source: Blob | string) {
+    await runAudioAction(async ({ signal, isCurrent, onStage }) => {
+      setPreparedAudio(null);
+      const input = await prepareAudioInput(source, {
+        apiUrl: sourceApiUrl(), signal, onStage, youtubeEnabled: audioYoutubeEnabled,
+      });
+      if (!isCurrent()) return;
+      setPreparedAudio({ ...input, url: URL.createObjectURL(input.blob) });
+      setStatus("audioReady");
+    });
+  }
+
+  async function transcribeSelection(range: AudioClipRange) {
+    if (!preparedAudio || !audioCapabilities) return;
+    const { blob, name, origin } = preparedAudio;
+    const model = audioCapabilities.provider;
+    await runAudioAction(async ({ signal, isCurrent, onStage, onProgress }) => {
+      const { result } = await transcribeAudioInput(blob, { signal, model, range, onStage, onProgress });
+      if (!isCurrent()) return;
+      if (!result.noteCount || !result.notes) {
+        setStatus("audioUnavailable");
+        return;
+      }
+      const title = name.replace(/\.[^.]+$/, "").replaceAll(/[_-]+/g, " ").trim() || t.customTitle;
+      const evidence = result.melody.confidence.level;
+      const provenance = result.melody.provider === MUSCRIPTOR_LARGE ? {
+        en: "MuScriptor Large · listening review needed",
+        tr: "MuScriptor Large · dinleyerek kontrol edilmeli",
+      } : {
+        en: `${origin === "url" ? "Audio link · browser transcription" : "Local audio"} · ${evidence === "high" ? "stronger model evidence" : evidence === "medium" ? "mixed model evidence" : "uncertain melody selection"} · listening review needed`,
+        tr: `${origin === "url" ? "Ses bağlantısı · tarayıcıda transkripsiyon" : "Yerel ses"} · ${evidence === "high" ? "daha güçlü model sinyali" : evidence === "medium" ? "karışık model sinyali" : "melodi seçimi belirsiz"} · dinleyerek kontrol edilmeli`,
+      };
+      const section = `${formatClipTime(range.start)}–${formatClipTime(range.end)}`;
+      setSong({
+        id: `audio-${Date.now()}`,
+        title,
+        aliases: [],
+        subtitle: { en: `${section} · ${provenance.en}`, tr: `${section} · ${provenance.tr}` },
+        difficulty: { en: "Machine transcription", tr: "Makine transkripsiyonu" },
+        notes: result.notes,
+        rhythm: result.rhythm,
+        sourceStatus: "manual",
+        sources: [],
+      });
+      changeTempo(result.rhythm.bpm);
+      setStatus("audioConverted");
+    });
   }
 
   async function convertScoreFile(event: ChangeEvent<HTMLInputElement>) {
@@ -1677,14 +1704,16 @@ export default function Home() {
                 <label htmlFor="audio-url">{audioYoutubeEnabled ? t.audioYoutubeLabel : t.audioUrlLabel}</label>
                 <div className="audio-url-row">
                   <input id="audio-url" type="text" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={2048}
-                    placeholder="https://…" value={audioUrl} onChange={(event) => { setAudioUrl(event.target.value); setAudioError(null); setAudioDownload(null); }}
+                    placeholder="https://…" value={audioUrl} onChange={(event) => { setAudioUrl(event.target.value); setAudioError(null); }}
                     aria-describedby="audio-url-help audio-url-privacy" disabled={audioDisabled} />
                   <button type="submit" disabled={audioDisabled || !audioUrl.trim()}>{audioYoutubeEnabled && youtubeVideoId(audioUrl) ? t.audioYoutubeConvert : t.audioUrlImport}</button>
                 </div>
                 <p className="audio-url-help" id="audio-url-help">{audioYoutubeEnabled ? t.audioYoutubeHint : t.audioUrlHint}</p>
                 <p className="audio-url-help" id="audio-url-privacy">{!audioCapabilities ? t.audioChecking : audioUsesServer ? t.audioServerPrivacy : audioYoutubeEnabled ? t.audioYoutubeLocalPrivacy : t.audioUrlPrivacy}</p>
-                {audioDownload && <p className="audio-url-help"><a href={audioDownload.url} download={audioDownload.name}>{t.audioYoutubeDownload}</a></p>}
+                {preparedAudio?.youtube && <p className="audio-url-help"><a href={preparedAudio.url} download={preparedAudio.name}>{t.audioYoutubeDownload}</a></p>}
               </form>
+              {preparedAudio && <AudioClipPicker key={preparedAudio.url} url={preparedAudio.url} name={preparedAudio.name}
+                language={language} busy={audioDisabled} onTranscribe={transcribeSelection} />}
               {audioPhase === "audioTranscribing" && <progress aria-label={audioPhaseText} max="100" value={transcriptionProgress}>{transcriptionProgress}%</progress>}
             </div>
           )}

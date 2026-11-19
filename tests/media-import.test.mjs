@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { importAudioUrl, transcribeAudioInput, ERROR_COPY, audioInputError, mediaErrorMessage } from '../app/media-import.mjs';
+import { importAudioUrl, prepareAudioInput, transcribeAudioInput, ERROR_COPY, audioInputError, mediaErrorMessage } from '../app/media-import.mjs';
 import { MAX_AUDIO_BYTES, MAX_AUDIO_DURATION_SECONDS, MediaError } from '../shared/audio-media.mjs';
 import { transcribeAudioFile } from '../app/audio-transcription.mjs';
 
@@ -128,13 +128,42 @@ test('server error keys cannot select object prototype values as UI messages', a
   await assert.rejects(() => importAudioUrl(url, { ...options, fetchFn: async () => new Response('{"error":"constructor"}', { status: 400 }) }), { code: 'remote_error' });
 });
 
-test('page routes both controls to the shared pipeline and tab switches cancel pending work', () => {
+test('YouTube is prepared once, and only the selected samples reach transcription', async (t) => {
+  const file = new File([bytes], 'song.mp3', { type: 'audio/mpeg' });
+  const source = await prepareAudioInput('https://youtu.be/abcdefghijk', {
+    youtubeEnabled: true, resolveYoutube: async () => file,
+  });
+  assert.deepEqual(source, { blob: file, name: 'song.mp3', origin: 'url', youtube: true });
+  const oldContext = globalThis.AudioContext;
+  globalThis.AudioContext = class {
+    async decodeAudioData() {
+      return { sampleRate: 10, length: 5, numberOfChannels: 1,
+        getChannelData: () => Float32Array.from([1, 0, -1, 0, 1]) };
+    }
+    async close() {}
+  };
+  t.after(() => { globalThis.AudioContext = oldContext; });
+  await transcribeAudioInput(source.blob, {
+    range: { start: 0.1, end: 0.4 }, model: 'muscriptor-large',
+    resolveYoutube: () => assert.fail('A prepared MP3 must not be fetched again'),
+    async transcribe(clip, _, { model }) {
+      assert.equal(model, 'muscriptor-large');
+      assert.equal(clip.name, 'section.wav');
+      const wave = new DataView(await clip.arrayBuffer());
+      assert.equal(wave.getUint32(40, true), 6);
+      assert.deepEqual([44, 46, 48].map(offset => wave.getInt16(offset, true)), [0, -32768, 0]);
+      return {};
+    },
+  });
+});
+
+test('page loads audio for preview and only sends a submitted selection to transcription', () => {
   const page = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
-  assert.match(page, /await runAudioInput\(file\)/);
-  assert.match(page, /await runAudioInput\(audioUrl\.trim\(\)\)/);
-  assert.match(page, /await transcribeAudioInput\(source,/);
+  assert.match(page, /await loadAudioInput\(file\)/);
+  assert.match(page, /await loadAudioInput\(audioUrl\.trim\(\)\)/);
+  assert.match(page, /await transcribeAudioInput\(blob, \{ signal, model, range/);
   assert.match(page, /audioImportRef\.current\?\.abort\(\)/);
-  assert.match(page, /if \(!current\(\)\) return/);
+  assert.match(page, /if \(!isCurrent\(\)\) return/);
   assert.match(page, /onSubmit=\{convertAudioUrl\}/);
   assert.match(page, /disabled=\{audioDisabled \|\| !audioUrl\.trim\(\)\}/);
   assert.equal((page.match(/setMode\(/g) || []).length, 1);
