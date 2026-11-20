@@ -1,3 +1,5 @@
+@import "./catalog-browser.css";
+
 :root { --ink:#24352f; --muted:#65726d; --paper:#f3f5f0; --card:#fbfcf8; --green:#416a59; --green-dark:#315445; --green-soft:#e5eee8; --mist:#829da2; --mist-soft:#e8eff0; --accent:#9c623a; --accent-soft:#efe2d5; --line:#d8ddd8; --focus:#527867; --warning:#7d5035; --warning-soft:#f7ede3; }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
@@ -33,8 +35,6 @@ h1 em { color:var(--green); font-weight:400; }
 .search-row input { min-width:0; border:0; outline:0; color:var(--ink); background:transparent; font-size:16px; }
 .search-row button,.paste-actions button,.audio-url-row button { min-height:44px; border:0; border-radius:9px; padding:11px 18px; background:var(--green); color:#fff; font-weight:700; }
 .search-row button:disabled,.paste-actions button:disabled,.audio-url-row button:disabled { opacity:.52; }
-.suggestions { display:flex; align-items:center; flex-wrap:wrap; gap:9px; padding-top:14px; color:var(--muted); font-size:12px; }
-.suggestions button { border:0; border-bottom:1px solid #b8b3a8; padding:2px 0; background:transparent; color:var(--ink); }
 .source-results { display:grid; gap:9px; margin-top:16px; }
 .source-result { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:12px 14px; border:1px solid var(--line); border-radius:11px; background:#f8faf6; }
 .source-result>div { display:flex; min-width:0; align-items:flex-start; gap:5px; }
@@ -205,7 +205,7 @@ h2 { margin:7px 0 5px; font:600 clamp(30px,4vw,44px)/1.1 Georgia,serif; letter-s
 @media (hover:hover) {
   .search-row button:hover,.paste-actions button:hover,.practice-transport .practice-play:hover:not(:disabled),.source-result button:hover { background:var(--green-dark); }
   .practice-transport .practice-stop:hover:not(:disabled),.print-button:hover,.correct-notes-button:hover { border-color:var(--mist); background:var(--card); }
-  .suggestions button:hover,.nav-actions a:hover,.language-toggle:hover { color:var(--green); }
+  .nav-actions a:hover,.language-toggle:hover { color:var(--green); }
 }
 @media (max-width:860px) {
   .hero { padding-top:46px; }
@@ -223,7 +223,7 @@ h2 { margin:7px 0 5px; font:600 clamp(30px,4vw,44px)/1.1 Georgia,serif; letter-s
   .how { grid-template-columns:1fr; gap:30px; }
 }
 @media (max-width:580px) {
-  .nav-actions a { display:none; }
+  .nav-actions a:not(.catalog-nav-link) { display:none; }
   .brand { max-width:170px; font-size:17px; line-height:1.05; }
   .nav-actions { gap:12px; }
   .instrument-badge { padding:6px 8px; font-size:9px; }

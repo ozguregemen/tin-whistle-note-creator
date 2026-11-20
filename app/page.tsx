@@ -3,12 +3,13 @@
 import { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { parseAbcScore } from "./abc.mjs";
 import { AudioClipPicker, type AudioClipRange } from "./audio-clip-picker";
+import { CatalogBrowser, catalogNavLabel } from "./catalog-browser";
 import { formatClipTime } from "./audio-clip.mjs";
 import { audioInputError, mediaErrorMessage, prepareAudioInput, transcribeAudioInput } from "./media-import.mjs";
 import { detectAudioCapabilities, MUSCRIPTOR_LARGE } from "./muscriptor.mjs";
 import { youtubeVideoId } from "./youtube-audio.mjs";
 import { MediaError } from "../shared/audio-media.mjs";
-import { assessSongQuality, rankCatalogMatches, rankCatalogSongs } from "./catalog-quality.mjs";
+import { assessSongQuality, rankCatalogMatches } from "./catalog-quality.mjs";
 import { applyCuratedTempo } from "./curated-tempos.mjs";
 import { arrangePhrasesForDWhistle, estimateDWhistleRegisters, fingeringFor, isUpperWhistleRegister } from "./fingerings.mjs";
 import { replacePhraseNote, serializeNotePhrases } from "./note-corrections.mjs";
@@ -149,7 +150,6 @@ const COPY = {
     searchLabel: "What song would you like to play?",
     searchPlaceholder: "Song or folk tune name",
     find: "Find notes",
-    suggested: "Try:",
     pasteLabel: "Separate notes with spaces and phrases with a “|”",
     pasteHint: "Use Do/Re/Mi or C/D/E · Add # for sharps · Add ' for the upper register · Example: D'",
     convert: "Convert",
@@ -328,7 +328,6 @@ const COPY = {
     searchLabel: "Hangi şarkıyı çalmak istiyorsun?",
     searchPlaceholder: "Şarkı veya türkü adı",
     find: "Notaları bul",
-    suggested: "Önerilen:",
     pasteLabel: "Notaları boşlukla, cümleleri “|” işaretiyle ayır",
     pasteHint: "Do/Re/Mi veya C/D/E kullan · Diyez için #, üst register için ' ekle · Örnek: Re'",
     convert: "Dönüştür",
@@ -669,7 +668,6 @@ export default function Home() {
     ? t.audioServerTranscribing : audioPhase ? t[audioPhase] : "";
   const sourceIsBusy = status === "queueing" || status === "processing" || status === "sourceRetrying";
   const songQuality = useMemo(() => song ? assessSongQuality(song) : null, [song]);
-  const suggestedSongs = useMemo(() => rankCatalogSongs(catalog).slice(0, 4) as Song[], [catalog]);
   const readinessLabel = songQuality?.readiness === "ready"
     ? t.readyToPractice
     : songQuality?.readiness === "rhythmic-draft"
@@ -1611,8 +1609,18 @@ export default function Home() {
     });
   }
 
-  function chooseSuggestion(selected: Song) {
-    setSourceError(""); setQuery(selected.title); setSong(selected); setStatus("catalogFound"); switchInputMode("search");
+  function openCatalogSong(selected: Song) {
+    setSourceError("");
+    setSourceCandidates([]);
+    setQuery(selected.title);
+    setSong((current) => current?.id === selected.id ? current : restoreStoredCorrection(selected));
+    setStatus("catalogFound");
+    switchInputMode("search");
+    window.requestAnimationFrame(() => {
+      const heading = document.getElementById("preview-title");
+      heading?.focus({ preventScroll: true });
+      heading?.scrollIntoView({ block: "start" });
+    });
   }
 
   return (
@@ -1620,6 +1628,7 @@ export default function Home() {
       <nav className="nav shell" aria-label={t.navLabel}>
         <a className="brand" href="#top">Tin Whistle Note Creator</a>
         <div className="nav-actions">
+          <a className="catalog-nav-link" href="#song-catalog">{catalogNavLabel[language]}</a>
           <a href="#how-it-works">{t.navHow}</a>
           <button className="language-toggle" type="button" onClick={toggleLanguage} aria-label={t.languageLabel}>{t.languageAction}</button>
           <span className="instrument-badge">{t.badge}</span>
@@ -1631,6 +1640,9 @@ export default function Home() {
         <h1>{t.heroTop}<br /><em>{t.heroAccent}</em></h1>
         <p>{t.intro}</p>
 
+        <div className="hero-tools">
+          <CatalogBrowser songs={catalog} language={language} activeId={song?.id}
+            busy={sourceIsBusy || status === "searching" || audioBusy} onOpen={openCatalogSong} />
         <div className="converter-card">
           <div className="mode-tabs" role="tablist" aria-label={t.inputModes}>
             <button id="source-tab-search" type="button" role="tab" aria-controls="source-panel-search" aria-selected={mode === "search"} tabIndex={mode === "search" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "search")} onClick={() => switchInputMode("search")}>{t.catalogTab}</button>
@@ -1645,10 +1657,6 @@ export default function Home() {
                 <span aria-hidden="true">⌕</span>
                 <input id="song-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.searchPlaceholder} />
                 <button type="submit" disabled={status === "searching"}>{status === "searching" ? "…" : t.find} <span aria-hidden="true">→</span></button>
-              </div>
-              <div className="suggestions">
-                <span>{t.suggested}</span>
-                {suggestedSongs.map((item) => <button type="button" onClick={() => chooseSuggestion(item)} key={item.id}>{item.artist ? `${item.artist} · ` : ""}{item.title}</button>)}
               </div>
               {sourceCandidates.length > 0 && <div className="source-results" aria-label={t.sourceFound}>
                 {sourceCandidates.map((candidate) => {
@@ -1719,11 +1727,12 @@ export default function Home() {
           )}
           <p className={`status status-${mode === "audio" && audioPhase ? audioPhase : status}`} role="status"><span className="status-dot" /><span className="status-message">{mode === "audio" && audioError ? mediaErrorMessage(audioError, language) : mode === "audio" && audioPhase ? `${audioPhaseText}${audioPhase === "audioTranscribing" ? ` ${transcriptionProgress}%` : ""}` : t[status]}{sourceError && <small>{sourceError}</small>}</span></p>
         </div>
+        </div>
       </section>
 
       {song ? <section className="workspace shell" aria-labelledby="preview-title">
         <div className="workspace-heading">
-          <div><span className="section-kicker">{t.guide}</span><h2 id="preview-title">{song.artist ? `${song.artist} — ` : ""}{song.title}</h2><div className="workspace-subtitle"><p>{song.sourceConfidence === "estimated" ? t.textEstimated : song.subtitle[language]} · {song.difficulty[language]} · D tin whistle{song.userEdited ? ` · ${t.userCorrected}` : ""}</p>{songQuality && <span className={`readiness-badge readiness-${songQuality.readiness}`}>{readinessLabel}</span>}</div></div>
+          <div><span className="section-kicker">{t.guide}</span><h2 id="preview-title" tabIndex={-1}>{song.artist ? `${song.artist} — ` : ""}{song.title}</h2><div className="workspace-subtitle"><p>{song.sourceConfidence === "estimated" ? t.textEstimated : song.subtitle[language]} · {song.difficulty[language]} · D tin whistle{song.userEdited ? ` · ${t.userCorrected}` : ""}</p>{songQuality && <span className={`readiness-badge readiness-${songQuality.readiness}`}>{readinessLabel}</span>}</div></div>
           <div className="workspace-actions">
             <div className="legend"><span className="hole closed" /> {t.closed} <span className="hole half" /> {t.half} <span className="hole open" /> {t.open}</div>
             <button type="button" className={`correct-notes-button${editingNotes ? " active" : ""}`} aria-pressed={editingNotes} onClick={() => setEditingNotes((current) => !current)}>{editingNotes ? t.finishCorrection : t.correctNotes}</button>
