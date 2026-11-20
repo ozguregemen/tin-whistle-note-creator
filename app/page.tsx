@@ -1639,211 +1639,212 @@ export default function Home() {
         <div className="eyebrow"><span /> {t.eyebrow}</div>
         <h1>{t.heroTop}<br /><em>{t.heroAccent}</em></h1>
         <p>{t.intro}</p>
-
-        <div className="hero-tools">
-          <CatalogBrowser songs={catalog} language={language} activeId={song?.id}
-            busy={sourceIsBusy || status === "searching" || audioBusy} onOpen={openCatalogSong} />
-        <div className="converter-card">
-          <div className="mode-tabs" role="tablist" aria-label={t.inputModes}>
-            <button id="source-tab-search" type="button" role="tab" aria-controls="source-panel-search" aria-selected={mode === "search"} tabIndex={mode === "search" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "search")} onClick={() => switchInputMode("search")}>{t.catalogTab}</button>
-            <button id="source-tab-paste" type="button" role="tab" aria-controls="source-panel-paste" aria-selected={mode === "paste"} tabIndex={mode === "paste" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "paste")} onClick={() => switchInputMode("paste")}>{t.pasteTab}</button>
-            <button id="source-tab-score" type="button" role="tab" aria-controls="source-panel-score" aria-selected={mode === "score"} tabIndex={mode === "score" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "score")} onClick={() => switchInputMode("score")}>{t.scoreTab}</button>
-            <button id="source-tab-audio" type="button" role="tab" aria-controls="source-panel-audio" aria-selected={mode === "audio"} tabIndex={mode === "audio" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "audio")} onClick={() => switchInputMode("audio")}>{t.audioTab}</button>
-          </div>
-          {mode === "search" ? (
-            <form id="source-panel-search" role="tabpanel" aria-labelledby="source-tab-search" onSubmit={findSong}>
-              <label htmlFor="song-search">{t.searchLabel}</label>
-              <div className="search-row">
-                <span aria-hidden="true">⌕</span>
-                <input id="song-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.searchPlaceholder} />
-                <button type="submit" disabled={status === "searching"}>{status === "searching" ? "…" : t.find} <span aria-hidden="true">→</span></button>
-              </div>
-              {sourceCandidates.length > 0 && <div className="source-results" aria-label={t.sourceFound}>
-                {sourceCandidates.map((candidate) => {
-                  const candidateQuality = candidate.quality
-                    ?? (candidate.processingMode === "gp" ? "rhythmic-score" : candidate.processingMode === "text" ? "melody-only" : candidate.processingMode === "omr" ? "machine-read" : "review-only");
-                  const candidateQualityLabel = candidateQuality === "rhythmic-score"
-                    ? t.candidateRhythmic
-                    : candidateQuality === "melody-only"
-                      ? t.candidateMelodyOnly
-                      : candidateQuality === "machine-read"
-                        ? t.candidateMachineRead
-                        : t.candidateReviewOnly;
-                  return <article className={`source-result source-quality-${candidateQuality}`} key={candidate.id}>
-                    <div>
-                      <div className="source-result-title"><strong>{candidate.title}</strong><span className="source-quality-badge">{candidateQualityLabel}</span></div>
-                      <span>{candidate.sourceName} · {candidate.processingMode === "text" ? t.textSource : candidate.processingMode === "gp" ? t.gpSource : candidate.processingMode === "review" ? t.webSource : t.scoreSource}</span>
-                    </div>
-                    <div>
-                      <a href={candidate.url} target="_blank" rel="noreferrer">{t.primarySource}</a>
-                      {candidate.processingMode === "review" ? <span className="source-review">{t.reviewSource}</span> : <button type="button" disabled={sourceIsBusy} onClick={() => processSource(candidate)}>{sourceIsBusy ? "…" : t.processSource} <span aria-hidden="true">→</span></button>}
-                    </div>
-                  </article>;
-                })}
-              </div>}
-            </form>
-          ) : mode === "paste" ? (
-            <form id="source-panel-paste" role="tabpanel" aria-labelledby="source-tab-paste" onSubmit={convertManual}>
-              <label htmlFor="notes-input">{t.pasteLabel}</label>
-              <textarea id="notes-input" value={manualNotes} onChange={(event) => setManualNotes(event.target.value)} rows={3} />
-              <div className="paste-actions"><span>{t.pasteHint}</span><button type="submit">{t.convert} <span aria-hidden="true">→</span></button></div>
-            </form>
-          ) : mode === "score" ? (
-            <div id="source-panel-score" className="audio-import" role="tabpanel" aria-labelledby="source-tab-score">
-              <label htmlFor="score-input">{t.scoreLabel}</label>
-              <label className="audio-picker" htmlFor="score-input">
-                <span aria-hidden="true">♫</span>
-                <strong>{t.scoreChoose}</strong>
-                <small>{t.scoreHint}</small>
-              </label>
-              <input id="score-input" type="file" accept="audio/midi,audio/x-midi,application/vnd.recordare.musicxml,application/xml,text/xml,.mid,.midi,.musicxml,.xml" onChange={convertScoreFile} />
-            </div>
-          ) : (
-            <div id="source-panel-audio" className="audio-import" role="tabpanel" aria-labelledby="source-tab-audio">
-              <label htmlFor="audio-input">{t.audioLabel}</label>
-              <label className={`audio-picker${audioDisabled ? " disabled" : ""}`} htmlFor="audio-input">
-                <span aria-hidden="true">♪</span>
-                <strong>{t.audioChoose}</strong>
-                <small>{!audioCapabilities ? t.audioChecking : audioUsesServer ? t.audioServerHint : t.audioHint}</small>
-              </label>
-              <input id="audio-input" type="file" accept="audio/mpeg,audio/wav,audio/ogg,audio/flac,.mp3,.wav,.ogg,.flac" onChange={convertAudio} disabled={audioDisabled} />
-              <p className="audio-alternative">{t.audioOr}</p>
-              <form onSubmit={convertAudioUrl}>
-                <label htmlFor="audio-url">{audioYoutubeEnabled ? t.audioYoutubeLabel : t.audioUrlLabel}</label>
-                <div className="audio-url-row">
-                  <input id="audio-url" type="text" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={2048}
-                    placeholder="https://…" value={audioUrl} onChange={(event) => { setAudioUrl(event.target.value); setAudioError(null); }}
-                    aria-describedby="audio-url-help audio-url-privacy" disabled={audioDisabled} />
-                  <button type="submit" disabled={audioDisabled || !audioUrl.trim()}>{audioYoutubeEnabled && youtubeVideoId(audioUrl) ? t.audioYoutubeConvert : t.audioUrlImport}</button>
-                </div>
-                <p className="audio-url-help" id="audio-url-help">{audioYoutubeEnabled ? t.audioYoutubeHint : t.audioUrlHint}</p>
-                <p className="audio-url-help" id="audio-url-privacy">{!audioCapabilities ? t.audioChecking : audioUsesServer ? t.audioServerPrivacy : audioYoutubeEnabled ? t.audioYoutubeLocalPrivacy : t.audioUrlPrivacy}</p>
-                {preparedAudio?.youtube && <p className="audio-url-help"><a href={preparedAudio.url} download={preparedAudio.name}>{t.audioYoutubeDownload}</a></p>}
-              </form>
-              {preparedAudio && <AudioClipPicker key={preparedAudio.url} url={preparedAudio.url} name={preparedAudio.name}
-                language={language} busy={audioDisabled} onTranscribe={transcribeSelection} />}
-              {audioPhase === "audioTranscribing" && <progress aria-label={audioPhaseText} max="100" value={transcriptionProgress}>{transcriptionProgress}%</progress>}
-            </div>
-          )}
-          <p className={`status status-${mode === "audio" && audioPhase ? audioPhase : status}`} role="status"><span className="status-dot" /><span className="status-message">{mode === "audio" && audioError ? mediaErrorMessage(audioError, language) : mode === "audio" && audioPhase ? `${audioPhaseText}${audioPhase === "audioTranscribing" ? ` ${transcriptionProgress}%` : ""}` : t[status]}{sourceError && <small>{sourceError}</small>}</span></p>
-        </div>
-        </div>
       </section>
 
-      {song ? <section className="workspace shell" aria-labelledby="preview-title">
-        <div className="workspace-heading">
-          <div><span className="section-kicker">{t.guide}</span><h2 id="preview-title" tabIndex={-1}>{song.artist ? `${song.artist} — ` : ""}{song.title}</h2><div className="workspace-subtitle"><p>{song.sourceConfidence === "estimated" ? t.textEstimated : song.subtitle[language]} · {song.difficulty[language]} · D tin whistle{song.userEdited ? ` · ${t.userCorrected}` : ""}</p>{songQuality && <span className={`readiness-badge readiness-${songQuality.readiness}`}>{readinessLabel}</span>}</div></div>
-          <div className="workspace-actions">
-            <div className="legend"><span className="hole closed" /> {t.closed} <span className="hole half" /> {t.half} <span className="hole open" /> {t.open}</div>
-            <button type="button" className={`correct-notes-button${editingNotes ? " active" : ""}`} aria-pressed={editingNotes} onClick={() => setEditingNotes((current) => !current)}>{editingNotes ? t.finishCorrection : t.correctNotes}</button>
-            <button type="button" className="print-button" onClick={() => window.print()}>{t.print}</button>
-          </div>
-        </div>
-        <section className={`practice-panel${isPlaying ? " playing" : ""}`} aria-label={t.practice}>
-          <div className="practice-main">
-            <div className="practice-title"><span className="section-kicker">{t.practice}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</strong></div>
-            <div className="practice-transport">
-              <button type="button" className="practice-play" onClick={togglePractice} disabled={!playbackPlan.length || soundStatus === "loading"} aria-pressed={isPlaying}><span aria-hidden="true">{isPlaying ? "Ⅱ" : "▶"}</span> {soundStatus === "loading" ? "…" : isPlaying ? t.pause : t.play}</button>
-              <button type="button" className="practice-stop" onClick={stopPractice} disabled={!isPlaying && activeNoteIndex < 0}><span aria-hidden="true">■</span> {t.stop}</button>
+      <div className="workbench shell">
+        <CatalogBrowser songs={catalog} language={language} activeId={song?.id}
+          busy={sourceIsBusy || status === "searching" || audioBusy} onOpen={openCatalogSong} />
+        <div className="workbench-main">
+          <div className="converter-card">
+            <div className="mode-tabs" role="tablist" aria-label={t.inputModes}>
+              <button id="source-tab-search" type="button" role="tab" aria-controls="source-panel-search" aria-selected={mode === "search"} tabIndex={mode === "search" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "search")} onClick={() => switchInputMode("search")}>{t.catalogTab}</button>
+              <button id="source-tab-paste" type="button" role="tab" aria-controls="source-panel-paste" aria-selected={mode === "paste"} tabIndex={mode === "paste" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "paste")} onClick={() => switchInputMode("paste")}>{t.pasteTab}</button>
+              <button id="source-tab-score" type="button" role="tab" aria-controls="source-panel-score" aria-selected={mode === "score"} tabIndex={mode === "score" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "score")} onClick={() => switchInputMode("score")}>{t.scoreTab}</button>
+              <button id="source-tab-audio" type="button" role="tab" aria-controls="source-panel-audio" aria-selected={mode === "audio"} tabIndex={mode === "audio" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "audio")} onClick={() => switchInputMode("audio")}>{t.audioTab}</button>
             </div>
-            <div className="tempo-control" role="group" aria-labelledby="practice-tempo-label">
-              <span id="practice-tempo-label" className="tempo-label">{t.tempo}</span>
-              <input id="practice-bpm" type="range" min={BPM_MIN} max={BPM_MAX} step="1" value={bpm} aria-label={t.tempo} onChange={(event) => changeTempo(Number(event.target.value))} />
-              <div className="bpm-field">
-                <label className="sr-only" htmlFor="practice-bpm-number">{t.bpmInput}</label>
-                <input
-                  id="practice-bpm-number"
-                  type="number"
-                  min={BPM_MIN}
-                  max={BPM_MAX}
-                  step="1"
-                  inputMode="numeric"
-                  value={bpmInput}
-                  onChange={(event) => editBpmInput(event.target.value)}
-                  onBlur={commitBpmField}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      event.currentTarget.blur();
-                    }
-                  }}
-                />
-                <span aria-hidden="true">BPM</span>
+            {mode === "search" ? (
+              <form id="source-panel-search" role="tabpanel" aria-labelledby="source-tab-search" onSubmit={findSong}>
+                <label htmlFor="song-search">{t.searchLabel}</label>
+                <div className="search-row">
+                  <span aria-hidden="true">⌕</span>
+                  <input id="song-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.searchPlaceholder} />
+                  <button type="submit" disabled={status === "searching"}>{status === "searching" ? "…" : t.find} <span aria-hidden="true">→</span></button>
+                </div>
+                {sourceCandidates.length > 0 && <div className="source-results" aria-label={t.sourceFound}>
+                  {sourceCandidates.map((candidate) => {
+                    const candidateQuality = candidate.quality
+                      ?? (candidate.processingMode === "gp" ? "rhythmic-score" : candidate.processingMode === "text" ? "melody-only" : candidate.processingMode === "omr" ? "machine-read" : "review-only");
+                    const candidateQualityLabel = candidateQuality === "rhythmic-score"
+                      ? t.candidateRhythmic
+                      : candidateQuality === "melody-only"
+                        ? t.candidateMelodyOnly
+                        : candidateQuality === "machine-read"
+                          ? t.candidateMachineRead
+                          : t.candidateReviewOnly;
+                    return <article className={`source-result source-quality-${candidateQuality}`} key={candidate.id}>
+                      <div>
+                        <div className="source-result-title"><strong>{candidate.title}</strong><span className="source-quality-badge">{candidateQualityLabel}</span></div>
+                        <span>{candidate.sourceName} · {candidate.processingMode === "text" ? t.textSource : candidate.processingMode === "gp" ? t.gpSource : candidate.processingMode === "review" ? t.webSource : t.scoreSource}</span>
+                      </div>
+                      <div>
+                        <a href={candidate.url} target="_blank" rel="noreferrer">{t.primarySource}</a>
+                        {candidate.processingMode === "review" ? <span className="source-review">{t.reviewSource}</span> : <button type="button" disabled={sourceIsBusy} onClick={() => processSource(candidate)}>{sourceIsBusy ? "…" : t.processSource} <span aria-hidden="true">→</span></button>}
+                      </div>
+                    </article>;
+                  })}
+                </div>}
+              </form>
+            ) : mode === "paste" ? (
+              <form id="source-panel-paste" role="tabpanel" aria-labelledby="source-tab-paste" onSubmit={convertManual}>
+                <label htmlFor="notes-input">{t.pasteLabel}</label>
+                <textarea id="notes-input" value={manualNotes} onChange={(event) => setManualNotes(event.target.value)} rows={3} />
+                <div className="paste-actions"><span>{t.pasteHint}</span><button type="submit">{t.convert} <span aria-hidden="true">→</span></button></div>
+              </form>
+            ) : mode === "score" ? (
+              <div id="source-panel-score" className="audio-import" role="tabpanel" aria-labelledby="source-tab-score">
+                <label htmlFor="score-input">{t.scoreLabel}</label>
+                <label className="audio-picker" htmlFor="score-input">
+                  <span aria-hidden="true">♫</span>
+                  <strong>{t.scoreChoose}</strong>
+                  <small>{t.scoreHint}</small>
+                </label>
+                <input id="score-input" type="file" accept="audio/midi,audio/x-midi,application/vnd.recordare.musicxml,application/xml,text/xml,.mid,.midi,.musicxml,.xml" onChange={convertScoreFile} />
+              </div>
+            ) : (
+              <div id="source-panel-audio" className="audio-import" role="tabpanel" aria-labelledby="source-tab-audio">
+                <label htmlFor="audio-input">{t.audioLabel}</label>
+                <label className={`audio-picker${audioDisabled ? " disabled" : ""}`} htmlFor="audio-input">
+                  <span aria-hidden="true">♪</span>
+                  <strong>{t.audioChoose}</strong>
+                  <small>{!audioCapabilities ? t.audioChecking : audioUsesServer ? t.audioServerHint : t.audioHint}</small>
+                </label>
+                <input id="audio-input" type="file" accept="audio/mpeg,audio/wav,audio/ogg,audio/flac,.mp3,.wav,.ogg,.flac" onChange={convertAudio} disabled={audioDisabled} />
+                <p className="audio-alternative">{t.audioOr}</p>
+                <form onSubmit={convertAudioUrl}>
+                  <label htmlFor="audio-url">{audioYoutubeEnabled ? t.audioYoutubeLabel : t.audioUrlLabel}</label>
+                  <div className="audio-url-row">
+                    <input id="audio-url" type="text" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={2048}
+                      placeholder="https://…" value={audioUrl} onChange={(event) => { setAudioUrl(event.target.value); setAudioError(null); }}
+                      aria-describedby="audio-url-help audio-url-privacy" disabled={audioDisabled} />
+                    <button type="submit" disabled={audioDisabled || !audioUrl.trim()}>{audioYoutubeEnabled && youtubeVideoId(audioUrl) ? t.audioYoutubeConvert : t.audioUrlImport}</button>
+                  </div>
+                  <p className="audio-url-help" id="audio-url-help">{audioYoutubeEnabled ? t.audioYoutubeHint : t.audioUrlHint}</p>
+                  <p className="audio-url-help" id="audio-url-privacy">{!audioCapabilities ? t.audioChecking : audioUsesServer ? t.audioServerPrivacy : audioYoutubeEnabled ? t.audioYoutubeLocalPrivacy : t.audioUrlPrivacy}</p>
+                  {preparedAudio?.youtube && <p className="audio-url-help"><a href={preparedAudio.url} download={preparedAudio.name}>{t.audioYoutubeDownload}</a></p>}
+                </form>
+                {preparedAudio && <AudioClipPicker key={preparedAudio.url} url={preparedAudio.url} name={preparedAudio.name}
+                  language={language} busy={audioDisabled} onTranscribe={transcribeSelection} />}
+                {audioPhase === "audioTranscribing" && <progress aria-label={audioPhaseText} max="100" value={transcriptionProgress}>{transcriptionProgress}%</progress>}
+              </div>
+            )}
+            <p className={`status status-${mode === "audio" && audioPhase ? audioPhase : status}`} role="status"><span className="status-dot" /><span className="status-message">{mode === "audio" && audioError ? mediaErrorMessage(audioError, language) : mode === "audio" && audioPhase ? `${audioPhaseText}${audioPhase === "audioTranscribing" ? ` ${transcriptionProgress}%` : ""}` : t[status]}{sourceError && <small>{sourceError}</small>}</span></p>
+          </div>
+          {song ? <section className="workspace" aria-labelledby="preview-title">
+            <div className="workspace-heading">
+              <div><span className="section-kicker">{t.guide}</span><h2 id="preview-title" tabIndex={-1}>{song.artist ? `${song.artist} — ` : ""}{song.title}</h2><div className="workspace-subtitle"><p>{song.sourceConfidence === "estimated" ? t.textEstimated : song.subtitle[language]} · {song.difficulty[language]} · D tin whistle{song.userEdited ? ` · ${t.userCorrected}` : ""}</p>{songQuality && <span className={`readiness-badge readiness-${songQuality.readiness}`}>{readinessLabel}</span>}</div></div>
+              <div className="workspace-actions">
+                <div className="legend"><span className="hole closed" /> {t.closed} <span className="hole half" /> {t.half} <span className="hole open" /> {t.open}</div>
+                <button type="button" className={`correct-notes-button${editingNotes ? " active" : ""}`} aria-pressed={editingNotes} onClick={() => setEditingNotes((current) => !current)}>{editingNotes ? t.finishCorrection : t.correctNotes}</button>
+                <button type="button" className="print-button" onClick={() => window.print()}>{t.print}</button>
               </div>
             </div>
-            <div className="practice-progress" aria-live="polite"><span>{t.progress}</span><strong>{progressCurrent} / {progressTotal}</strong></div>
-          </div>
-          <div className="practice-secondary">
-            <div className="practice-options">
-              <label className="practice-toggle"><input type="checkbox" checked={metronomeEnabled} onChange={(event) => changeMetronome(event.target.checked)} /> <span>{t.metronome}</span></label>
-              <label className="practice-toggle"><input type="checkbox" checked={followEnabled} onChange={(event) => setFollowEnabled(event.target.checked)} /> <span>{t.followNotes}</span></label>
-              <label className="practice-toggle"><input type="checkbox" checked={loopEnabled} onChange={(event) => changeLoop(event.target.checked)} /> <span>{t.loopPhrase}</span></label>
-              <label className="phrase-select" htmlFor="loop-phrase"><span>{t.selectPhrase}</span><select id="loop-phrase" value={selectedPhraseIndex} onChange={(event) => changeSelectedPhrase(Number(event.target.value))} disabled={!loopEnabled}>{phrases.map((_, index) => <option value={index} key={index}>{t.phrase} {String(index + 1).padStart(2, "0")}</option>)}</select></label>
-            </div>
-            <div className="practice-meta">
-              <span className="sound-status" aria-live="polite">{soundStatus === "loading" ? t.loadingSound : soundStatus === "fallback" ? t.referenceSound : t.whistleSound}</span>
-              <span className={`tempo-origin ${tempoStatus}`}>
-              {tempoStatus === "loading"
-                ? t.tempoSearching
-                : song.rhythm?.tempoSource === "database"
-                  ? song.rhythm.tempoUrl
-                    ? <a href={song.rhythm.tempoUrl} target="_blank" rel="noreferrer">{t.originalTempo}</a>
-                    : t.originalTempo
-                  : song.rhythm?.tempoSource === "score" || song.rhythm?.tempoSource === "curated"
-                    ? t.scoreTempo
-                    : song.rhythm?.tempoSource === "audio-estimate"
-                      ? t.audioTempo
-                      : song.rhythm?.source === "transcribed" ? t.audioReferenceTempo : t.defaultTempo}
-              </span>
-            </div>
-          </div>
-        </section>
-        {unsupported.length > 0 && <div className="warning" role="alert"><strong>{unsupported.length} {t.warningStart}</strong> {t.warningEnd}</div>}
-        {editingNotes && <p className="correction-hint">{t.correctionHint}</p>}
-        <div className="phrases">
-          {phrases.map((phrase, phraseIndex) => (
-            <article className={`phrase-card${loopEnabled && phraseIndex === selectedPhraseIndex ? " selected" : ""}`} key={phraseIndex}>
-              <div className="phrase-meta"><span>{t.phrase} {String(phraseIndex + 1).padStart(2, "0")}</span><span>{phrase.length} {phrase.length === 1 ? t.note : t.notes}</span></div>
-              <div className="notes-grid">{phrase.map((note, index) => {
-                const globalIndex = phraseOffsets[phraseIndex] + index;
-                return <Fingering note={note} index={index} globalIndex={globalIndex} active={activeNoteIndex === globalIndex} language={language} editing={editingNotes} correctionLabel={t.correctionLabel} onCorrection={(value) => correctArrangedNote(phraseIndex, index, value)} key={`${note.pitch}-${note.octave}-${index}`} />;
-              })}</div>
-            </article>
-          ))}
-        </div>
-        <section className="score-details" aria-labelledby="score-details-title">
-          <div className="score-details-heading"><div><h3 id="score-details-title">{t.detailsTitle}</h3><p>{t.detailsIntro}</p></div></div>
-          {song.sourceStatus !== "manual" && songQuality && <div className={`source-panel quality-${songQuality.tone}`}>
-            <div>
-              <strong>{songQuality.readiness === "ready" ? "✓" : songQuality.readiness === "review-required" ? "!" : "i"} {readinessLabel}</strong>
-              <span>{readinessHelp}</span>
-              <div className="quality-facts" aria-label={t.qualitySummary}>
-                <span><b>{t.qualityMelody}:</b> {songQuality.melody === "cross-checked" ? t.verified : songQuality.melody === "omr-unreviewed" ? t.omrUnreviewed : songQuality.melody === "text-estimated" ? t.textEstimated : t.sourcedMelody}</span>
-                <span><b>{t.qualityRhythm}:</b> {songQuality.rhythm === "score" ? t.scoreRhythm : songQuality.rhythm === "text" ? t.textRhythm : t.estimatedRhythm}</span>
-                <span><b>{t.qualityTempo}:</b> {songQuality.tempo === "known" ? t.knownTempo : t.defaultTempoShort}</span>
+            <section className={`practice-panel${isPlaying ? " playing" : ""}`} aria-label={t.practice}>
+              <div className="practice-main">
+                <div className="practice-title"><span className="section-kicker">{t.practice}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</strong></div>
+                <div className="practice-transport">
+                  <button type="button" className="practice-play" onClick={togglePractice} disabled={!playbackPlan.length || soundStatus === "loading"} aria-pressed={isPlaying}><span aria-hidden="true">{isPlaying ? "Ⅱ" : "▶"}</span> {soundStatus === "loading" ? "…" : isPlaying ? t.pause : t.play}</button>
+                  <button type="button" className="practice-stop" onClick={stopPractice} disabled={!isPlaying && activeNoteIndex < 0}><span aria-hidden="true">■</span> {t.stop}</button>
+                </div>
+                <div className="tempo-control" role="group" aria-labelledby="practice-tempo-label">
+                  <span id="practice-tempo-label" className="tempo-label">{t.tempo}</span>
+                  <input id="practice-bpm" type="range" min={BPM_MIN} max={BPM_MAX} step="1" value={bpm} aria-label={t.tempo} onChange={(event) => changeTempo(Number(event.target.value))} />
+                  <div className="bpm-field">
+                    <label className="sr-only" htmlFor="practice-bpm-number">{t.bpmInput}</label>
+                    <input
+                      id="practice-bpm-number"
+                      type="number"
+                      min={BPM_MIN}
+                      max={BPM_MAX}
+                      step="1"
+                      inputMode="numeric"
+                      value={bpmInput}
+                      onChange={(event) => editBpmInput(event.target.value)}
+                      onBlur={commitBpmField}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          event.currentTarget.blur();
+                        }
+                      }}
+                    />
+                    <span aria-hidden="true">BPM</span>
+                  </div>
+                </div>
+                <div className="practice-progress" aria-live="polite"><span>{t.progress}</span><strong>{progressCurrent} / {progressTotal}</strong></div>
               </div>
+              <div className="practice-secondary">
+                <div className="practice-options">
+                  <label className="practice-toggle"><input type="checkbox" checked={metronomeEnabled} onChange={(event) => changeMetronome(event.target.checked)} /> <span>{t.metronome}</span></label>
+                  <label className="practice-toggle"><input type="checkbox" checked={followEnabled} onChange={(event) => setFollowEnabled(event.target.checked)} /> <span>{t.followNotes}</span></label>
+                  <label className="practice-toggle"><input type="checkbox" checked={loopEnabled} onChange={(event) => changeLoop(event.target.checked)} /> <span>{t.loopPhrase}</span></label>
+                  <label className="phrase-select" htmlFor="loop-phrase"><span>{t.selectPhrase}</span><select id="loop-phrase" value={selectedPhraseIndex} onChange={(event) => changeSelectedPhrase(Number(event.target.value))} disabled={!loopEnabled}>{phrases.map((_, index) => <option value={index} key={index}>{t.phrase} {String(index + 1).padStart(2, "0")}</option>)}</select></label>
+                </div>
+                <div className="practice-meta">
+                  <span className="sound-status" aria-live="polite">{soundStatus === "loading" ? t.loadingSound : soundStatus === "fallback" ? t.referenceSound : t.whistleSound}</span>
+                  <span className={`tempo-origin ${tempoStatus}`}>
+                  {tempoStatus === "loading"
+                    ? t.tempoSearching
+                    : song.rhythm?.tempoSource === "database"
+                      ? song.rhythm.tempoUrl
+                        ? <a href={song.rhythm.tempoUrl} target="_blank" rel="noreferrer">{t.originalTempo}</a>
+                        : t.originalTempo
+                      : song.rhythm?.tempoSource === "score" || song.rhythm?.tempoSource === "curated"
+                        ? t.scoreTempo
+                        : song.rhythm?.tempoSource === "audio-estimate"
+                          ? t.audioTempo
+                          : song.rhythm?.source === "transcribed" ? t.audioReferenceTempo : t.defaultTempo}
+                  </span>
+                </div>
+              </div>
+            </section>
+            {unsupported.length > 0 && <div className="warning" role="alert"><strong>{unsupported.length} {t.warningStart}</strong> {t.warningEnd}</div>}
+            {editingNotes && <p className="correction-hint">{t.correctionHint}</p>}
+            <div className="phrases">
+              {phrases.map((phrase, phraseIndex) => (
+                <article className={`phrase-card${loopEnabled && phraseIndex === selectedPhraseIndex ? " selected" : ""}`} key={phraseIndex}>
+                  <div className="phrase-meta"><span>{t.phrase} {String(phraseIndex + 1).padStart(2, "0")}</span><span>{phrase.length} {phrase.length === 1 ? t.note : t.notes}</span></div>
+                  <div className="notes-grid">{phrase.map((note, index) => {
+                    const globalIndex = phraseOffsets[phraseIndex] + index;
+                    return <Fingering note={note} index={index} globalIndex={globalIndex} active={activeNoteIndex === globalIndex} language={language} editing={editingNotes} correctionLabel={t.correctionLabel} onCorrection={(value) => correctArrangedNote(phraseIndex, index, value)} key={`${note.pitch}-${note.octave}-${index}`} />;
+                  })}</div>
+                </article>
+              ))}
             </div>
-            <div className="source-links"><span>{t.sources}:</span>{song.sources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.url}>{source.name} <small>({source.role === "note-source" ? t.primarySource : t.crossCheck})</small></a>)}</div>
-          </div>}
-          <div className="arrangement-panel">
-            <strong>{t.arrangementTitle}</strong>
-            <span>{arrangement.semitoneShift === 0
-              ? (arrangement.octaveAdjustments > 0 ? t.arrangementOctaveAdjusted : t.arrangementOriginal)
-              : `${arrangement.semitoneShift < 0 ? t.arrangementDown : t.arrangementUp} ${Math.abs(arrangement.semitoneShift)} ${t.semitones}. ${t.intervalsPreserved}${arrangement.octaveAdjustments > 0 ? ` ${t.arrangementOctaveAdjusted}` : ""}`}</span>
-            <small>{t.whistleOctaveHelp}</small>
-          </div>
-          <details className="audio-credits">
-            <summary>{t.audioDataCredits}</summary>
-            <p className="audio-credit">{t.sampleCredit}: <a href="https://github.com/mrbumpy409/GeneralUser-GS" target="_blank" rel="noreferrer">{t.soundBank}</a> · <a href="https://github.com/surikov/webaudiofontdata" target="_blank" rel="noreferrer">{t.soundConversion}</a> · <a href="https://huggingface.co/AEmotionStudio/windstudio-tin-whistle-samples" target="_blank" rel="noreferrer">{t.fallbackSamples}</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a> · {t.audioTranscriptionCredit}: <a href="https://github.com/spotify/basic-pitch-ts" target="_blank" rel="noreferrer">Spotify Basic Pitch</a> · {t.bpmCredit}: <a href="https://getsongbpm.com" target="_blank" rel="noreferrer">GetSongBPM.com</a></p>
-          </details>
-        </section>
-        <footer className="score-footer"><span>{allNotes.length} {t.notes} · {phrases.length} {t.phrases}</span><span>D tin whistle · {song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</span></footer>
-      </section> : <section className="workspace empty-workspace shell" aria-live="polite">
-        <span className="section-kicker">{t.guide}</span>
-        <h2>{t.emptyTitle}</h2>
-        <p>{t.emptyBody}</p>
-        <a className="request-button" href={`https://github.com/ozguregemen/tin-whistle-note-creator/issues/new?title=${encodeURIComponent(`Song request: ${query}`)}`} target="_blank" rel="noreferrer">{t.requestSong} →</a>
-      </section>}
+            <section className="score-details" aria-labelledby="score-details-title">
+              <div className="score-details-heading"><div><h3 id="score-details-title">{t.detailsTitle}</h3><p>{t.detailsIntro}</p></div></div>
+              {song.sourceStatus !== "manual" && songQuality && <div className={`source-panel quality-${songQuality.tone}`}>
+                <div>
+                  <strong>{songQuality.readiness === "ready" ? "✓" : songQuality.readiness === "review-required" ? "!" : "i"} {readinessLabel}</strong>
+                  <span>{readinessHelp}</span>
+                  <div className="quality-facts" aria-label={t.qualitySummary}>
+                    <span><b>{t.qualityMelody}:</b> {songQuality.melody === "cross-checked" ? t.verified : songQuality.melody === "omr-unreviewed" ? t.omrUnreviewed : songQuality.melody === "text-estimated" ? t.textEstimated : t.sourcedMelody}</span>
+                    <span><b>{t.qualityRhythm}:</b> {songQuality.rhythm === "score" ? t.scoreRhythm : songQuality.rhythm === "text" ? t.textRhythm : t.estimatedRhythm}</span>
+                    <span><b>{t.qualityTempo}:</b> {songQuality.tempo === "known" ? t.knownTempo : t.defaultTempoShort}</span>
+                  </div>
+                </div>
+                <div className="source-links"><span>{t.sources}:</span>{song.sources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.url}>{source.name} <small>({source.role === "note-source" ? t.primarySource : t.crossCheck})</small></a>)}</div>
+              </div>}
+              <div className="arrangement-panel">
+                <strong>{t.arrangementTitle}</strong>
+                <span>{arrangement.semitoneShift === 0
+                  ? (arrangement.octaveAdjustments > 0 ? t.arrangementOctaveAdjusted : t.arrangementOriginal)
+                  : `${arrangement.semitoneShift < 0 ? t.arrangementDown : t.arrangementUp} ${Math.abs(arrangement.semitoneShift)} ${t.semitones}. ${t.intervalsPreserved}${arrangement.octaveAdjustments > 0 ? ` ${t.arrangementOctaveAdjusted}` : ""}`}</span>
+                <small>{t.whistleOctaveHelp}</small>
+              </div>
+              <details className="audio-credits">
+                <summary>{t.audioDataCredits}</summary>
+                <p className="audio-credit">{t.sampleCredit}: <a href="https://github.com/mrbumpy409/GeneralUser-GS" target="_blank" rel="noreferrer">{t.soundBank}</a> · <a href="https://github.com/surikov/webaudiofontdata" target="_blank" rel="noreferrer">{t.soundConversion}</a> · <a href="https://huggingface.co/AEmotionStudio/windstudio-tin-whistle-samples" target="_blank" rel="noreferrer">{t.fallbackSamples}</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a> · {t.audioTranscriptionCredit}: <a href="https://github.com/spotify/basic-pitch-ts" target="_blank" rel="noreferrer">Spotify Basic Pitch</a> · {t.bpmCredit}: <a href="https://getsongbpm.com" target="_blank" rel="noreferrer">GetSongBPM.com</a></p>
+              </details>
+            </section>
+            <footer className="score-footer"><span>{allNotes.length} {t.notes} · {phrases.length} {t.phrases}</span><span>D tin whistle · {song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</span></footer>
+          </section> : <section className="workspace empty-workspace" aria-live="polite">
+            <span className="section-kicker">{t.guide}</span>
+            <h2>{t.emptyTitle}</h2>
+            <p>{t.emptyBody}</p>
+            <a className="request-button" href={`https://github.com/ozguregemen/tin-whistle-note-creator/issues/new?title=${encodeURIComponent(`Song request: ${query}`)}`} target="_blank" rel="noreferrer">{t.requestSong} →</a>
+          </section>}
+        </div>
+      </div>
 
       <section className="how shell" id="how-it-works">
         <div><span className="section-kicker">{t.howKicker}</span><h2>{t.howTitle}</h2></div>

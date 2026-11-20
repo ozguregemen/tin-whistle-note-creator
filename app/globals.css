@@ -16,11 +16,11 @@ a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,
 .nav-actions a { color:var(--ink); font-size:13px; text-decoration:none; }
 .language-toggle { border:0; border-bottom:1px solid var(--mist); padding:3px 0; background:transparent; color:var(--ink); font-size:12px; font-weight:700; }
 .instrument-badge { padding:8px 12px; border:1px solid var(--line); border-radius:999px; color:var(--muted); font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
-.hero { padding:58px 0 56px; }
+.hero { padding:44px 0 26px; }
 .eyebrow,.section-kicker { color:var(--accent); font-size:12px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
 .eyebrow { display:flex; gap:10px; align-items:center; }
 .eyebrow span { width:24px; height:2px; background:var(--accent); }
-h1 { max-width:860px; margin:20px 0 18px; font:600 clamp(46px,6.2vw,76px)/1 Georgia,serif; letter-spacing:-.045em; }
+h1 { max-width:860px; margin:15px 0 12px; font:600 clamp(42px,5.25vw,62px)/1.04 Georgia,serif; letter-spacing:-.045em; }
 h1 em { color:var(--green); font-weight:400; }
 .hero>p { max-width:720px; margin:0; color:var(--muted); font-size:17px; line-height:1.6; }
 .converter-card { max-width:960px; margin-top:32px; padding:22px; background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:0 14px 42px rgba(28,50,40,.07); }
@@ -208,7 +208,7 @@ h2 { margin:7px 0 5px; font:600 clamp(30px,4vw,44px)/1.1 Georgia,serif; letter-s
   .nav-actions a:hover,.language-toggle:hover { color:var(--green); }
 }
 @media (max-width:860px) {
-  .hero { padding-top:46px; }
+  .hero { padding-top:38px; }
   .workspace { padding:24px 16px; }
   .workspace-heading,.workspace-actions,.source-panel { align-items:flex-start; flex-direction:column; }
   .arrangement-panel { grid-template-columns:1fr; }
@@ -227,7 +227,7 @@ h2 { margin:7px 0 5px; font:600 clamp(30px,4vw,44px)/1.1 Georgia,serif; letter-s
   .brand { max-width:170px; font-size:17px; line-height:1.05; }
   .nav-actions { gap:12px; }
   .instrument-badge { padding:6px 8px; font-size:9px; }
-  .hero { padding:38px 0 42px; }
+  .hero { padding:30px 0 20px; }
   .hero>p { font-size:15px; line-height:1.55; }
   .converter-card { margin-top:25px; padding:15px; border-radius:14px; }
   .mode-tabs { grid-template-columns:repeat(4,minmax(0,1fr)); width:100%; }
@@ -263,7 +263,7 @@ h2 { margin:7px 0 5px; font:600 clamp(30px,4vw,44px)/1.1 Georgia,serif; letter-s
   .shell { width:min(100% - 24px,1160px); }
   .nav { height:70px; }
   .instrument-badge { display:none; }
-  h1 { font-size:40px; }
+  h1 { font-size:36px; }
   .search-row { gap:9px; padding-left:12px; }
   .search-row input { font-size:15px; }
   .practice-transport button { padding-inline:10px; }

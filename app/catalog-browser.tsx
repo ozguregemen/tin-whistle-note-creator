@@ -15,6 +15,9 @@ const labels = {
     placeholder: "Song or artist",
     open: "Open",
     openSong: "Open fingerings for",
+    previous: "Previous",
+    next: "Next",
+    pages: "Catalog pages",
     noApproved: "There are no approved songs yet.",
     noMatches: "No songs match your search.",
     clear: "Clear search",
@@ -32,6 +35,9 @@ const labels = {
     placeholder: "Şarkı veya sanatçı",
     open: "Aç",
     openSong: "Parmak dizilimini aç",
+    previous: "Önceki",
+    next: "Sonraki",
+    pages: "Katalog sayfaları",
     noApproved: "Henüz onaylı şarkı yok.",
     noMatches: "Aramana uyan şarkı yok.",
     clear: "Aramayı temizle",
@@ -42,6 +48,8 @@ const labels = {
     melodyOnly: "Ezgi taslağı",
   },
 };
+
+const PAGE_SIZE = 4;
 
 type CatalogSong = {
   id: string;
@@ -59,26 +67,41 @@ export function CatalogBrowser<Song extends CatalogSong>({ songs, language, acti
 }) {
   const [query, setQuery] = useState("");
   const [approvedOnly, setApprovedOnly] = useState(true);
+  const [page, setPage] = useState(0);
   const t = labels[language];
   const approvedCount = useMemo(() => songs.filter(isApprovedCatalogSong).length, [songs]);
   const results = useMemo(() => browseCatalogSongs(songs, query, approvedOnly, language), [songs, query, approvedOnly, language]);
+  const lastPage = Math.max(0, Math.ceil(results.length / PAGE_SIZE) - 1);
+  const currentPage = Math.min(page, lastPage);
+  const start = currentPage * PAGE_SIZE;
+  const end = Math.min(start + PAGE_SIZE, results.length);
+
+  function updateQuery(value: string) {
+    setQuery(value);
+    setPage(0);
+  }
+
+  function updateFilter(approved: boolean) {
+    setApprovedOnly(approved);
+    setPage(0);
+  }
 
   return (
     <aside className="catalog-browser" id="song-catalog" aria-labelledby="catalog-title">
       <h2 id="catalog-title">{t.title}</h2>
       <div className="catalog-filters">
-        <button type="button" aria-pressed={approvedOnly} onClick={() => setApprovedOnly(true)}>
+        <button type="button" aria-pressed={approvedOnly} onClick={() => updateFilter(true)}>
           {t.approved} <span>{approvedCount}</span>
         </button>
-        <button type="button" aria-pressed={!approvedOnly} onClick={() => setApprovedOnly(false)}>
+        <button type="button" aria-pressed={!approvedOnly} onClick={() => updateFilter(false)}>
           {t.all} <span>{songs.length}</span>
         </button>
       </div>
       <label className="sr-only" htmlFor="catalog-filter">{t.filter}</label>
-      <input id="catalog-filter" type="search" value={query} placeholder={t.placeholder} onChange={(event) => setQuery(event.target.value)} />
+      <input id="catalog-filter" type="search" value={query} placeholder={t.placeholder} onChange={(event) => updateQuery(event.target.value)} />
       {results.length ? (
         <ul className="catalog-songs" aria-labelledby="catalog-title">
-          {results.map((song) => {
+          {results.slice(start, end).map((song) => {
             const approved = isApprovedCatalogSong(song);
             const { rhythm, readiness } = assessSongQuality(song);
             const title = song.artist ? `${song.artist} — ${song.title}` : song.title;
@@ -87,12 +110,15 @@ export function CatalogBrowser<Song extends CatalogSong>({ songs, language, acti
               <li key={song.id}>
                 <button className="catalog-song" type="button" disabled={busy} aria-current={activeId === song.id ? "true" : undefined}
                   aria-label={`${t.openSong} · ${title}`} aria-describedby={`catalog-status-${song.id}`} onClick={() => onOpen(song)}>
-                  <span className="catalog-song-name"><strong>{song.title}</strong>{song.artist && <span>{song.artist}</span>}</span>
+                  <span className="catalog-song-name">
+                    <strong>{song.title}</strong>
+                    {song.artist && <span className="catalog-song-artist">{song.artist}</span>}
+                    <span id={`catalog-status-${song.id}`} className={approved ? "catalog-song-status approved" : "catalog-song-status"}>
+                      {status}{approved && rhythm === "equal-beats" ? ` · ${t.equalBeats}` : ""}
+                    </span>
+                  </span>
                   <span className="catalog-song-open" aria-hidden="true">{t.open}</span>
                 </button>
-                <p id={`catalog-status-${song.id}`} className={approved ? "catalog-song-status approved" : "catalog-song-status"}>
-                  {status}{approved && rhythm === "equal-beats" ? ` · ${t.equalBeats}` : ""}
-                </p>
               </li>
             );
           })}
@@ -100,7 +126,14 @@ export function CatalogBrowser<Song extends CatalogSong>({ songs, language, acti
       ) : (
         <div className="catalog-empty">
           <p role="status">{query.trim() ? t.noMatches : t.noApproved}</p>
-          {query.trim() && <button type="button" onClick={() => setQuery("")}>{t.clear}</button>}
+          {query.trim() && <button type="button" onClick={() => updateQuery("")}>{t.clear}</button>}
+        </div>
+      )}
+      {lastPage > 0 && (
+        <div className="catalog-pagination" role="group" aria-label={t.pages}>
+          <button type="button" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>{t.previous}</button>
+          <span aria-live="polite">{start + 1}–{end} / {results.length}</span>
+          <button type="button" disabled={currentPage === lastPage} onClick={() => setPage(currentPage + 1)}>{t.next}</button>
         </div>
       )}
     </aside>
