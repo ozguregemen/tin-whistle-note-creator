@@ -16,19 +16,19 @@ export const songFollowCopy = {
     resume: "Continue",
     again: "Play again",
     reset: "Restart",
-    next: "Next note",
-    nextFingering: "Suggested fingering, from the mouthpiece down",
+    fingering: "Fingering from the mouthpiece down",
     closed: "Closed",
     half: "Half-open",
     open: "Open",
     repeated: "Tongue this note again or take a short breath.",
     complete: "Song complete",
-    completeDetail: "You matched every note.",
     correct: "Correct",
     wrong: "Try this step again",
     waiting: "Ready for a note",
     progress: "Notes matched",
     sequence: "Note sequence",
+    score: "Song notes",
+    attempts: "Your playing",
     pending: "Waiting",
     current: "Current step",
     reference: "Reference melody",
@@ -45,19 +45,19 @@ export const songFollowCopy = {
     resume: "Devam et",
     again: "Yeniden çal",
     reset: "Baştan başla",
-    next: "Sıradaki nota",
-    nextFingering: "Önerilen parmak dizilimi, ağızlıktan aşağı",
+    fingering: "Ağızlıktan uca parmak dizilimi",
     closed: "Kapalı",
     half: "Yarım açık",
     open: "Açık",
     repeated: "Aynı notayı kısa bir aradan sonra yeniden üfle.",
     complete: "Şarkıyı tamamladın",
-    completeDetail: "Bütün notaları doğru sırayla çaldın.",
     correct: "Doğru",
     wrong: "Bu adımı tekrar dene",
     waiting: "Nota bekleniyor",
     progress: "Eşleşen notalar",
     sequence: "Nota sırası",
+    score: "Şarkının notaları",
+    attempts: "Çaldıkların",
     pending: "Bekliyor",
     current: "Sıradaki adım",
     reference: "Referans melodi",
@@ -77,52 +77,43 @@ export function SongFollowPanel({
   onReset: () => void;
 }) {
   const copy = songFollowCopy[language];
-  const listRef = useRef<HTMLOListElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const headersRef = useRef<HTMLDivElement>(null);
+  const scoreRef = useRef<HTMLOListElement>(null);
   const labels = useMemo(() => steps.map(step => describeLiveNote(step, language)), [steps, language]);
-  const target = labels[progress.matched];
   const finished = progress.matched === steps.length;
   const repeated = progress.matched > 0 && !finished && steps[progress.matched - 1].midi === steps[progress.matched].midi;
   const heard = progress.feedback ? describeLiveNote(pitchAndOctave(progress.feedback.midi), language) : null;
   const response = progress.feedback ? (progress.feedback.correct ? "correct" : "wrong") : "ready";
 
   useEffect(() => {
-    const list = listRef.current;
-    const note = list?.children[Math.min(progress.matched, steps.length - 1)];
-    if (!list || !(note instanceof HTMLElement)) return;
-    if (note.offsetTop < list.scrollTop) list.scrollTop = note.offsetTop;
-    else if (note.offsetTop + note.offsetHeight > list.scrollTop + list.clientHeight) {
-      list.scrollTop = note.offsetTop + note.offsetHeight - list.clientHeight + 4;
-    }
+    const scroll = scrollRef.current;
+    const headers = headersRef.current;
+    const note = scoreRef.current?.children[Math.min(progress.matched, steps.length - 1)];
+    if (!scroll || !headers || !note) return;
+    const noteBounds = note.getBoundingClientRect();
+    const visibleTop = headers.getBoundingClientRect().bottom + 4;
+    const visibleBottom = scroll.getBoundingClientRect().bottom - 4;
+    if (noteBounds.top < visibleTop) scroll.scrollTop += noteBounds.top - visibleTop;
+    else if (noteBounds.bottom > visibleBottom) scroll.scrollTop += noteBounds.bottom - visibleBottom;
   }, [progress.matched, steps.length]);
 
   return (
     <div className="song-follow">
-      <div className="song-follow-dashboard">
-        <div className="song-follow-target">
-          <span className="song-follow-label">{finished ? copy.progress : copy.next}</span>
-          {target ? (
-            <>
-              <div className="song-follow-target-note"><strong>{target.name}</strong><span>{target.sounding}</span></div>
-              {!!target.holes && <div className="song-follow-target-holes" role="img"
-                aria-label={[copy.nextFingering, ...target.holes.map(hole => copy[hole])].join(", ")}>
-                {target.holes.map((hole, index) => <span className={`hole ${hole}`} key={index} aria-hidden="true" />)}
-              </div>}
-              {repeated && <p>{copy.repeated}</p>}
-            </>
-          ) : (
-            <><div className="song-follow-target-note"><strong>{copy.complete}</strong></div><p>{copy.completeDetail}</p></>
-          )}
-        </div>
+      <div className="song-follow-status">
         <div className="song-follow-progress">
           <div className="song-follow-progress-heading">
             <span className="song-follow-label">{copy.progress}</span>
             <strong>{progress.matched} <span>/ {steps.length}</span></strong>
           </div>
           <progress max={steps.length} value={progress.matched} aria-label={copy.progress} />
+        </div>
+        <div className="song-follow-result">
           <div className={`song-follow-feedback ${response}`} role="status" aria-atomic="true">
             {heard && <span className="song-follow-feedback-note">{heard.name} <small>{heard.sounding}</small></span>}
             <span className="song-follow-feedback-status">{finished ? copy.complete : response === "ready" ? copy.waiting : copy[response]}</span>
           </div>
+          {repeated && <p>{copy.repeated}</p>}
         </div>
       </div>
 
@@ -138,25 +129,43 @@ export function SongFollowPanel({
         {progress.feedback && !finished && <button type="button" className="secondary-action" onClick={onReset}>{copy.reset}</button>}
       </div>
 
-      <div className="song-follow-score">
-        <h3 id="song-follow-sequence">{copy.sequence}</h3>
-        <ol className="song-follow-steps" aria-labelledby="song-follow-sequence" tabIndex={0} ref={listRef}>
-          {labels.map((label, index) => {
-            const current = index === progress.matched;
-            const matched = index < progress.matched;
-            const state = matched ? "correct" : current ? (response === "wrong" ? "wrong" : "current") : "pending";
-            return (
-              <li key={index} className={`song-follow-step ${state}`} aria-current={current ? "step" : undefined}>
-                <strong>{label.name}</strong>
-                <small>{label.sounding}</small>
-                <span className="song-follow-mark" aria-hidden="true">{matched ? "✓" : state === "wrong" ? "×" : ""}</span>
-                <span className="sr-only">{copy[state]}</span>
-              </li>
-            );
-          })}
-        </ol>
+      <div className="song-follow-score" role="region" aria-label={copy.sequence} tabIndex={0} ref={scrollRef}>
+        <div className="song-follow-lane-headings" ref={headersRef}>
+          <h3 id="song-follow-notes-title">{copy.score}</h3>
+          <h3 id="song-follow-attempts-title">{copy.attempts}</h3>
+        </div>
+        <div className="song-follow-lanes">
+          <ol className="song-follow-grid song-follow-notes" role="list" aria-labelledby="song-follow-notes-title" ref={scoreRef}>
+            {labels.map((label, index) => {
+              const current = index === progress.matched;
+              return (
+                <li key={index} className={`song-follow-tile song-follow-note${current ? " current" : ""}`} aria-current={current ? "step" : undefined}>
+                  <span className="song-follow-position" aria-hidden="true">{index + 1}</span>
+                  {label.holes && <div className="song-follow-note-holes" role="img"
+                    aria-label={[copy.fingering, ...label.holes.map(hole => copy[hole])].join(", ")}>
+                    {label.holes.map((hole, finger) => <span key={finger} className={`hole ${hole}`} aria-hidden="true" />)}
+                  </div>}
+                  <strong>{label.name}</strong>
+                  <small>{label.sounding}</small>
+                </li>
+              );
+            })}
+          </ol>
+          <ol className="song-follow-grid song-follow-attempts" role="list" aria-labelledby="song-follow-attempts-title">
+            {labels.map((_, index) => {
+              const current = index === progress.matched;
+              const state = index < progress.matched ? "correct" : current ? (response === "wrong" ? "wrong" : "current") : "pending";
+              return (
+                <li key={index} className={`song-follow-tile song-follow-attempt ${state}`} aria-current={current ? "step" : undefined}>
+                  <span className="song-follow-position" aria-hidden="true">{index + 1}</span>
+                  <span className="song-follow-mark" aria-hidden="true">{state === "correct" ? "✓" : state === "wrong" ? "×" : ""}</span>
+                  <span className="sr-only">{index + 1}. {copy[state]}</span>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
       </div>
-
     </div>
   );
 }
