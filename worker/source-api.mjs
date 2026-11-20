@@ -17,12 +17,13 @@ function json(data, status = 200, headers = {}) {
   });
 }
 
-function allowedOrigin(request, env, audioRoute) {
+function allowedOrigin(request, env, audioRoute, scoreRoute) {
   const origin = request.headers.get("Origin");
   if (!origin) return "*";
   const primary = env.ALLOWED_ORIGINS || "https://ozguregemen.github.io";
   const audio = audioRoute ? env.AUDIO_SERVICE_ORIGINS || "" : "";
-  const configured = `${primary},${audio}`.split(",").map((value) => value.trim()).filter(Boolean);
+  const scores = scoreRoute ? env.SCORE_SOURCE_ORIGINS || "" : "";
+  const configured = `${primary},${audio},${scores}`.split(",").map((value) => value.trim()).filter(Boolean);
   if (configured.includes(origin)) return origin;
   if (/^http:\/\/localhost:\d+$/.test(origin)) return origin;
   return null;
@@ -174,7 +175,9 @@ export function createSourceApi(env, fetchFn = fetch) {
     const url = new URL(request.url);
     const audioHandler = url.pathname === `/${MUSCRIPTOR_API_PATH}` ? handleAudioTranscription
       : url.pathname === `/${YOUTUBE_AUDIO_API_PATH}` ? handleYoutubeAudio : null;
-    const origin = allowedOrigin(request, env, Boolean(audioHandler) || url.pathname === "/api/tempo");
+    const jobMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})$/i);
+    const scoreRoute = url.pathname === "/api/search" || url.pathname === "/api/jobs" || Boolean(jobMatch);
+    const origin = allowedOrigin(request, env, Boolean(audioHandler) || url.pathname === "/api/tempo", scoreRoute);
     const cors = corsHeaders(origin);
     if (!origin) return json({ error: "Origin is not allowed" }, 403);
     if (audioHandler) cors["Access-Control-Allow-Headers"] = "Content-Type, X-Transcription-Provider";
@@ -216,7 +219,6 @@ export function createSourceApi(env, fetchFn = fetch) {
         const catalog = await readRepositoryJson("catalog/catalog.json", env, fetchFn);
         return json(catalog || { schemaVersion: 1, songs: [] }, 200, { ...cors, "Cache-Control": "public, max-age=60" });
       }
-      const jobMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})$/i);
       if (request.method === "GET" && jobMatch) {
         const job = await readRepositoryJson(`catalog/jobs/${jobMatch[1]}.json`, env, fetchFn);
         return json(job || { requestId: jobMatch[1], status: "queued" }, job ? 200 : 202, { ...cors, "Cache-Control": "no-store" });

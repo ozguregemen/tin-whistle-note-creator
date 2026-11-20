@@ -15,15 +15,18 @@ import { applyCuratedTempo } from "./curated-tempos.mjs";
 import { arrangePhrasesForDWhistle, estimateDWhistleRegisters, fingeringFor, isUpperWhistleRegister } from "./fingerings.mjs";
 import { replacePhraseNote, serializeNotePhrases } from "./note-corrections.mjs";
 import { BPM_MAX, BPM_MIN, bpmFromInputDraft, buildPhraseRanges, buildPlaybackPlan, clampBpm, commitBpmInput, frequencyForWhistleNote, nextPlaybackIndex, noteNeedsFollowing, rebaseTranscribedRhythm, remainingBeatsAfterElapsed } from "./practice.mjs";
-import { youtubeTempoLookupTitle, youtubeTempoMatches } from "./youtube-song.mjs";
+import { resolveYoutubeSong, youtubeTempoLookupTitle, youtubeTempoMatches } from "./youtube-song.mjs";
 import { importScoreFile, timedPhrasesToString } from "./score-file-import.mjs";
 import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
+import { prepareYoutubeSelection } from "./youtube-score-match.mjs";
+import { YoutubeScoreOptions, youtubeScoreCopy } from "./youtube-score-options";
+import { searchSessionTunes, searchYoutubeScores, type ScoreMatches, type SessionTune, type SourceCandidate, type VideoSong } from "./youtube-score-sources";
 import { buildSourceAttemptOrder, waitForSourceJob } from "./source-jobs.mjs";
 import { base64AudioBuffer, midiForWhistleNote, playbackRateForMidi, sampleZoneForMidi, soundfontLoopForZone, soundfontTriggerMidiForAudibleMidi, soundfontZoneForMidi, WHISTLE_SAMPLE_ZONES, WHISTLE_SOUNDFONT } from "./whistle-sampler.mjs";
 
 type Language = "en" | "tr";
 type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "discoveryFound" | "queueing" | "processing" | "sourceRetrying" | "needsReview" | "liveFound" | "sourceUnavailable" | "audioFetching" | "audioReady" | "audioPreparing" | "audioImportFailed" | "audioTranscribing" | "audioConverted" | "audioUnavailable" | "scoreImported" | "scoreUnavailable";
-type AudioPhase = "audioFetching" | "audioConverting" | "audioPreparing" | "audioTranscribing";
+type AudioPhase = "audioCheckingScores" | "audioFetching" | "audioConverting" | "audioPreparing" | "audioTranscribing";
 type AudioAction = (context: {
   signal: AbortSignal;
   isCurrent: () => boolean;
@@ -63,22 +66,6 @@ type Song = {
 };
 
 type Catalog = { songs: Song[] };
-
-type SourceCandidate = {
-  id: string;
-  sourceId: "notalar" | "gitaregitim" | "songsterr" | "academic-pdf" | "web";
-  sourceName: string;
-  postId?: number;
-  songId?: number;
-  trackIndex?: number;
-  documentId?: string;
-  artist?: string;
-  title: string;
-  url: string;
-  processingMode: "text" | "omr" | "gp" | "review";
-  quality?: "rhythmic-score" | "melody-only" | "machine-read" | "review-only";
-  score: number;
-};
 
 type SourceJob = {
   requestId?: string;
@@ -166,7 +153,6 @@ const COPY = {
     audioServerHint: "MP3, WAV, OGG or FLAC · transcribed by MuScriptor Large on the server",
     audioChecking: "Checking audio services…",
     audioYoutubeLabel: "Direct audio or YouTube link",
-    audioYoutubeConvert: "Convert to MP3",
     audioYoutubeDownload: "Download MP3",
     audioYoutubeHint: "Use a YouTube video you have permission to download, or a direct audio link from an approved host.",
     audioYoutubeLocalPrivacy: "The server retrieves linked audio. Transcription runs in your browser.",
@@ -347,7 +333,6 @@ const COPY = {
     audioServerHint: "MP3, WAV, OGG veya FLAC · MuScriptor Large ile sunucuda işlenir",
     audioChecking: "Ses hizmetleri kontrol ediliyor…",
     audioYoutubeLabel: "Doğrudan ses veya YouTube bağlantısı",
-    audioYoutubeConvert: "MP3’e dönüştür",
     audioYoutubeDownload: "MP3’ü indir",
     audioYoutubeHint: "İndirme iznin olan bir YouTube videosu veya izinli bir sunucudaki doğrudan ses bağlantısını kullan.",
     audioYoutubeLocalPrivacy: "Bağlantıdaki ses sunucudan alınır. Notaya çevirme tarayıcında yapılır.",
@@ -526,7 +511,6 @@ const FALLBACK_SONGS: Song[] = [
 ];
 
 const REMOTE_CATALOG_URL = "https://raw.githubusercontent.com/ozguregemen/tin-whistle-note-creator/main/catalog/catalog.json";
-const THE_SESSION_SEARCH_URL = "https://thesession.org/tunes/search?format=json&q=";
 const INPUT_MODES = ["search", "audio", "paste", "score"] as const;
 type InputMode = typeof INPUT_MODES[number];
 const EXAMPLE_NOTES = "D4 E4 F#4 G4 | A4 G4 F#4 E4";
@@ -646,6 +630,7 @@ export default function Home() {
   const [tempoStatus, setTempoStatus] = useState<TempoStatus>("idle");
   const [transcriptionProgress, setTranscriptionProgress] = useState(0);
   const [audioUrl, setAudioUrl] = useState("");
+  const [youtubeScores, setYoutubeScores] = useState<(ScoreMatches<Song> & { song: VideoSong; audio: Awaited<ReturnType<typeof prepareAudioInput>> | null }) | null>(null);
   const [audioBusy, setAudioBusy] = useState(false);
   const [audioPhase, setAudioPhase] = useState<AudioPhase | null>(null);
   const [audioError, setAudioError] = useState<MediaError | null>(null);
@@ -654,7 +639,8 @@ export default function Home() {
   const audioImportRef = useRef<AbortController | null>(null);
   const audioUsesServer = audioCapabilities?.provider === MUSCRIPTOR_LARGE;
   const audioYoutubeEnabled = audioCapabilities?.youtubeMp3 === true;
-  const audioDisabled = audioBusy || !audioCapabilities;
+  const sourceIsBusy = status === "queueing" || status === "processing" || status === "sourceRetrying";
+  const audioDisabled = audioBusy || sourceIsBusy || !audioCapabilities;
   const [isPlaying, setIsPlaying] = useState(false);
   const [soundStatus, setSoundStatus] = useState<SoundStatus>("idle");
   const [activeNoteIndex, setActiveNoteIndex] = useState(-1);
@@ -682,10 +668,11 @@ export default function Home() {
   const t = COPY[language];
   const ui = workspaceCopy[language];
   const showInputStatus = mode === "search" ? WEB_STATUSES.has(status) : mode === "paste" ? status === "invalidNotes"
-    : mode === "score" ? status === "scoreUnavailable" : Boolean(audioPhase || audioError || (status.startsWith("audio") && status !== "audioConverted"));
+    : mode === "score" ? status === "scoreUnavailable" : Boolean(audioPhase || audioError || (youtubeScores
+      ? sourceIsBusy || status === "sourceUnavailable" || status === "needsReview"
+      : status.startsWith("audio") && status !== "audioConverted"));
   const audioPhaseText = audioPhase === "audioTranscribing" && audioUsesServer
-    ? t.audioServerTranscribing : audioPhase ? t[audioPhase] : "";
-  const sourceIsBusy = status === "queueing" || status === "processing" || status === "sourceRetrying";
+    ? t.audioServerTranscribing : audioPhase === "audioCheckingScores" ? youtubeScoreCopy[language].checking : audioPhase ? t[audioPhase] : "";
   const songQuality = useMemo(() => song ? assessSongQuality(song) : null, [song]);
   const readinessLabel = songQuality?.readiness === "ready"
     ? t.readyToPractice
@@ -1317,6 +1304,7 @@ export default function Home() {
     setSourceError("");
     setSourceCandidates([]);
     if (youtubeVideoId(query)) {
+      setYoutubeScores(null);
       setAudioUrl(query.trim());
       switchInputMode("audio");
       window.requestAnimationFrame(() => document.getElementById("audio-url")?.focus());
@@ -1338,22 +1326,30 @@ export default function Home() {
         }
       }
 
-      const searchResponse = await fetch(`${THE_SESSION_SEARCH_URL}${encodeURIComponent(query.trim())}`);
-      if (!searchResponse.ok) throw new Error(`The Session search returned ${searchResponse.status}`);
-      const searchData = await searchResponse.json() as { tunes?: Array<{ id: number; name: string; alias?: string; url: string; type?: string }> };
-      const result = searchData.tunes
-        ?.map((item) => ({ item, score: searchMatchScore(query, [item.name, item.alias ?? "", `${item.name} ${item.type ?? ""}`]) }))
+      const tunes = await searchSessionTunes(query.trim());
+      const result = tunes
+        .map((item) => ({ item, score: searchMatchScore(query, [item.name, item.alias ?? "", `${item.name} ${item.type ?? ""}`]) }))
         .filter((candidate) => candidate.score > 0)
         .sort((left, right) => right.score - left.score)[0]?.item;
       if (!result) { setStatus("notFound"); return; }
 
+      await openSessionTune(result, "search");
+    } catch (error: unknown) {
+      setSourceError(error instanceof Error ? error.message : "");
+      setStatus("sourceUnavailable");
+    }
+  }
+
+  async function openSessionTune(result: SessionTune, origin: InputMode) {
+    setStatus("processing");
+    try {
       const tuneResponse = await fetch(`https://thesession.org/tunes/${result.id}?format=json`);
       if (!tuneResponse.ok) throw new Error(`The Session tune returned ${tuneResponse.status}`);
       const tune = await tuneResponse.json() as { aliases?: string[]; settings?: Array<{ key: string; abc: string }> };
       const setting = tune.settings?.find((item) => /^(d|g|e(minor|dorian)|a(dorian)?)/i.test(item.key)) ?? tune.settings?.[0];
       const parsedScore = setting ? parseAbcScore(setting.abc, setting.key) : null;
       const notes = parsedScore?.notes ?? "";
-      if (!notes) { setStatus("notFound"); return; }
+      if (!notes) { setStatus(origin === "audio" ? "sourceUnavailable" : "notFound"); return; }
 
       setSong({
         id: `thesession-${result.id}`,
@@ -1370,20 +1366,20 @@ export default function Home() {
         sources: [{ name: "The Session", url: result.url, role: "note-source" }],
       });
       setStatus("liveFound");
-      showPracticeResult("search");
+      showPracticeResult(origin);
     } catch (error: unknown) {
       setSourceError(error instanceof Error ? error.message : "");
       setStatus("sourceUnavailable");
     }
   }
 
-  async function processSource(candidate: SourceCandidate) {
+  async function processSource(candidate: SourceCandidate, origin: InputMode = "search") {
     if (candidate.processingMode === "review"
       || (candidate.postId === undefined && candidate.documentId === undefined && candidate.songId === undefined)) return;
     const api = sourceApiUrl();
     setSourceError("");
     if (!api) { setSourceError("Source API is not configured for this build"); setStatus("sourceUnavailable"); return; }
-    const attempts = buildSourceAttemptOrder(candidate, sourceCandidates) as SourceCandidate[];
+    const attempts = origin === "audio" ? [candidate] : buildSourceAttemptOrder(candidate, sourceCandidates) as SourceCandidate[];
     let reviewRequired = false;
     let lastFailureReason = "";
     for (let index = 0; index < attempts.length; index += 1) {
@@ -1399,7 +1395,7 @@ export default function Home() {
             ...(attempt.songId !== undefined ? { songId: attempt.songId } : {}),
             ...(attempt.trackIndex !== undefined ? { trackIndex: attempt.trackIndex } : {}),
             ...(attempt.documentId !== undefined ? { documentId: attempt.documentId } : {}),
-            query,
+            query: origin === "audio" ? youtubeScores?.song.title ?? candidate.title : query,
             title: attempt.title,
             ...(attempt.artist ? { artist: attempt.artist } : {}),
           }),
@@ -1410,7 +1406,7 @@ export default function Home() {
           setSong(restoreStoredCorrection(applyCuratedTempo(queued.song) as Song));
           setSourceCandidates([]);
           setStatus("liveFound");
-          showPracticeResult("search");
+          showPracticeResult(origin);
           window.localStorage.removeItem("twnc-pending-source-job");
           return;
         }
@@ -1430,7 +1426,7 @@ export default function Home() {
           setSong(restoreStoredCorrection(applyCuratedTempo(job.song) as Song));
           setSourceCandidates([]);
           setStatus("liveFound");
-          showPracticeResult("search");
+          showPracticeResult(origin);
           return;
         }
         if (job.status === "needs-review") reviewRequired = true;
@@ -1542,13 +1538,40 @@ export default function Home() {
     }
   }
 
-  async function loadAudioInput(source: Blob | string) {
+  async function loadAudioInput(source: Blob | string, useVideoAudio = false) {
     await runAudioAction(async ({ signal, isCurrent, onStage }) => {
       setPreparedAudio(null);
-      const input = await prepareAudioInput(source, {
-        apiUrl: sourceApiUrl(), signal, onStage, youtubeEnabled: audioYoutubeEnabled,
-      });
+      const api = sourceApiUrl();
+      const download = () => prepareAudioInput(source, { apiUrl: api, signal, onStage, youtubeEnabled: audioYoutubeEnabled });
+      const videoId = typeof source === "string" ? youtubeVideoId(source) : null;
+      let input;
+      if (videoId) {
+        if (!useVideoAudio) onStage("audioCheckingScores");
+        const result = await prepareYoutubeSelection({
+          song: youtubeScores?.song, skipScores: useVideoAudio, signal,
+          resolveSong: () => resolveYoutubeSong(new Headers(), videoId, signal),
+          findScores: song => {
+            onStage("audioCheckingScores");
+            return searchYoutubeScores(song, catalog, api, signal);
+          },
+          download: async () => {
+            const audio = useVideoAudio && youtubeScores?.audio ? youtubeScores.audio : await download();
+            return { audio, song: audio.youtubeSong };
+          },
+        });
+        if (!isCurrent()) return;
+        if (result.matches && result.song) {
+          setYoutubeScores({ ...result.matches, song: result.song, audio: result.audio });
+          setStatus("sourceFound");
+          return;
+        }
+        if (!result.audio) return;
+        input = { ...result.audio, youtubeSong: result.song ? { title: result.song.title, artist: result.song.artist ?? "" } : null };
+      } else {
+        input = await download();
+      }
       if (!isCurrent()) return;
+      setYoutubeScores(null);
       setPreparedAudio({ ...input, url: URL.createObjectURL(input.blob) });
       setStatus("audioReady");
     });
@@ -1779,17 +1802,20 @@ export default function Home() {
                 <input id="audio-input" type="file" accept="audio/mpeg,audio/wav,audio/ogg,audio/flac,.mp3,.wav,.ogg,.flac" onChange={convertAudio} disabled={audioDisabled} />
                 <p className="audio-alternative">{t.audioOr}</p>
                 <form onSubmit={convertAudioUrl}>
-                  <label htmlFor="audio-url">{audioYoutubeEnabled ? t.audioYoutubeLabel : t.audioUrlLabel}</label>
+                  <label htmlFor="audio-url">{t.audioYoutubeLabel}</label>
                   <div className="audio-url-row">
                     <input id="audio-url" type="text" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={2048}
-                      placeholder="https://…" value={audioUrl} onChange={(event) => { setAudioUrl(event.target.value); setAudioError(null); }}
+                      placeholder="https://…" value={audioUrl} onChange={(event) => { setAudioUrl(event.target.value); setYoutubeScores(null); setAudioError(null); }}
                       aria-describedby="audio-url-help audio-url-privacy" disabled={audioDisabled} />
-                    <button type="submit" disabled={audioDisabled || !audioUrl.trim()}>{audioYoutubeEnabled && youtubeVideoId(audioUrl) ? t.audioYoutubeConvert : t.audioUrlImport}</button>
+                    <button type="submit" disabled={audioDisabled || !audioUrl.trim()}>{youtubeVideoId(audioUrl) ? youtubeScoreCopy[language].search : t.audioUrlImport}</button>
                   </div>
-                  <p className="audio-url-help" id="audio-url-help">{audioYoutubeEnabled ? t.audioYoutubeHint : t.audioUrlHint}</p>
+                  <p className="audio-url-help" id="audio-url-help">{t.audioYoutubeHint}</p>
                   <p className="audio-url-help" id="audio-url-privacy">{!audioCapabilities ? t.audioChecking : audioUsesServer ? t.audioServerPrivacy : audioYoutubeEnabled ? t.audioYoutubeLocalPrivacy : t.audioUrlPrivacy}</p>
                   {preparedAudio?.youtube && <p className="audio-url-help"><a href={preparedAudio.url} download={preparedAudio.name}>{t.audioYoutubeDownload}</a></p>}
                 </form>
+                {youtubeScores && <YoutubeScoreOptions language={language} title={youtubeScores.song.title} matches={youtubeScores}
+                  busy={audioDisabled} audioAvailable={audioYoutubeEnabled} onCatalog={openCatalogSong} onSource={source => void processSource(source, "audio")}
+                  onTune={tune => void openSessionTune(tune, "audio")} onAudio={() => void loadAudioInput(audioUrl.trim(), true)} />}
                 {preparedAudio && <AudioClipPicker key={preparedAudio.url} url={preparedAudio.url} name={preparedAudio.youtubeSong?.title ?? preparedAudio.name}
                   language={language} busy={audioDisabled} onTranscribe={transcribeSelection} />}
                 {audioPhase === "audioTranscribing" && <progress aria-label={audioPhaseText} max="100" value={transcriptionProgress}>{transcriptionProgress}%</progress>}

@@ -107,3 +107,10 @@
   .app-content .workspace-heading h1 { margin:0 0 4px; font:700 25px/1.1 system-ui,sans-serif; }
   .app-content .workspace-actions { display:none; }
 }
+
+.youtube-score-options { margin-top:20px; padding-top:18px; border-top:1px solid var(--line); }
+.youtube-score-options h3 { margin:0; font-size:1rem; }
+.youtube-score-options .source-results { margin:12px 0; }
+.youtube-score-options .source-result>div { flex-direction:column; align-items:flex-start; }
+.youtube-score-options .source-result span { font-size:.875rem; }
+.youtube-score-options button:disabled { opacity:.55; cursor:default; }

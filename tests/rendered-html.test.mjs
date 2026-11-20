@@ -68,6 +68,7 @@ test("çoklu örnekli Irish tin-whistle ses bankası paketlenir", async () => {
 test("temel D tin whistle parmak eşlemelerini içerir", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const fingerings = await readFile(new URL("../app/fingerings.mjs", import.meta.url), "utf8");
+  const scoreSources = await readFile(new URL("../app/youtube-score-sources.ts", import.meta.url), "utf8");
   assert.match(fingerings, /D: "111111"/);
   assert.match(fingerings, /F: "1111h0"/);
   assert.match(fingerings, /"F#": "111100"/);
@@ -80,7 +81,8 @@ test("temel D tin whistle parmak eşlemelerini içerir", async () => {
   assert.match(page, /buildPlaybackPlan/);
   assert.match(page, /practice-panel/);
   assert.match(page, /searchMatchScore/);
-  assert.match(page, /thesession\.org\/tunes\/search/);
+  assert.match(page, /searchSessionTunes/);
+  assert.match(scoreSources, /thesession\.org\/tunes\/search/);
   assert.match(page, /\/api\/search\?q=/);
   assert.match(page, /\/api\/jobs/);
   assert.match(page, /sourceCandidates/);

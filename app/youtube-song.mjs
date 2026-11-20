@@ -9,20 +9,35 @@ function compact(value, maxLength) {
 }
 
 const VIDEO_LABEL = /\b(?:official (?:music )?(?:video|audio|lyric video)|lyrics? video|visualizer|tutorials?|lesson|play[ -]along|4k|1080p|hd)\b/i;
+const VIDEO_SUFFIX = /(?:^|[\s|–—-])(?:official (?:music )?(?:video|audio|lyric video)|(?:original |official )?music video|lyrics? video|visualizer|full hd|ultra hd|4k|8k|\d{3,4}p|hd|uhd|hq)\s*$/i;
+
+export function stripYoutubeTitleLabels(value) {
+  const segments = compact(value, 200).split(/\s+\|\s+/);
+  while (segments.length > 1 && VIDEO_LABEL.test(segments.at(-1))) segments.pop();
+  let title = segments.join(" | ");
+  let previous;
+  do {
+    previous = title;
+    title = title.replace(/\s*(?:\(([^()]*)\)|\[([^\[\]]*)\])\s*$/u,
+      (suffix, parens, brackets) => VIDEO_LABEL.test(parens ?? brackets) ? "" : suffix)
+      .replace(VIDEO_SUFFIX, "").replace(/[\s|–—-]+$/u, "").trim();
+  } while (title !== previous);
+  return title;
+}
 
 export function youtubeSongFromVideo({ title, author_name: author } = {}) {
   const videoTitle = compact(title, 200);
   if (!videoTitle) return null;
-  const segments = videoTitle.split(/\s+\|\s+/);
-  while (segments.length > 1 && VIDEO_LABEL.test(segments.at(-1))) segments.pop();
-  const heading = segments.join(" | ").replace(/\s*(?:\(([^()]*)\)|\[([^\[\]]*)\])\s*$/u,
-    (suffix, parens, brackets) => VIDEO_LABEL.test(parens ?? brackets) ? "" : suffix).trim();
+  const heading = stripYoutubeTitleLabels(videoTitle);
+  const topic = compact(author, 130).match(/^(.+?)\s+-\s+Topic$/i);
   const parts = heading.match(/^(.+?)\s+[–—-]\s+(.+)$/);
+  if (parts && /^(?:(?:main |opening |ending )?theme(?: song)?|soundtrack|ost)$/i.test(parts[2])) {
+    return { title: `${parts[1]} ${parts[2]}`, artist: topic ? compact(topic[1], 120) : "" };
+  }
   if (parts && !VIDEO_LABEL.test(parts[2])) {
     const [, artist, track] = parts;
     return { title: track, artist: compact(artist, 120) };
   }
-  const topic = compact(author, 130).match(/^(.+?)\s+-\s+Topic$/i);
   return { title: heading || videoTitle, artist: topic ? compact(topic[1], 120) : "" };
 }
 

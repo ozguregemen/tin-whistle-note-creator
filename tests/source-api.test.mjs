@@ -90,6 +90,20 @@ test("Audio jobs reject a missing or disallowed origin and honor the rate limite
   assert.equal((await siteTempo.json()).bpm, 115);
 });
 
+test("The configured Sites origin can search and open scores but cannot access unrelated routes", async () => {
+  const site = "https://private.site.example";
+  const handle = createSourceApi({ SCORE_SOURCE_ORIGINS: site }, async () => jsonResponse([]));
+  const origin = { Origin: site };
+  const search = await handle(new Request("https://worker.test/api/search?q=synthetic%20song", { headers: origin }));
+  assert.equal(search.status, 200);
+  assert.equal(search.headers.get("Access-Control-Allow-Origin"), site);
+  const preflight = await handle(new Request("https://worker.test/api/jobs", { method: "OPTIONS", headers: origin }));
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get("Access-Control-Allow-Origin"), site);
+  const unrelated = await handle(new Request("https://worker.test/api/catalog", { headers: origin }));
+  assert.equal(unrelated.status, 403);
+});
+
 test("Worker yalnızca desteklenen kaynakları GitHub Actions kuyruğuna gönderir", async () => {
   let dispatchBody;
   const fetchMock = async (input, init) => {
