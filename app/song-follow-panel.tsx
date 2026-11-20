@@ -172,6 +172,10 @@ export function SongFollowPanel({
                 <li key={index} className={`song-follow-tile song-follow-attempt ${state}`} aria-current={current ? "step" : undefined}>
                   <span className="song-follow-position" aria-hidden="true">{index + 1}</span>
                   <FollowFingering holes={holes} copy={copy} />
+                  {state === "correct" && <>
+                    <strong>{label.name}</strong>
+                    <small>{label.sounding}</small>
+                  </>}
                   <span className="sr-only">{index + 1}. {copy[state]}</span>
                 </li>
               );

@@ -29,8 +29,8 @@
 .song-follow-note { background:#f7f9f6; }
 .song-follow-note-holes { display:flex; flex-direction:column; align-self:center; align-items:center; gap:3px; }
 .song-follow-note-holes .hole { width:9px; height:9px; flex:0 0 9px; }
-.song-follow-note strong { display:grid; align-items:center; min-height:2.2em; font-size:.875rem; line-height:1.1; overflow-wrap:anywhere; }
-.song-follow-note small { color:var(--muted); font-size:.75rem; line-height:1.1; }
+.song-follow-tile > strong { display:grid; align-items:center; min-height:2.2em; font-size:.875rem; line-height:1.1; overflow-wrap:anywhere; }
+.song-follow-tile > small { color:var(--muted); font-size:.75rem; line-height:1.1; }
 .song-follow-note.current { border-color:#618b72; background:#e8f2ea; box-shadow:inset 0 0 0 1px #618b72; }
 .song-follow-attempt { background:#f9fbf8; }
 .song-follow-attempt.current { border-color:#618b72; background:#e8f2ea; }
