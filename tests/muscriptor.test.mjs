@@ -196,6 +196,9 @@ test("YouTube isteğinde yalnızca video kimliğini iletir ve MP3 dosyasını d�
       request.headers.set("Content-Length", String(options.body.length));
       return handleYoutubeAudio(request, env);
     }
+    if (String(url).startsWith("https://www.youtube.com/oembed?")) {
+      return Response.json({ title: "Duman – Bu Akşam (Official Audio)", author_name: "Duman" });
+    }
     assert.equal(String(url), `https://audio.example/private/youtube/${id}/mp3`);
     assert.equal(options.method, "POST");
     assert.equal(options.headers.Authorization, "Bearer test-token");
@@ -203,7 +206,7 @@ test("YouTube isteğinde yalnızca video kimliğini iletir ve MP3 dosyasını d�
   });
   const download = await downloadYoutubeAudio(id);
   const { file: mp3, song } = download;
-  assert.equal(song, null);
+  assert.deepEqual(song, { title: "Bu Akşam", artist: "Duman" });
   assert.equal(mp3.name, `youtube-${id}.mp3`);
   assert.equal(mp3.type, "audio/mpeg");
   assert.deepEqual(new Uint8Array(await mp3.arrayBuffer()), mp3Frame);

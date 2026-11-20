@@ -38,6 +38,27 @@ export function readYoutubeSong(headers) {
   }
 }
 
+export async function resolveYoutubeSong(headers, videoId, signal) {
+  const song = readYoutubeSong(headers);
+  if (song) return song;
+  if (!/^[A-Za-z0-9_-]{11}$/.test(videoId) || signal?.aborted) return null;
+
+  const url = new URL("https://www.youtube.com/oembed");
+  url.searchParams.set("url", `https://www.youtube.com/watch?v=${videoId}`);
+  url.searchParams.set("format", "json");
+  const timeout = AbortSignal.timeout(4500);
+  try {
+    const response = await fetch(url, {
+      credentials: "omit", referrerPolicy: "no-referrer",
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+    });
+    if (!response.ok || Number(response.headers.get("Content-Length")) > 16384) return null;
+    return youtubeSongFromVideo(await response.json());
+  } catch {
+    return null;
+  }
+}
+
 function tempoTitle(value) {
   return normalizeSearchText(compact(value, 200)).replace(/^the /, "").replace(/ theme song$/, " theme");
 }
