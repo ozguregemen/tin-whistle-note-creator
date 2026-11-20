@@ -10,6 +10,7 @@ function compact(value, maxLength) {
 
 const VIDEO_LABEL = /\b(?:official (?:music )?(?:video|audio|lyric video)|lyrics? video|visualizer|tutorials?|lesson|play[ -]along|4k|1080p|hd)\b/i;
 const VIDEO_SUFFIX = /(?:^|[\s|–—-])(?:official (?:music )?(?:video|audio|lyric video)|(?:original |official )?music video|lyrics? video|visualizer|full hd|ultra hd|4k|8k|\d{3,4}p|hd|uhd|hq)\s*$/i;
+export const YOUTUBE_THEME_LABEL = /\b(?:(main title|opening|intro|ending|outro|closing)(?: (?:credits|theme(?: (?:song|tune))?|song|music))?|(?:main |title |tv )?theme(?: (?:song|tune))?|(?:original )?soundtrack|ost)$/i;
 
 export function stripYoutubeTitleLabels(value) {
   const segments = compact(value, 200).split(/\s+\|\s+/);
@@ -31,7 +32,7 @@ export function youtubeSongFromVideo({ title, author_name: author } = {}) {
   const heading = stripYoutubeTitleLabels(videoTitle);
   const topic = compact(author, 130).match(/^(.+?)\s+-\s+Topic$/i);
   const parts = heading.match(/^(.+?)\s+[–—-]\s+(.+)$/);
-  if (parts && /^(?:(?:main |opening |ending )?theme(?: song)?|soundtrack|ost)$/i.test(parts[2])) {
+  if (parts && parts[2].match(YOUTUBE_THEME_LABEL)?.index === 0) {
     return { title: `${parts[1]} ${parts[2]}`, artist: topic ? compact(topic[1], 120) : "" };
   }
   if (parts && !VIDEO_LABEL.test(parts[2])) {

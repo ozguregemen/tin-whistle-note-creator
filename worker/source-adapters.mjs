@@ -1,4 +1,5 @@
 import { meaningfulSearchText, meaningfulSearchTokens, normalizeSearchText, SEARCH_QUALIFIERS, searchMatchScore } from "../app/search-relevance.mjs";
+import { youtubeScoreAlias, youtubeScoreMatch, youtubeScoreQueries } from "../app/youtube-score-match.mjs";
 import { DOCUMENT_SOURCE_ADAPTER, DOCUMENT_SOURCES } from "./document-sources.mjs";
 
 const GENERIC_TITLE_WORDS = new Set([
@@ -63,7 +64,8 @@ export function compareSourceCandidates(left, right) {
 }
 
 function withSourceQuality(candidate) {
-  return { ...candidate, quality: sourceQualityForMode(candidate.processingMode).key };
+  const alias = youtubeScoreAlias(candidate);
+  return { ...candidate, ...(alias ? { aliases: [alias] } : {}), quality: sourceQualityForMode(candidate.processingMode).key };
 }
 
 async function readLimitedText(response, maxBytes) {
@@ -100,6 +102,8 @@ export function decodeHtml(value) {
     .replaceAll("&quot;", "\"")
     .replaceAll("&#039;", "'")
     .replaceAll("&nbsp;", " ")
+    .replaceAll("&ndash;", "–")
+    .replaceAll("&mdash;", "—")
     .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -143,7 +147,7 @@ function titleQueryVariants(query) {
 
 async function fetchWordPressResults(adapter, query, fetchFn) {
   const variants = queryVariants(query);
-  const responses = await Promise.all(variants.map(async (variant) => {
+  const responses = await Promise.allSettled(variants.map(async (variant) => {
     const url = new URL("/wp-json/wp/v2/search", adapter.origin);
     url.searchParams.set("search", variant);
     url.searchParams.set("per_page", "10");
@@ -154,11 +158,13 @@ async function fetchWordPressResults(adapter, query, fetchFn) {
     });
     if (!response.ok) throw new Error(`${adapter.name} returned HTTP ${response.status}`);
     const items = JSON.parse(await readLimitedText(response, MAX_WORDPRESS_BYTES));
-    return Array.isArray(items) ? items.map((item) => ({ item, variant })) : [];
+    return Array.isArray(items) ? items : [];
   }));
+  const found = responses.flatMap(result => result.status === "fulfilled" ? [result.value] : []);
+  if (!found.length && responses.length) throw new Error(`${adapter.name} returned no usable response`);
 
   const unique = new Map();
-  for (const { item } of responses.flat()) {
+  for (const item of found.flat()) {
     if (!Number.isInteger(item?.id) || typeof item?.title !== "string" || typeof item?.url !== "string") continue;
     const title = decodeHtml(item.title);
     const cleanedTitle = usefulTitle(title);
@@ -297,17 +303,15 @@ function parseDiscoveryResults(html) {
   return results;
 }
 
-async function searchWebDiscovery(query, fetchFn) {
+async function searchWebDiscovery(query, fetchFn, identity) {
   const meaningfulTokens = meaningfulSearchTokens(query);
   const searchTerms = meaningfulSearchText(query);
   if (!searchTerms) return [];
-  // Search the complete phrase first, then retry without a likely artist name.
-  // The second query matters for pages whose title contains only the song name.
-  const discoveryQueries = [searchTerms];
-  if (meaningfulTokens.length >= 3) discoveryQueries.push(meaningfulTokens.slice(1).join(" "));
+  const discoveryQueries = identity ? [`"${searchTerms}" sheet music`, `"${searchTerms}" notaları`]
+    : [`${searchTerms} nota`, ...(meaningfulTokens.length >= 3 ? [`${meaningfulTokens.slice(1).join(" ")} nota`] : [])];
   const responses = await Promise.allSettled(discoveryQueries.map(async (terms) => {
     const url = new URL("https://html.duckduckgo.com/html/");
-    url.searchParams.set("q", `${terms} nota`);
+    url.searchParams.set("q", terms);
     const response = await fetchFn(url, {
       headers: { Accept: "text/html", "User-Agent": "tin-whistle-note-creator/0.2" },
       signal: AbortSignal.timeout(8000),
@@ -320,7 +324,7 @@ async function searchWebDiscovery(query, fetchFn) {
   const unique = new Map();
   for (const html of htmlDocuments) {
     for (const item of parseDiscoveryResults(html)) {
-      const score = Math.max(
+      const score = identity ? youtubeScoreMatch(identity, item) : Math.max(
         searchMatchScore(query, [item.title, item.url]),
         meaningfulTokens.length >= 3 ? searchMatchScore(meaningfulTokens.slice(1).join(" "), [item.title, item.url]) : 0,
       );
@@ -333,7 +337,7 @@ async function searchWebDiscovery(query, fetchFn) {
         title: item.title,
         url: item.url,
         processingMode: "review",
-        score: Math.max(1, score - 25),
+        score: identity ? score : Math.max(1, score - 25),
       });
       const existing = unique.get(candidate.id);
       if (!existing || existing.score < candidate.score) unique.set(candidate.id, candidate);
@@ -342,8 +346,7 @@ async function searchWebDiscovery(query, fetchFn) {
   return [...unique.values()].sort(compareSourceCandidates).slice(0, 5);
 }
 
-export async function searchAllSources(query, fetchFn = fetch) {
-  if (!normalizeSearchText(query)) return { results: [], unavailableSources: [] };
+async function searchDirectSources(query, fetchFn) {
   const wordpressAdapters = Object.values(SOURCE_ADAPTERS).filter((adapter) => adapter.kind === "wordpress");
   const songsterrAdapter = SOURCE_ADAPTERS.songsterr;
   const searchers = [
@@ -360,14 +363,39 @@ export async function searchAllSources(query, fetchFn = fetch) {
     if (result.status === "fulfilled") results.push(...result.value);
     else unavailableSources.push(adapter.id);
   });
-  const approvedResults = results.sort(compareSourceCandidates).slice(0, 8);
-  if (approvedResults.length > 0) return { results: approvedResults, unavailableSources };
+  return { results, unavailableSources };
+}
+
+/** @param {string} query @param {typeof fetch} [fetchFn] @param {{title: string, artist?: string} | null} [identity] */
+export async function searchAllSources(query, fetchFn = fetch, identity = null) {
+  if (!normalizeSearchText(query)) return { results: [], unavailableSources: [] };
+  // Older clients send the full theme title as a regular search term.
+  const variants = identity ? [query] : youtubeScoreQueries(query);
+  if (!identity && variants.length > 1) identity = { title: query };
+  const lookups = await Promise.all((identity ? variants : [query]).map(term => searchDirectSources(term, fetchFn)));
+  const results = [...new Map(lookups.flatMap(lookup => lookup.results.map(item => [item.id, item]))).values()];
+  const unavailableSources = [...new Set(lookups.flatMap(lookup => lookup.unavailableSources))]
+    .filter(source => lookups.every(lookup => lookup.unavailableSources.includes(source)));
+  // Match the video title before trimming the provider results. A broadly
+  // related search hit should not prevent discovery of a score for that title.
+  const eligibleResults = identity ? results.flatMap(candidate => {
+    const score = youtubeScoreMatch(identity, candidate);
+    return score ? [{ ...candidate, score }] : [];
+  }) : results;
+  const approvedResults = eligibleResults.sort(compareSourceCandidates).slice(0, 8);
+  if (approvedResults.some(candidate => !identity || candidate.score >= 92)) {
+    return { results: approvedResults, unavailableSources };
+  }
 
   try {
-    const discoveryResults = await searchWebDiscovery(query, fetchFn);
-    return { results: discoveryResults, unavailableSources, discoveryOnly: discoveryResults.length > 0 };
+    const discoveryResults = await searchWebDiscovery(variants.at(-1) ?? query, fetchFn, identity);
+    return {
+      results: [...discoveryResults, ...approvedResults].slice(0, 8),
+      unavailableSources,
+      discoveryOnly: !approvedResults.length && discoveryResults.length > 0,
+    };
   } catch {
-    return { results: [], unavailableSources: [...unavailableSources, "web"] };
+    return { results: approvedResults, unavailableSources: [...unavailableSources, "web"] };
   }
 }
 

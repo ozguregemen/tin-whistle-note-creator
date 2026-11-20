@@ -26,22 +26,25 @@ export async function searchSessionTunes(query: string, signal?: AbortSignal) {
   const response = await fetch(`${THE_SESSION_SEARCH_URL}${encodeURIComponent(query)}`, { signal });
   if (!response.ok) throw new Error(`The Session search returned ${response.status}`);
   const data = await response.json() as { tunes?: SessionTune[] };
-  return (data.tunes ?? []).filter(tune => Number.isInteger(tune.id) && typeof tune.name === "string");
+  return (Array.isArray(data.tunes) ? data.tunes : []).filter(tune => Number.isInteger(tune?.id) && typeof tune.name === "string");
 }
 
 export async function searchYoutubeScores<T extends VideoSong & { id: string; notes: string; aliases: string[] }>(
   song: VideoSong, catalog: T[], api: string, signal: AbortSignal,
 ): Promise<ScoreMatches<T>> {
-  const deadline = AbortSignal.any([signal, AbortSignal.timeout(10_000)]);
+  const sourceDeadline = AbortSignal.any([signal, AbortSignal.timeout(18_000)]);
+  const sessionDeadline = AbortSignal.any([signal, AbortSignal.timeout(7_000)]);
   return findYoutubeScoreMatches(song, catalog, {
     signal,
-    searchSession: query => searchSessionTunes(query, deadline),
+    searchSession: query => searchSessionTunes(query, sessionDeadline),
     searchSources: async query => {
       if (!api) return [];
-      const response = await fetch(`${api}/api/search?q=${encodeURIComponent(query)}`, { signal: deadline });
+      const params = new URLSearchParams({ q: query, matchTitle: song.title });
+      if (song.artist) params.set("matchArtist", song.artist);
+      const response = await fetch(`${api}/api/search?${params}`, { signal: sourceDeadline });
       if (!response.ok) throw new Error(`Source API returned ${response.status}`);
       const data = await response.json() as { results?: SourceCandidate[] };
-      return data.results ?? [];
+      return Array.isArray(data.results) ? data.results : [];
     },
   });
 }

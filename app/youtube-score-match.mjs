@@ -1,30 +1,83 @@
 import { rankCatalogMatches } from "./catalog-quality.mjs";
 import { editDistance, normalizeSearchText } from "./search-relevance.mjs";
-import { stripYoutubeTitleLabels } from "./youtube-song.mjs";
+import { stripYoutubeTitleLabels, YOUTUBE_THEME_LABEL } from "./youtube-song.mjs";
 
-const THEME_SUFFIX = /(?:\s+|\s*[-–—|]\s*)(?:(?:main |opening |ending )?theme(?: song)?|(?:original )?soundtrack|ost)$/i;
-const THEME_PART = /(?:^|\s)(opening|ending) theme(?: song)?$/i;
+const OPENING_LABELS = new Set(["opening", "intro", "main title"]);
+const ENDING_LABELS = new Set(["ending", "outro", "closing"]);
 const SCORE_SUFFIX = /\s+(?:şarkısının notaları|şarkı notaları|(?:flüt |melodika |piyano |gitar )?nota(?:ları|sı)?(?: ve (?:tab|akorları))?|sheet music|(?:guitar |piano )?tabs?|chords)$/iu;
+const SCORE_HEADING_SUFFIX = /\s+(?:free )?sheet music(?:\s+for\b.*)?$/iu;
+const SCORE_FORMAT = /^(?:(?:easy|beginner|intermediate|advanced|solo|simple)\s+)*(?:piano|guitar|violin|flute|tin whistle|recorder|melodica|fingerstyle|solo|arrangement|sheet music|notes?|tabs?|tutorial|cover|piyano|gitar|flüt|melodika|nota(?:ları|sı)?)(?:[\s-]+(?:sheet music|solo|duet|arrangement|notation|notes?|tutorial|cover|tab(?:s)?))*$/iu;
 const MATCH_LIMIT = 4;
 
 /** @typedef {{ title: string, artist?: string, aliases?: string[] }} SongIdentity */
 
 /** @param {string} title */
 export function youtubeScoreQueries(title) {
-  const heading = stripYoutubeTitleLabels(title).slice(0, 160).trim();
-  const specific = heading.replace(/\s*[([]\s*((?:(?:main |opening |ending )?theme(?: song)?|soundtrack|ost))\s*[)\]]$/i, " $1");
-  const shorter = specific.replace(THEME_SUFFIX, "").trim();
+  const heading = scoreHeading(title).slice(0, 160).trim();
+  const { specific, stem: shorter } = themeTitle(heading);
   const queries = [specific];
   if (shorter !== specific && normalizeSearchText(shorter).length >= 4) queries.push(shorter);
   return queries.filter(term => normalizeSearchText(term).length >= 2);
 }
 
 /** @param {string} title */
-function scoreNames(title) {
-  const name = stripYoutubeTitleLabels(title);
-  // Source headings often append an instrument or a score format.
-  const withoutFormat = name.replace(/\s+[-–—|]\s+(?=[^-–—|]+$)/, " ").replace(SCORE_SUFFIX, "").trim();
-  return youtubeScoreQueries(withoutFormat).map(variant => normalizeSearchText(variant).replace(/^the /, ""));
+function themeTitle(title) {
+  const from = title.match(/^(.+?)\s*\(from (.+?)\)$/i);
+  if (from && from[1].match(YOUTUBE_THEME_LABEL)?.index === 0) title = `${from[2]} ${from[1]}`;
+  const bracket = title.match(/\s*[([]\s*([^)[\]]+)\s*[)\]]$/);
+  const specific = bracket && bracket[1].trim().match(YOUTUBE_THEME_LABEL)?.index === 0
+    ? `${title.slice(0, bracket.index).trim()} ${bracket[1].trim()}`.trim() : title;
+  const label = specific.match(YOUTUBE_THEME_LABEL);
+  const stem = label ? specific.slice(0, label.index).replace(/[\s|–—-]+$/u, "") : specific;
+  // A single theme word can be a real song title.
+  if (normalizeSearchText(stem).length < 4) return { specific, stem: specific, part: "" };
+  const part = label?.[1]?.toLowerCase() ?? "";
+  return { specific, stem, part: OPENING_LABELS.has(part) ? "opening" : ENDING_LABELS.has(part) ? "ending" : "" };
+}
+
+/** @param {string} title */
+function scoreHeading(title) {
+  const publisher = /\s+\|\s+MuseScore(?:\.com)?$/i;
+  let heading = stripYoutubeTitleLabels(title);
+  if (publisher.test(heading)) {
+    heading = heading.replace(publisher, "");
+    if (SCORE_HEADING_SUFFIX.test(heading)) {
+      const name = heading.replace(SCORE_HEADING_SUFFIX, "");
+      const credited = name.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+      if (credited && YOUTUBE_THEME_LABEL.test(credited[1]) && !YOUTUBE_THEME_LABEL.test(credited[2])) heading = credited[1];
+    }
+  }
+  let previous;
+  do {
+    previous = heading;
+    heading = heading.replace(SCORE_HEADING_SUFFIX, "").replace(SCORE_SUFFIX, "")
+      .replace(/\s*[([]\s*([^)[\]]+)\s*[)\]]$/u, (suffix, label) => SCORE_FORMAT.test(label.trim()) ? "" : suffix)
+      .replace(/\s+[-–—|]\s+([^–—|]+)$/u, (suffix, label) => SCORE_FORMAT.test(label.trim()) ? "" : suffix)
+      .trim();
+  } while (heading !== previous);
+  return heading;
+}
+
+/** @param {string} heading */
+function normalizedTheme(heading) {
+  const { specific, stem, part } = themeTitle(heading);
+  const normalize = (/** @type {string} */ text) => normalizeSearchText(text).replace(/^the /, "");
+  return { specific: normalize(specific), stem: normalize(stem), part };
+}
+
+/** @param {SongIdentity} score @param {string} [videoArtist] */
+function trackTitle(score, videoArtist = "") {
+  const parts = score.title.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+  const artist = parts ? normalizeSearchText(parts[1]) : "";
+  return parts && artist && [normalizeSearchText(score.artist ?? ""), videoArtist].includes(artist) ? parts[2] : score.title;
+}
+
+/** @param {SongIdentity} score */
+export function youtubeScoreAlias(score) {
+  const title = trackTitle(score);
+  const { specific, stem, part } = themeTitle(scoreHeading(title));
+  const alias = part ? `${stem} ${part} theme` : specific;
+  return alias && normalizeSearchText(alias) !== normalizeSearchText(title) ? alias : "";
 }
 
 /** @param {string} left @param {string} right @param {boolean} artistMatches */
@@ -46,21 +99,15 @@ export function youtubeScoreMatch(video, score) {
   const scoreArtist = normalizeSearchText(score.artist ?? "");
   if (videoArtist && scoreArtist && videoArtist !== scoreArtist) return 0;
   const artistMatches = Boolean(videoArtist && videoArtist === scoreArtist);
-  const expected = scoreNames(video.title);
-  const videoPart = expected[0]?.match(THEME_PART)?.[1];
-  const names = [score.title, ...(score.aliases ?? [])].flatMap(title => {
-    const parts = title.match(/^(.+?)\s+[-–—]\s+(.+)$/);
-    const track = parts && [scoreArtist, videoArtist].includes(normalizeSearchText(parts[1])) ? parts[2] : title;
-    const variants = scoreNames(track);
-    const scorePart = variants[0]?.match(THEME_PART)?.[1];
-    return videoPart && scorePart && videoPart !== scorePart ? [] : variants;
-  });
+  const expected = normalizedTheme(scoreHeading(video.title));
+  const names = [trackTitle(score, videoArtist), ...(score.aliases ?? [])].map(title => normalizedTheme(scoreHeading(title)));
   let rank = 0;
-  for (const [index, title] of expected.entries()) {
-    for (const [position, name] of names.entries()) {
-      if (name === title) rank = Math.max(rank, index === 0 && position === 0 ? 100 : 92);
-      else if (closeTitle(title, name, artistMatches)) rank = Math.max(rank, 78);
-    }
+  for (const [index, name] of names.entries()) {
+    if (!name.specific || (expected.part && name.part && expected.part !== name.part)) continue;
+    if (expected.specific === name.specific) rank = Math.max(rank, index === 0 ? 100 : 92);
+    else if (expected.stem && expected.stem === name.stem) {
+      rank = Math.max(rank, expected.part && name.part ? 96 : 92);
+    } else if (closeTitle(expected.stem, name.stem, artistMatches)) rank = Math.max(rank, 78);
   }
   return rank && rank + (artistMatches ? 8 : 0);
 }

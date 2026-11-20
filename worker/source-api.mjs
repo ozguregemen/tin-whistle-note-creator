@@ -208,7 +208,9 @@ export function createSourceApi(env, fetchFn = fetch) {
       if (request.method === "GET" && url.pathname === "/api/search") {
         const query = (url.searchParams.get("q") || "").trim();
         if (query.length < 2 || query.length > 160) return json({ error: "Query must contain 2 to 160 characters" }, 400, cors);
-        const result = await searchAllSources(query, fetchFn);
+        const title = (url.searchParams.get("matchTitle") || "").trim().slice(0, 200);
+        const artist = (url.searchParams.get("matchArtist") || "").trim().slice(0, 120);
+        const result = await searchAllSources(query, fetchFn, title ? { title, artist } : null);
         return json({ query, ...result }, 200, { ...cors, "Cache-Control": "public, max-age=60" });
       }
       if (request.method === "POST" && url.pathname === "/api/jobs") {

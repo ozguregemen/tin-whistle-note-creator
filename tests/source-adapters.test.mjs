@@ -226,3 +226,35 @@ test("onaylı kaynaklarda sonuç yoksa nota odaklı web keşfi sunar", async () 
   assert.match(result.results[0].url, /musescore\.com/);
   assert.deepEqual(discoveryQueries, ["bilinmeyen melodi nota"]);
 });
+
+test("related songs do not hide a web score for the requested opening theme", async () => {
+  const queries = [];
+  const fetchMock = async (input) => {
+    const url = new URL(input);
+    if (url.hostname === "www.songsterr.com") return response([
+      { songId: 314, artist: "Sample Composer", title: "Harbour Quest Battle Theme", hasPlayer: true },
+      { songId: 315, artist: "Sample Composer", title: "Harbour Quest Ending Theme", hasPlayer: true },
+    ]);
+    if (url.hostname === "html.duckduckgo.com") {
+      queries.push(url.searchParams.get("q"));
+      return new Response(`<a class="result__a" href="https://musescore.com/user/123/scores/456">Harbour Quest Intro &ndash; Sample Composer Sheet music for piano (solo) | MuseScore.com</a>`);
+    }
+    return response([]);
+  };
+  const result = await searchAllSources("Harbour Quest", fetchMock, { title: "Harbour Quest Opening Theme Song" });
+  assert.deepEqual(queries, ['"harbour quest" sheet music', '"harbour quest" notaları']);
+  assert.equal(result.discoveryOnly, true);
+  assert.deepEqual(result.results.map(item => [item.sourceName, item.aliases]), [["MuseScore", ["Harbour Quest opening theme"]]]);
+});
+
+test("a legacy theme request searches the shorter name and preserves an opening-theme alias", async () => {
+  const fetchMock = async (input) => {
+    const url = new URL(input);
+    if (url.hostname === "html.duckduckgo.com") assert.fail("A matching importable source is already available");
+    if (url.hostname !== "www.songsterr.com" || url.searchParams.get("pattern") !== "harbour quest") return response([]);
+    return response([{ songId: 316, artist: "Sample Composer", title: "Harbour Quest Main Title", hasPlayer: true }]);
+  };
+  const result = await searchAllSources("Harbour Quest Opening Theme Song", fetchMock);
+  assert.equal(result.results[0].songId, 316);
+  assert.deepEqual(result.results[0].aliases, ["Harbour Quest opening theme"]);
+});

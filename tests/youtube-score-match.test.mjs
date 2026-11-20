@@ -27,6 +27,21 @@ test("song identity uses artist evidence and allows a small typo without accepti
   assert.ok(youtubeScoreMatch(video, { title: "Deniz Erdem — Mavi Kuş", artist: "Deniz Erdem" }));
 });
 
+test("opening-theme labels and score annotations match without confusing the closing theme", () => {
+  const video = youtubeSongFromVideo({ title: "Harbour Quest - Opening Theme Song - HD" });
+  assert.deepEqual(video, { title: "Harbour Quest Opening Theme Song", artist: "" });
+  assert.deepEqual(youtubeScoreQueries(video.title), ["Harbour Quest Opening Theme Song", "Harbour Quest"]);
+  for (const title of [
+    "Harbour Quest Intro (Piano Solo)",
+    "Harbour Quest Main Title Theme - Easy Piano",
+    "Main Title (from Harbour Quest) sheet music for piano (solo) | MuseScore.com",
+    "Harbour Quest – Opening Credits",
+  ]) assert.ok(youtubeScoreMatch(video, { title }) >= 92, title);
+  assert.equal(youtubeScoreMatch(video, { title: "Harbour Quest Closing Credits (Piano Solo)" }), 0);
+  assert.equal(youtubeScoreMatch(video, { title: "Harbour Quest Battle Theme" }), 0);
+  assert.deepEqual(youtubeSongFromVideo({ title: "Harbour Quest - Intro Music" }), { title: "Harbour Quest Intro Music", artist: "" });
+});
+
 test("all catalog songs are eligible and a strong catalog result skips the online lookup and download", async () => {
   const song = { title: "Mavi Kuş Full HD" };
   const draft = { id: "draft", title: "Mavi Kuş", notes: "D E F#", sourceStatus: "live" };
