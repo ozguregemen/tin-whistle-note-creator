@@ -60,18 +60,20 @@ type CatalogSong = {
   sources: { name: string; role: string }[];
 };
 
-export function CatalogBrowser<Song extends CatalogSong>({ songs, language, activeId, busy, onOpen, onSearchOnline }: {
+export function CatalogBrowser<Song extends CatalogSong>({ songs, language, activeId, busy, onOpen, onSearchOnline, compact = false }: {
   songs: Song[];
   language: keyof typeof labels;
   activeId?: string;
   busy: boolean;
   onOpen: (song: Song) => void;
-  onSearchOnline: (query: string) => void;
+  onSearchOnline?: (query: string) => void;
+  compact?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [approvedOnly, setApprovedOnly] = useState(false);
   const [page, setPage] = useState(0);
   const t = labels[language];
+  const idPrefix = compact ? "practice-catalog" : "catalog";
   const approvedCount = useMemo(() => songs.filter(isApprovedCatalogSong).length, [songs]);
   const results = useMemo(
     () => browseCatalogSongs(songs, query, approvedOnly, language)
@@ -94,17 +96,17 @@ export function CatalogBrowser<Song extends CatalogSong>({ songs, language, acti
   }
 
   return (
-    <section id="song-catalog" aria-labelledby="catalog-title">
-      <div className="screen-heading">
+    <section id={compact ? undefined : "song-catalog"} aria-labelledby={compact ? undefined : "catalog-title"} aria-label={compact ? t.title : undefined}>
+      {!compact && <div className="screen-heading">
         <div><h1 id="catalog-title" tabIndex={-1}>{t.title}</h1><p>{t.intro}</p></div>
-        <button className="secondary-action" type="button" onClick={() => onSearchOnline(query)}>
+        {onSearchOnline && <button className="secondary-action" type="button" onClick={() => onSearchOnline(query)}>
           {workspaceCopy[language].online}
-        </button>
-      </div>
+        </button>}
+      </div>}
       <div className="catalog-browser">
         <div className="catalog-tools">
-          <label className="sr-only" htmlFor="catalog-filter">{t.filter}</label>
-          <input id="catalog-filter" type="search" value={query} placeholder={t.placeholder} onChange={(event) => updateQuery(event.target.value)} />
+          <label className="sr-only" htmlFor={`${idPrefix}-filter`}>{t.filter}</label>
+          <input id={`${idPrefix}-filter`} type="search" value={query} placeholder={t.placeholder} onChange={(event) => updateQuery(event.target.value)} />
           <div className="catalog-filters">
             <button type="button" aria-pressed={!approvedOnly} onClick={() => updateFilter(false)}>
               {t.all} <span>{songs.length}</span>
@@ -115,22 +117,23 @@ export function CatalogBrowser<Song extends CatalogSong>({ songs, language, acti
           </div>
         </div>
       {results.length ? (
-        <ul className="catalog-songs" aria-labelledby="catalog-title">
+        <ul className="catalog-songs" aria-labelledby={compact ? undefined : "catalog-title"} aria-label={compact ? t.title : undefined}>
           {results.slice(start, end).map((song) => {
             const approved = isApprovedCatalogSong(song);
             const { rhythm, readiness } = assessSongQuality(song);
             const title = song.artist ? `${song.artist} — ${song.title}` : song.title;
             const source = song.sources?.find((entry) => entry.role === "note-source")?.name;
             const status = approved ? t.verified : readiness === "review-required" ? t.review : readiness === "rhythmic-draft" ? t.rhythmicDraft : t.melodyOnly;
+            const statusId = `${idPrefix}-status-${song.id}`;
             return (
               <li key={song.id}>
                 <button className="catalog-song" type="button" disabled={busy} aria-current={activeId === song.id ? "true" : undefined}
-                  aria-label={`${t.openSong} · ${title}`} aria-describedby={`catalog-status-${song.id}`} onClick={() => onOpen(song)}>
+                  aria-label={`${t.openSong} · ${title}`} aria-describedby={statusId} onClick={() => onOpen(song)}>
                   <span className="catalog-song-name">
                     <strong>{song.title}</strong>
                     {(song.artist || source) && <span className="catalog-song-artist">{[song.artist, source].filter(Boolean).join(" · ")}</span>}
                   </span>
-                  <span id={`catalog-status-${song.id}`} className="catalog-song-status">
+                  <span id={statusId} className="catalog-song-status">
                     <span className={approved ? "approved" : undefined}>{status}</span>
                     {approved && rhythm === "equal-beats" && <small>{t.equalBeats}</small>}
                   </span>

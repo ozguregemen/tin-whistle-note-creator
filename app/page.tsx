@@ -5,6 +5,9 @@ import { parseAbcScore } from "./abc.mjs";
 import { AudioClipPicker, type AudioClipRange } from "./audio-clip-picker";
 import { CatalogBrowser } from "./catalog-browser";
 import { PracticeMicrophone } from "./practice-microphone";
+import { PracticeSongPicker } from "./practice-song-picker";
+import { buildFollowSteps } from "./song-follow.mjs";
+import { songFollowCopy } from "./song-follow-panel";
 import { WorkspaceNavigation, workspaceCopy, type WorkArea } from "./workspace-navigation";
 import { formatClipTime } from "./audio-clip.mjs";
 import { audioInputError, mediaErrorMessage, prepareAudioInput, transcribeAudioInput } from "./media-import.mjs";
@@ -622,6 +625,7 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [manualNotes, setManualNotes] = useState("");
   const [song, setSong] = useState<Song | null>(null);
+  const [pickingPracticeSong, setPickingPracticeSong] = useState(false);
   const [sourceCandidates, setSourceCandidates] = useState<SourceCandidate[]>([]);
   const [status, setStatus] = useState<StatusKey>("catalogPrepared");
   const [sourceError, setSourceError] = useState("");
@@ -784,6 +788,7 @@ export default function Home() {
   const allNotes = phrases.flat();
   const unsupported = allNotes.filter((note) => !note.holes);
   const playbackPlan = useMemo(() => buildPlaybackPlan(phrases, song?.rhythm, bpm), [phrases, song?.rhythm, bpm]);
+  const followSteps = useMemo(() => buildFollowSteps(playbackPlan), [playbackPlan]);
   const playbackPlanRef = useRef(playbackPlan);
   // eslint-disable-next-line react-hooks/refs
   playbackPlanRef.current = playbackPlan;
@@ -1682,7 +1687,10 @@ export default function Home() {
   function navigateWorkspace(next: WorkArea) {
     const current = areaRef.current;
     if (current === next) return;
-    if (current === "practice") stopPractice();
+    if (current === "practice") {
+      stopPractice();
+      setPickingPracticeSong(false);
+    }
     if (current === "convert") document.querySelector<HTMLAudioElement>("#input-workspace audio")?.pause();
     areaRef.current = next;
     setArea(next);
@@ -1721,9 +1729,17 @@ export default function Home() {
     navigateWorkspace("practice");
   }
 
-  const practiceMicrophone = area === "practice"
-    ? <PracticeMicrophone language={language} onStart={stopPractice} onUseChange={updateMicrophoneActive} />
+  function choosePracticeSong() {
+    stopPractice();
+    setPickingPracticeSong(true);
+  }
+
+  const practiceMicrophone = area === "practice" && (song || !pickingPracticeSong)
+    ? <PracticeMicrophone key={`${song?.id ?? ""}:${song?.notes ?? ""}`} language={language}
+      onStart={stopPractice} onUseChange={updateMicrophoneActive} steps={followSteps}
+      onChooseSong={song ? choosePracticeSong : undefined} />
     : null;
+  const pickerSongs = song && !catalog.some(item => item.id === song.id) ? [song, ...catalog] : catalog;
 
   return (
     <div lang={language}>
@@ -1841,7 +1857,7 @@ export default function Home() {
         </section>
 
         <section id="practice-workspace" hidden={area !== "practice"} aria-labelledby="preview-title">
-          {song ? <section className="workspace" aria-labelledby="preview-title">
+          {song ? <section className={`workspace${microphoneActive ? " practice-listening" : ""}`} aria-labelledby="preview-title">
             <div className="workspace-heading">
               <div><h1 id="preview-title" tabIndex={-1}>{song.artist ? `${song.artist} — ` : ""}{song.title}</h1><div className="workspace-subtitle"><p>{song.sourceConfidence === "estimated" ? t.textEstimated : song.subtitle[language]} · {song.difficulty[language]} · D tin whistle{song.userEdited ? ` · ${t.userCorrected}` : ""}</p>{songQuality && <span className={`readiness-badge readiness-${songQuality.readiness}`}>{readinessLabel}</span>}</div></div>
               <div className="workspace-actions">
@@ -1851,7 +1867,7 @@ export default function Home() {
               </div>
             </div>
             {practiceMicrophone}
-            <section className={`practice-panel${isPlaying ? " playing" : ""}`} aria-label={t.practice}>
+            <section className={`practice-panel${isPlaying ? " playing" : ""}`} aria-label={t.practice} hidden={microphoneActive}>
               <div className="practice-main">
                 <div className="practice-title"><span className="section-kicker">{t.practice}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</strong></div>
                 <div className="practice-transport">
@@ -1962,12 +1978,20 @@ export default function Home() {
               <h1 id="preview-title" tabIndex={-1}>{ui.practiceEmpty}</h1>
               <p>{ui.practiceEmptyHint}</p>
               <div className="practice-empty-actions">
-                <button className="secondary-action" type="button" onClick={() => navigateWorkspace("catalog")}>{ui.catalog}</button>
+                <button className="secondary-action" type="button" onClick={choosePracticeSong}>{songFollowCopy[language].choose}</button>
                 <button className="secondary-action" type="button" onClick={() => navigateWorkspace("convert")}>{ui.convert}</button>
               </div>
               {practiceMicrophone}
             </div>
           )}
+          {pickingPracticeSong && <PracticeSongPicker language={language} songs={pickerSongs} activeId={song?.id}
+            onClose={() => setPickingPracticeSong(false)}
+            onPick={selected => {
+              setPickingPracticeSong(false);
+              openCatalogSong(selected);
+              window.requestAnimationFrame(() => document.getElementById("preview-title")?.focus({ preventScroll: true }));
+            }}
+            onImport={() => navigateWorkspace("convert")} />}
         </section>
       </main>
       <footer className="app-footer shell"><span>Tin Whistle Note Creator</span><span>D tin whistle</span></footer>

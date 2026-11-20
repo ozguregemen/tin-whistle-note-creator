@@ -6,10 +6,10 @@ const MAX_FREQUENCY = 4000;
 const MIN_RMS = 0.004;
 const PERIOD_THRESHOLD = 0.15;
 
-/** @param {number} sampleRate */
-export function createPitchDetector(sampleRate) {
+/** @param {number} sampleRate @param {number} [minimumFrequency] */
+export function createPitchDetector(sampleRate, minimumFrequency = MIN_FREQUENCY) {
   const firstLag = Math.max(2, Math.floor(sampleRate / MAX_FREQUENCY));
-  const lastLag = Math.ceil(sampleRate / MIN_FREQUENCY);
+  const lastLag = Math.ceil(sampleRate / minimumFrequency);
   const difference = new Float64Array(lastLag + 2);
 
   return (/** @type {Float32Array} */ samples) => {
@@ -48,7 +48,7 @@ export function createPitchDetector(sampleRate) {
       const curvature = before + after - 2 * center;
       const offset = curvature > 0 ? Math.max(-0.5, Math.min(0.5, (before - after) / (2 * curvature))) : 0;
       const frequency = sampleRate / (lag + offset);
-      if (frequency < MIN_FREQUENCY || frequency > MAX_FREQUENCY) return null;
+      if (frequency < minimumFrequency || frequency > MAX_FREQUENCY) return null;
       const midi = Math.round(69 + 12 * Math.log2(frequency / 440));
       return { ...pitchAndOctave(midi), midi, frequency };
     }

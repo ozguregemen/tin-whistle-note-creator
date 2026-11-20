@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { describeLiveNote } from "./live-note-display.mjs";
 import { createPitchDetector, createPitchTracker, PITCH_WINDOW_SIZE } from "./live-pitch.mjs";
+import { connectFollowInput, playReferenceNote } from "./practice-reference.mjs";
+import { createSongFollower, createWhistleReleaseDetector, emptyFollowProgress, FOLLOW_MIN_FREQUENCY, type FollowStep } from "./song-follow.mjs";
+import { SongFollowPanel, songFollowCopy } from "./song-follow-panel";
 
 const COPY = {
   en: {
@@ -122,16 +125,31 @@ export function LiveNoteReadout({ note, language }: { note: Pitch | null; langua
   );
 }
 
-export function PracticeMicrophone({ language, onStart, onUseChange }: {
+export function PracticeMicrophone({ language, onStart, onUseChange, steps, onChooseSong }: {
   language: "en" | "tr";
   onStart: () => void;
   onUseChange: (active: boolean) => void;
+  steps: FollowStep[];
+  onChooseSong?: () => void;
 }) {
   const copy = COPY[language];
+  const follow = songFollowCopy[language];
   const captureRef = useRef<Capture | null>(null);
   const [state, setState] = useState<State>("idle");
   const [note, setNote] = useState<Pitch | null>(null);
+  const [mode, setMode] = useState<"song" | "free">(steps.length ? "song" : "free");
+  const [progress, setProgress] = useState(emptyFollowProgress);
+  const [referenceEnabled, setReferenceEnabled] = useState(false);
   const active = state === "requesting" || state === "listening";
+  const following = mode === "song" && steps.length > 0;
+  const finished = following && progress.matched === steps.length;
+  const referenceStep = following ? steps[progress.matched] : undefined;
+
+  useEffect(() => {
+    const context = captureRef.current?.context;
+    if (!referenceEnabled || state !== "listening" || !referenceStep || !context) return;
+    return playReferenceNote(context, referenceStep.pitch, referenceStep.durationMs);
+  }, [referenceEnabled, state, referenceStep]);
 
   useEffect(() => {
     function releaseCapture() {
@@ -164,6 +182,11 @@ export function PracticeMicrophone({ language, onStart, onUseChange }: {
     setNote(null);
   }
 
+  function resetPractice() {
+    stop();
+    setProgress(emptyFollowProgress());
+  }
+
   async function start() {
     if (captureRef.current) return;
     if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) {
@@ -178,6 +201,9 @@ export function PracticeMicrophone({ language, onStart, onUseChange }: {
       return;
     }
     captureRef.current = capture;
+    const initialProgress = finished ? emptyFollowProgress() : progress;
+    const follower = following ? createSongFollower(steps, initialProgress) : null;
+    if (finished) setProgress(initialProgress);
     onStart();
     onUseChange(true);
     setState("requesting");
@@ -196,23 +222,46 @@ export function PracticeMicrophone({ language, onStart, onUseChange }: {
       analyser.fftSize = PITCH_WINDOW_SIZE;
       capture.source = capture.context.createMediaStreamSource(stream);
       // An analyser can read the input without routing it to the speakers.
-      capture.source.connect(analyser);
+      if (follower) connectFollowInput(capture.context, capture.source, analyser);
+      else capture.source.connect(analyser);
       stream.getAudioTracks().forEach(track => track.addEventListener("ended", () => {
         if (captureRef.current === capture) stop("ended");
       }, { once: true }));
 
       const samples = new Float32Array(PITCH_WINDOW_SIZE);
-      const detect = createPitchDetector(capture.context.sampleRate);
-      const track = createPitchTracker();
+      const detect = createPitchDetector(capture.context.sampleRate, follower ? FOLLOW_MIN_FREQUENCY : undefined);
+      const detectRelease = createWhistleReleaseDetector(capture.context.sampleRate);
+      let track = createPitchTracker();
       let lastUpdate = -Infinity;
       let lastNote: Pitch | null = null;
+      let wasQuiet = false;
       function read(now: number) {
         if (captureRef.current !== capture) return;
+        if (follower) {
+          // A short energy window can detect a breath between repeated pitches
+          // even when the longer window still holds the previous note.
+          analyser.getFloatTimeDomainData(samples);
+          const quiet = detectRelease(samples);
+          if (quiet && !wasQuiet) {
+            follower.release();
+            track = createPitchTracker();
+          }
+          wasQuiet = quiet;
+        }
         if (now - lastUpdate >= 32) {
           lastUpdate = now;
-          analyser.getFloatTimeDomainData(samples);
-          const next = track(detect(samples));
-          if (next?.midi !== lastNote?.midi || Math.round(next?.frequency ?? 0) !== Math.round(lastNote?.frequency ?? 0)) {
+          if (!follower) analyser.getFloatTimeDomainData(samples);
+          const next = !wasQuiet ? track(detect(samples)) : null;
+          if (follower) {
+            const updated = next ? follower.hear(next.midi) : null;
+            if (updated) {
+              setProgress(updated);
+              if (updated.matched === steps.length) {
+                stop();
+                return;
+              }
+            }
+          } else if (next?.midi !== lastNote?.midi || Math.round(next?.frequency ?? 0) !== Math.round(lastNote?.frequency ?? 0)) {
             lastNote = next;
             setNote(next);
           }
@@ -226,18 +275,34 @@ export function PracticeMicrophone({ language, onStart, onUseChange }: {
     }
   }
 
+  const action = state === "requesting" ? copy.cancel
+    : following ? state === "listening" ? follow.pause : finished ? follow.again : progress.matched ? follow.resume : follow.start
+      : active ? copy.stop : copy.start;
+  const description = state === "idle" && following ? follow.hint : copy[state];
+
   return (
     <section className="practice-microphone" aria-labelledby="practice-microphone-title">
       <div className="practice-microphone-header">
         <div className="practice-microphone-copy">
-          <h2 id="practice-microphone-title">{copy.title}</h2>
-          <p className={state === "listening" ? "microphone-live" : undefined} role="status">{copy[state]}</p>
+          <h2 id="practice-microphone-title">{following ? follow.title : copy.title}</h2>
+          <p className={state === "listening" ? "microphone-live" : undefined} role="status">{description}</p>
+          {onChooseSong && !steps.length && <p>{follow.unavailable}</p>}
         </div>
-        <button type="button" className={`secondary-action${active ? "" : " microphone-start"}`} onClick={() => active ? stop() : void start()}>
-          {state === "requesting" ? copy.cancel : active ? copy.stop : copy.start}
-        </button>
+        <div className="practice-microphone-actions">
+          {onChooseSong && <button type="button" className="secondary-action" onClick={() => { stop(); onChooseSong(); }}>{follow.choose}</button>}
+          {!!steps.length && <button type="button" className="secondary-action" onClick={() => {
+            stop();
+            setMode(following ? "free" : "song");
+          }}>{following ? follow.free : follow.title}</button>}
+          <button type="button" className={`secondary-action${active ? "" : " microphone-start"}`} onClick={() => active ? stop() : void start()}>
+            {action}
+          </button>
+        </div>
       </div>
-      {state === "listening" && <LiveNoteReadout note={note} language={language} />}
+      {following
+        ? <SongFollowPanel language={language} steps={steps} progress={progress}
+          referenceEnabled={referenceEnabled} onReferenceChange={setReferenceEnabled} onReset={resetPractice} />
+        : state === "listening" && <LiveNoteReadout note={note} language={language} />}
     </section>
   );
 }
