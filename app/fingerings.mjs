@@ -43,7 +43,8 @@ const MAX_SINGLE_REGISTER_SPAN = EXTENDED_HIGHEST - SIMPLE_LOWEST;
 const SEMITONE_SHIFTS = Object.freeze(Array.from({ length: 73 }, (_, index) => index - 36));
 const OCTAVE_SHIFTS = Object.freeze(SEMITONE_SHIFTS.filter((shift) => shift % 12 === 0));
 
-function pitchAndOctave(number) {
+/** @param {number} number */
+export function pitchAndOctave(number) {
   const pitchClass = ((number % 12) + 12) % 12;
   return { pitch: PITCHES[pitchClass], octave: Math.floor(number / 12) - 1 };
 }

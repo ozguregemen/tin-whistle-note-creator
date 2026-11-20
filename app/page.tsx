@@ -1,9 +1,10 @@
 "use client";
 
-import { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { parseAbcScore } from "./abc.mjs";
 import { AudioClipPicker, type AudioClipRange } from "./audio-clip-picker";
 import { CatalogBrowser } from "./catalog-browser";
+import { PracticeMicrophone } from "./practice-microphone";
 import { WorkspaceNavigation, workspaceCopy, type WorkArea } from "./workspace-navigation";
 import { formatClipTime } from "./audio-clip.mjs";
 import { audioInputError, mediaErrorMessage, prepareAudioInput, transcribeAudioInput } from "./media-import.mjs";
@@ -642,6 +643,12 @@ export default function Home() {
   const sourceIsBusy = status === "queueing" || status === "processing" || status === "sourceRetrying";
   const audioDisabled = audioBusy || sourceIsBusy || !audioCapabilities;
   const [isPlaying, setIsPlaying] = useState(false);
+  const [microphoneActive, setMicrophoneActive] = useState(false);
+  const microphoneActiveRef = useRef(false);
+  const updateMicrophoneActive = useCallback((active: boolean) => {
+    microphoneActiveRef.current = active;
+    setMicrophoneActive(active);
+  }, []);
   const [soundStatus, setSoundStatus] = useState<SoundStatus>("idle");
   const [activeNoteIndex, setActiveNoteIndex] = useState(-1);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
@@ -1198,6 +1205,7 @@ export default function Home() {
   }
 
   async function togglePractice() {
+    if (microphoneActiveRef.current) return;
     if (isPlaying) {
       if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
       playbackTimerRef.current = null;
@@ -1216,7 +1224,7 @@ export default function Home() {
       return;
     }
     await prepareWhistleSamples();
-    if (areaRef.current !== "practice") return;
+    if (areaRef.current !== "practice" || microphoneActiveRef.current) return;
     setIsPlaying(true);
     startMetronome();
     const pausedPhase = playbackPhaseRef.current;
@@ -1713,6 +1721,10 @@ export default function Home() {
     navigateWorkspace("practice");
   }
 
+  const practiceMicrophone = area === "practice"
+    ? <PracticeMicrophone language={language} onStart={stopPractice} onUseChange={updateMicrophoneActive} />
+    : null;
+
   return (
     <div lang={language}>
       <WorkspaceNavigation language={language} area={area} languageLabel={t.languageLabel} languageAction={t.languageAction}
@@ -1838,11 +1850,12 @@ export default function Home() {
                 <button type="button" className="print-button" onClick={() => window.print()}>{t.print}</button>
               </div>
             </div>
+            {practiceMicrophone}
             <section className={`practice-panel${isPlaying ? " playing" : ""}`} aria-label={t.practice}>
               <div className="practice-main">
                 <div className="practice-title"><span className="section-kicker">{t.practice}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</strong></div>
                 <div className="practice-transport">
-                  <button type="button" className="practice-play" onClick={togglePractice} disabled={!playbackPlan.length || soundStatus === "loading"} aria-pressed={isPlaying}><span aria-hidden="true">{isPlaying ? "Ⅱ" : "▶"}</span> {soundStatus === "loading" ? "…" : isPlaying ? t.pause : t.play}</button>
+                  <button type="button" className="practice-play" onClick={togglePractice} disabled={microphoneActive || !playbackPlan.length || soundStatus === "loading"} aria-pressed={isPlaying}><span aria-hidden="true">{isPlaying ? "Ⅱ" : "▶"}</span> {soundStatus === "loading" ? "…" : isPlaying ? t.pause : t.play}</button>
                   <button type="button" className="practice-stop" onClick={stopPractice} disabled={!isPlaying && activeNoteIndex < 0}><span aria-hidden="true">■</span> {t.stop}</button>
                 </div>
                 <div className="tempo-control" role="group" aria-labelledby="practice-tempo-label">
@@ -1952,6 +1965,7 @@ export default function Home() {
                 <button className="secondary-action" type="button" onClick={() => navigateWorkspace("catalog")}>{ui.catalog}</button>
                 <button className="secondary-action" type="button" onClick={() => navigateWorkspace("convert")}>{ui.convert}</button>
               </div>
+              {practiceMicrophone}
             </div>
           )}
         </section>
