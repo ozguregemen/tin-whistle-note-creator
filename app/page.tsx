@@ -3,13 +3,14 @@
 import { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { parseAbcScore } from "./abc.mjs";
 import { AudioClipPicker, type AudioClipRange } from "./audio-clip-picker";
-import { CatalogBrowser, catalogNavLabel } from "./catalog-browser";
+import { CatalogBrowser } from "./catalog-browser";
+import { WorkspaceNavigation, workspaceCopy, type WorkArea } from "./workspace-navigation";
 import { formatClipTime } from "./audio-clip.mjs";
 import { audioInputError, mediaErrorMessage, prepareAudioInput, transcribeAudioInput } from "./media-import.mjs";
 import { detectAudioCapabilities, MUSCRIPTOR_LARGE } from "./muscriptor.mjs";
 import { youtubeVideoId } from "./youtube-audio.mjs";
 import { MediaError } from "../shared/audio-media.mjs";
-import { assessSongQuality, rankCatalogMatches } from "./catalog-quality.mjs";
+import { assessSongQuality } from "./catalog-quality.mjs";
 import { applyCuratedTempo } from "./curated-tempos.mjs";
 import { arrangePhrasesForDWhistle, estimateDWhistleRegisters, fingeringFor, isUpperWhistleRegister } from "./fingerings.mjs";
 import { replacePhraseNote, serializeNotePhrases } from "./note-corrections.mjs";
@@ -517,8 +518,10 @@ const FALLBACK_SONGS: Song[] = [
 
 const REMOTE_CATALOG_URL = "https://raw.githubusercontent.com/ozguregemen/tin-whistle-note-creator/main/catalog/catalog.json";
 const THE_SESSION_SEARCH_URL = "https://thesession.org/tunes/search?format=json&q=";
-const INPUT_MODES = ["search", "paste", "score", "audio"] as const;
-type InputMode = typeof INPUT_MODES[number];
+const INPUT_MODES = ["audio", "paste", "score"] as const;
+type InputMode = "search" | typeof INPUT_MODES[number];
+const EXAMPLE_NOTES = "D4 E4 F#4 G4 | A4 G4 F#4 E4";
+const WEB_STATUSES = new Set<StatusKey>(["notFound", "searching", "sourceFound", "discoveryFound", "queueing", "processing", "needsReview", "sourceUnavailable", "sourceRetrying"]);
 const EDITABLE_WHISTLE_NOTES = [4, 5, 6].flatMap((octave) =>
   ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
     .filter((pitch) => fingeringFor(pitch, octave))
@@ -619,9 +622,12 @@ export default function Home() {
   const [language, setLanguage] = useState<Language>("en");
   const [mode, setMode] = useState<InputMode>("search");
   const [catalog, setCatalog] = useState<Song[]>(FALLBACK_SONGS);
-  const [query, setQuery] = useState("Duman İçerim Ben Bu Akşam");
-  const [manualNotes, setManualNotes] = useState("D4 E4 F#4 G4 | A4 B4 C#5 D5 | D5 C#5 B4 A4 | G4 F#4 E4 D4");
-  const [song, setSong] = useState<Song | null>(FALLBACK_SONGS[0]);
+  const [area, setArea] = useState<WorkArea>("catalog");
+  const areaRef = useRef<WorkArea>("catalog");
+  const importMode = useRef<typeof INPUT_MODES[number]>("audio");
+  const [query, setQuery] = useState("");
+  const [manualNotes, setManualNotes] = useState("");
+  const [song, setSong] = useState<Song | null>(null);
   const [sourceCandidates, setSourceCandidates] = useState<SourceCandidate[]>([]);
   const [status, setStatus] = useState<StatusKey>("catalogPrepared");
   const [sourceError, setSourceError] = useState("");
@@ -664,6 +670,9 @@ export default function Home() {
   const whistleBuffersRef = useRef<Map<number, AudioBuffer>>(new Map());
   const whistleLoadPromiseRef = useRef<Promise<boolean> | null>(null);
   const t = COPY[language];
+  const ui = workspaceCopy[language];
+  const showInputStatus = area === "web" ? WEB_STATUSES.has(status) : mode === "paste" ? status === "invalidNotes"
+    : mode === "score" ? status === "scoreUnavailable" : Boolean(audioPhase || audioError || (status.startsWith("audio") && status !== "audioConverted"));
   const audioPhaseText = audioPhase === "audioTranscribing" && audioUsesServer
     ? t.audioServerTranscribing : audioPhase ? t[audioPhase] : "";
   const sourceIsBusy = status === "queueing" || status === "processing" || status === "sourceRetrying";
@@ -737,6 +746,7 @@ export default function Home() {
     let active = true;
     // Resuming a user-started background conversion after reload is intentional.
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    navigateWorkspace("web");
     setStatus("processing");
     setSourceError("");
     waitForSourceJob(api, requestId).then((job: SourceJob) => {
@@ -744,6 +754,7 @@ export default function Home() {
       if (job.status === "completed" && job.song) {
         setSong(restoreStoredCorrection(applyCuratedTempo(job.song) as Song));
         setStatus("liveFound");
+        showPracticeResult("web");
       } else if (job.status === "needs-review") {
         setSourceError(job.reason || "");
         setStatus("needsReview");
@@ -1195,6 +1206,7 @@ export default function Home() {
       return;
     }
     await prepareWhistleSamples();
+    if (areaRef.current !== "practice") return;
     setIsPlaying(true);
     startMetronome();
     const pausedPhase = playbackPhaseRef.current;
@@ -1283,18 +1295,13 @@ export default function Home() {
     setSourceCandidates([]);
     if (youtubeVideoId(query)) {
       setAudioUrl(query.trim());
-      switchInputMode("audio");
+      importMode.current = "audio";
+      navigateWorkspace("import");
+      window.requestAnimationFrame(() => document.getElementById("audio-url")?.focus());
       return;
     }
-    const normalized = normalizeSearchText(query);
-    const match = normalized ? rankCatalogMatches(catalog
-      .map((item) => ({ item, score: searchMatchScore(query, [item.title, item.artist ?? "", item.artist ? `${item.artist} ${item.title}` : "", ...item.aliases]) }))
-      .filter((candidate) => candidate.score > 0)
-    )[0]?.item as Song | undefined : undefined;
-    if (match) { setSong(match); setStatus("catalogFound"); return; }
-    if (!normalized) { setSong(null); setStatus("notFound"); return; }
+    if (!normalizeSearchText(query)) { setStatus("notFound"); return; }
 
-    setSong(null);
     setStatus("searching");
     try {
       const api = sourceApiUrl();
@@ -1341,6 +1348,7 @@ export default function Home() {
         sources: [{ name: "The Session", url: result.url, role: "note-source" }],
       });
       setStatus("liveFound");
+      showPracticeResult("web");
     } catch (error: unknown) {
       setSourceError(error instanceof Error ? error.message : "");
       setStatus("sourceUnavailable");
@@ -1380,6 +1388,7 @@ export default function Home() {
           setSong(restoreStoredCorrection(applyCuratedTempo(queued.song) as Song));
           setSourceCandidates([]);
           setStatus("liveFound");
+          showPracticeResult("web");
           window.localStorage.removeItem("twnc-pending-source-job");
           return;
         }
@@ -1399,6 +1408,7 @@ export default function Home() {
           setSong(restoreStoredCorrection(applyCuratedTempo(job.song) as Song));
           setSourceCandidates([]);
           setStatus("liveFound");
+          showPracticeResult("web");
           return;
         }
         if (job.status === "needs-review") reviewRequired = true;
@@ -1417,7 +1427,7 @@ export default function Home() {
     setSourceError("");
     if (!parsePhrases(manualNotes).flat().length) { setStatus("invalidNotes"); return; }
     setSong({
-      id: "manual",
+      id: `manual-${Date.now()}`,
       title: t.customTitle,
       aliases: [],
       subtitle: { en: COPY.en.customSubtitle, tr: COPY.tr.customSubtitle },
@@ -1427,6 +1437,7 @@ export default function Home() {
       sources: [],
     });
     setStatus("converted");
+    showPracticeResult("import");
   }
 
   function navigateInputModes(event: ReactKeyboardEvent<HTMLButtonElement>, currentMode: typeof INPUT_MODES[number]) {
@@ -1454,6 +1465,7 @@ export default function Home() {
   }
 
   function switchInputMode(nextMode: InputMode) {
+    if (nextMode !== "search") importMode.current = nextMode;
     if (nextMode !== mode) {
       audioImportRef.current?.abort();
       setAudioPhase(null);
@@ -1553,6 +1565,7 @@ export default function Home() {
       });
       changeTempo(result.rhythm.bpm);
       setStatus("audioConverted");
+      showPracticeResult("import");
     });
   }
 
@@ -1590,6 +1603,7 @@ export default function Home() {
       });
       changeTempo(parsed.tempo || 90);
       setStatus("scoreImported");
+      showPracticeResult("import");
     } catch (error: unknown) {
       setSourceError(error instanceof Error ? error.message : "");
       setStatus("scoreUnavailable");
@@ -1609,56 +1623,80 @@ export default function Home() {
     });
   }
 
-  function openCatalogSong(selected: Song) {
-    setSourceError("");
-    setSourceCandidates([]);
-    setQuery(selected.title);
-    setSong((current) => current?.id === selected.id ? current : restoreStoredCorrection(selected));
-    setStatus("catalogFound");
-    switchInputMode("search");
+  function navigateWorkspace(next: WorkArea) {
+    const current = areaRef.current;
+    if (current === next) return;
+    if (current === "practice") stopPractice();
+    if (current === "import") document.querySelector<HTMLAudioElement>("#input-workspace audio")?.pause();
+    if (next === "import") switchInputMode(importMode.current);
+    if (next === "web") switchInputMode("search");
+    areaRef.current = next;
+    setArea(next);
+    const target = { catalog: "catalog-title", web: "song-search", import: "import-title", practice: "preview-title" }[next];
     window.requestAnimationFrame(() => {
-      const heading = document.getElementById("preview-title");
-      heading?.focus({ preventScroll: true });
-      heading?.scrollIntoView({ block: "start" });
+      if (areaRef.current !== next) return;
+      document.getElementById(target)?.focus({ preventScroll: true });
+      window.scrollTo({ top: 0, behavior: "instant" });
     });
   }
 
+  function showPracticeResult(origin: WorkArea) {
+    if (areaRef.current === origin) navigateWorkspace("practice");
+  }
+
+  function openWebSearch(term: string) {
+    if (!(sourceIsBusy || status === "searching")) {
+      if (term !== query) setSourceCandidates([]);
+      setQuery(term);
+      setStatus("catalogPrepared");
+      setSourceError("");
+    }
+    navigateWorkspace("web");
+  }
+
+  function openCatalogSong(selected: Song) {
+    setSourceError("");
+    setSourceCandidates([]);
+    setSong((current) => current?.id === selected.id ? current : restoreStoredCorrection(selected));
+    setStatus("catalogFound");
+    navigateWorkspace("practice");
+  }
+
   return (
-    <main lang={language}>
-      <nav className="nav shell" aria-label={t.navLabel}>
-        <a className="brand" href="#top">Tin Whistle Note Creator</a>
-        <div className="nav-actions">
-          <a className="catalog-nav-link" href="#song-catalog">{catalogNavLabel[language]}</a>
-          <a href="#how-it-works">{t.navHow}</a>
-          <button className="language-toggle" type="button" onClick={toggleLanguage} aria-label={t.languageLabel}>{t.languageAction}</button>
-          <span className="instrument-badge">{t.badge}</span>
+    <div lang={language}>
+      <WorkspaceNavigation language={language} area={area} languageLabel={t.languageLabel} languageAction={t.languageAction}
+        onLanguage={toggleLanguage} onNavigate={navigateWorkspace} />
+      <main className="app-content shell">
+        <div id="catalog-workspace" hidden={area !== "catalog"}>
+          <CatalogBrowser songs={catalog} language={language} activeId={song?.id}
+            busy={(sourceIsBusy || status === "searching") || audioBusy} onOpen={openCatalogSong} onSearchOnline={openWebSearch} />
         </div>
-      </nav>
 
-      <section className="hero shell" id="top">
-        <div className="eyebrow"><span /> {t.eyebrow}</div>
-        <h1>{t.heroTop}<br /><em>{t.heroAccent}</em></h1>
-        <p>{t.intro}</p>
-      </section>
-
-      <div className="workbench shell">
-        <CatalogBrowser songs={catalog} language={language} activeId={song?.id}
-          busy={sourceIsBusy || status === "searching" || audioBusy} onOpen={openCatalogSong} />
-        <div className="workbench-main">
+        <section id="input-workspace" hidden={area !== "import" && area !== "web"} aria-labelledby="import-title">
+          {area === "web" && <button className="secondary-action back-to-catalog" type="button" onClick={() => navigateWorkspace("catalog")}>{ui.back}</button>}
+          <div className="screen-heading">
+            <div>
+              <h1 id="import-title" tabIndex={-1}>{area === "web" ? ui.onlineTitle : ui.importTitle}</h1>
+              <p>{area === "web" ? ui.onlineHint : ui.importHint}</p>
+            </div>
+          </div>
           <div className="converter-card">
-            <div className="mode-tabs" role="tablist" aria-label={t.inputModes}>
-              <button id="source-tab-search" type="button" role="tab" aria-controls="source-panel-search" aria-selected={mode === "search"} tabIndex={mode === "search" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "search")} onClick={() => switchInputMode("search")}>{t.catalogTab}</button>
-              <button id="source-tab-paste" type="button" role="tab" aria-controls="source-panel-paste" aria-selected={mode === "paste"} tabIndex={mode === "paste" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "paste")} onClick={() => switchInputMode("paste")}>{t.pasteTab}</button>
-              <button id="source-tab-score" type="button" role="tab" aria-controls="source-panel-score" aria-selected={mode === "score"} tabIndex={mode === "score" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "score")} onClick={() => switchInputMode("score")}>{t.scoreTab}</button>
-              <button id="source-tab-audio" type="button" role="tab" aria-controls="source-panel-audio" aria-selected={mode === "audio"} tabIndex={mode === "audio" ? 0 : -1} onKeyDown={(event) => navigateInputModes(event, "audio")} onClick={() => switchInputMode("audio")}>{t.audioTab}</button>
+            <div className="mode-tabs" hidden={area === "web"} role="tablist" aria-label={t.inputModes}>
+              {INPUT_MODES.map((source) => (
+                <button key={source} id={`source-tab-${source}`} type="button" role="tab" aria-controls={`source-panel-${source}`}
+                  aria-selected={mode === source} tabIndex={mode === source ? 0 : -1}
+                  onKeyDown={(event) => navigateInputModes(event, source)} onClick={() => switchInputMode(source)}>
+                  {source === "audio" ? ui.audioSource : source === "score" ? ui.scoreSource : ui.pasteSource}
+                </button>
+              ))}
             </div>
             {mode === "search" ? (
-              <form id="source-panel-search" role="tabpanel" aria-labelledby="source-tab-search" onSubmit={findSong}>
+              <form id="source-panel-search" onSubmit={findSong}>
                 <label htmlFor="song-search">{t.searchLabel}</label>
                 <div className="search-row">
                   <span aria-hidden="true">⌕</span>
                   <input id="song-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.searchPlaceholder} />
-                  <button type="submit" disabled={status === "searching"}>{status === "searching" ? "…" : t.find} <span aria-hidden="true">→</span></button>
+                  <button type="submit" disabled={(sourceIsBusy || status === "searching") || !query.trim()}>{status === "searching" ? "…" : t.find}</button>
                 </div>
                 {sourceCandidates.length > 0 && <div className="source-results" aria-label={t.sourceFound}>
                   {sourceCandidates.map((candidate) => {
@@ -1686,9 +1724,12 @@ export default function Home() {
               </form>
             ) : mode === "paste" ? (
               <form id="source-panel-paste" role="tabpanel" aria-labelledby="source-tab-paste" onSubmit={convertManual}>
-                <label htmlFor="notes-input">{t.pasteLabel}</label>
-                <textarea id="notes-input" value={manualNotes} onChange={(event) => setManualNotes(event.target.value)} rows={3} />
-                <div className="paste-actions"><span>{t.pasteHint}</span><button type="submit">{t.convert} <span aria-hidden="true">→</span></button></div>
+                <div className="field-heading">
+                  <label htmlFor="notes-input">{ui.manualLabel}</label>
+                  <button className="secondary-action" type="button" disabled={Boolean(manualNotes.trim())} onClick={() => setManualNotes(EXAMPLE_NOTES)}>{ui.example}</button>
+                </div>
+                <textarea id="notes-input" value={manualNotes} onChange={(event) => setManualNotes(event.target.value)} rows={4} aria-describedby="manual-notes-hint" />
+                <div className="paste-actions"><span id="manual-notes-hint">{t.pasteLabel} · {t.pasteHint}</span><button type="submit" disabled={!manualNotes.trim()}>{ui.manualAction}</button></div>
               </form>
             ) : mode === "score" ? (
               <div id="source-panel-score" className="audio-import" role="tabpanel" aria-labelledby="source-tab-score">
@@ -1727,11 +1768,17 @@ export default function Home() {
                 {audioPhase === "audioTranscribing" && <progress aria-label={audioPhaseText} max="100" value={transcriptionProgress}>{transcriptionProgress}%</progress>}
               </div>
             )}
-            <p className={`status status-${mode === "audio" && audioPhase ? audioPhase : status}`} role="status"><span className="status-dot" /><span className="status-message">{mode === "audio" && audioError ? mediaErrorMessage(audioError, language) : mode === "audio" && audioPhase ? `${audioPhaseText}${audioPhase === "audioTranscribing" ? ` ${transcriptionProgress}%` : ""}` : t[status]}{sourceError && <small>{sourceError}</small>}</span></p>
+            {showInputStatus && <p className={`status status-${mode === "audio" && audioPhase ? audioPhase : status}`} role="status"><span className="status-dot" /><span className="status-message">{mode === "audio" && audioError ? mediaErrorMessage(audioError, language) : mode === "audio" && audioPhase ? `${audioPhaseText}${audioPhase === "audioTranscribing" ? ` ${transcriptionProgress}%` : ""}` : t[status]}{sourceError && <small>{sourceError}</small>}</span></p>}
+            {area === "web" && ["notFound", "needsReview", "sourceUnavailable"].includes(status) && (
+              <a className="request-button" href={`https://github.com/ozguregemen/tin-whistle-note-creator/issues/new?title=${encodeURIComponent(`Song request: ${query}`)}`} target="_blank" rel="noreferrer">{t.requestSong}</a>
+            )}
           </div>
+        </section>
+
+        <section id="practice-workspace" hidden={area !== "practice"} aria-labelledby="preview-title">
           {song ? <section className="workspace" aria-labelledby="preview-title">
             <div className="workspace-heading">
-              <div><span className="section-kicker">{t.guide}</span><h2 id="preview-title" tabIndex={-1}>{song.artist ? `${song.artist} — ` : ""}{song.title}</h2><div className="workspace-subtitle"><p>{song.sourceConfidence === "estimated" ? t.textEstimated : song.subtitle[language]} · {song.difficulty[language]} · D tin whistle{song.userEdited ? ` · ${t.userCorrected}` : ""}</p>{songQuality && <span className={`readiness-badge readiness-${songQuality.readiness}`}>{readinessLabel}</span>}</div></div>
+              <div><h1 id="preview-title" tabIndex={-1}>{song.artist ? `${song.artist} — ` : ""}{song.title}</h1><div className="workspace-subtitle"><p>{song.sourceConfidence === "estimated" ? t.textEstimated : song.subtitle[language]} · {song.difficulty[language]} · D tin whistle{song.userEdited ? ` · ${t.userCorrected}` : ""}</p>{songQuality && <span className={`readiness-badge readiness-${songQuality.readiness}`}>{readinessLabel}</span>}</div></div>
               <div className="workspace-actions">
                 <div className="legend"><span className="hole closed" /> {t.closed} <span className="hole half" /> {t.half} <span className="hole open" /> {t.open}</div>
                 <button type="button" className={`correct-notes-button${editingNotes ? " active" : ""}`} aria-pressed={editingNotes} onClick={() => setEditingNotes((current) => !current)}>{editingNotes ? t.finishCorrection : t.correctNotes}</button>
@@ -1837,24 +1884,19 @@ export default function Home() {
               </details>
             </section>
             <footer className="score-footer"><span>{allNotes.length} {t.notes} · {phrases.length} {t.phrases}</span><span>D tin whistle · {song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</span></footer>
-          </section> : <section className="workspace empty-workspace" aria-live="polite">
-            <span className="section-kicker">{t.guide}</span>
-            <h2>{t.emptyTitle}</h2>
-            <p>{t.emptyBody}</p>
-            <a className="request-button" href={`https://github.com/ozguregemen/tin-whistle-note-creator/issues/new?title=${encodeURIComponent(`Song request: ${query}`)}`} target="_blank" rel="noreferrer">{t.requestSong} →</a>
-          </section>}
-        </div>
-      </div>
-
-      <section className="how shell" id="how-it-works">
-        <div><span className="section-kicker">{t.howKicker}</span><h2>{t.howTitle}</h2></div>
-        <ol>
-          <li><span>01</span><div><strong>{t.step1Title}</strong><p>{t.step1Body}</p></div></li>
-          <li><span>02</span><div><strong>{t.step2Title}</strong><p>{t.step2Body}</p></div></li>
-          <li><span>03</span><div><strong>{t.step3Title}</strong><p>{t.step3Body}</p></div></li>
-        </ol>
-      </section>
-      <footer className="site-footer shell"><span>Tin Whistle Note Creator</span><p>{t.footer}</p></footer>
-    </main>
+          </section> : (
+            <div className="workspace practice-empty">
+              <h1 id="preview-title" tabIndex={-1}>{ui.practiceEmpty}</h1>
+              <p>{ui.practiceEmptyHint}</p>
+              <div className="practice-empty-actions">
+                <button className="secondary-action" type="button" onClick={() => navigateWorkspace("catalog")}>{ui.catalog}</button>
+                <button className="secondary-action" type="button" onClick={() => navigateWorkspace("import")}>{ui.import}</button>
+              </div>
+            </div>
+          )}
+        </section>
+      </main>
+      <footer className="app-footer shell"><span>Tin Whistle Note Creator</span><span>D tin whistle</span></footer>
+    </div>
   );
 }

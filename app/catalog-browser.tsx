@@ -3,17 +3,17 @@
 import { useMemo, useState } from "react";
 import { browseCatalogSongs, isApprovedCatalogSong } from "./catalog-browse.mjs";
 import { assessSongQuality } from "./catalog-quality.mjs";
-
-export const catalogNavLabel = { en: "Approved songs", tr: "Onaylı şarkılar" };
+import { workspaceCopy } from "./workspace-navigation";
 
 const labels = {
   en: {
     title: "Song catalog",
+    intro: "Find a song and open its fingerings to start practising.",
     approved: "Approved",
     all: "All songs",
     filter: "Search the song catalog",
     placeholder: "Song or artist",
-    open: "Open",
+    open: "Practise",
     openSong: "Open fingerings for",
     previous: "Previous",
     next: "Next",
@@ -29,11 +29,12 @@ const labels = {
   },
   tr: {
     title: "Şarkı kataloğu",
+    intro: "Şarkını bul, parmak dizilimini aç ve provaya başla.",
     approved: "Onaylı",
     all: "Tüm şarkılar",
     filter: "Şarkı kataloğunda ara",
     placeholder: "Şarkı veya sanatçı",
-    open: "Aç",
+    open: "Provaya geç",
     openSong: "Parmak dizilimini aç",
     previous: "Önceki",
     next: "Sonraki",
@@ -49,28 +50,34 @@ const labels = {
   },
 };
 
-const PAGE_SIZE = 4;
+const PAGE_SIZE = 6;
 
 type CatalogSong = {
   id: string;
   title: string;
   artist?: string;
   aliases: string[];
+  sources: { name: string; role: string }[];
 };
 
-export function CatalogBrowser<Song extends CatalogSong>({ songs, language, activeId, busy, onOpen }: {
+export function CatalogBrowser<Song extends CatalogSong>({ songs, language, activeId, busy, onOpen, onSearchOnline }: {
   songs: Song[];
   language: keyof typeof labels;
   activeId?: string;
   busy: boolean;
   onOpen: (song: Song) => void;
+  onSearchOnline: (query: string) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [approvedOnly, setApprovedOnly] = useState(true);
+  const [approvedOnly, setApprovedOnly] = useState(false);
   const [page, setPage] = useState(0);
   const t = labels[language];
   const approvedCount = useMemo(() => songs.filter(isApprovedCatalogSong).length, [songs]);
-  const results = useMemo(() => browseCatalogSongs(songs, query, approvedOnly, language), [songs, query, approvedOnly, language]);
+  const results = useMemo(
+    () => browseCatalogSongs(songs, query, approvedOnly, language)
+      .sort((left, right) => Number(isApprovedCatalogSong(right)) - Number(isApprovedCatalogSong(left))),
+    [songs, query, approvedOnly, language],
+  );
   const lastPage = Math.max(0, Math.ceil(results.length / PAGE_SIZE) - 1);
   const currentPage = Math.min(page, lastPage);
   const start = currentPage * PAGE_SIZE;
@@ -87,24 +94,33 @@ export function CatalogBrowser<Song extends CatalogSong>({ songs, language, acti
   }
 
   return (
-    <aside className="catalog-browser" id="song-catalog" aria-labelledby="catalog-title">
-      <h2 id="catalog-title">{t.title}</h2>
-      <div className="catalog-filters">
-        <button type="button" aria-pressed={approvedOnly} onClick={() => updateFilter(true)}>
-          {t.approved} <span>{approvedCount}</span>
-        </button>
-        <button type="button" aria-pressed={!approvedOnly} onClick={() => updateFilter(false)}>
-          {t.all} <span>{songs.length}</span>
+    <section id="song-catalog" aria-labelledby="catalog-title">
+      <div className="screen-heading">
+        <div><h1 id="catalog-title" tabIndex={-1}>{t.title}</h1><p>{t.intro}</p></div>
+        <button className="secondary-action" type="button" onClick={() => onSearchOnline(query)}>
+          {workspaceCopy[language].online}
         </button>
       </div>
-      <label className="sr-only" htmlFor="catalog-filter">{t.filter}</label>
-      <input id="catalog-filter" type="search" value={query} placeholder={t.placeholder} onChange={(event) => updateQuery(event.target.value)} />
+      <div className="catalog-browser">
+        <div className="catalog-tools">
+          <label className="sr-only" htmlFor="catalog-filter">{t.filter}</label>
+          <input id="catalog-filter" type="search" value={query} placeholder={t.placeholder} onChange={(event) => updateQuery(event.target.value)} />
+          <div className="catalog-filters">
+            <button type="button" aria-pressed={!approvedOnly} onClick={() => updateFilter(false)}>
+              {t.all} <span>{songs.length}</span>
+            </button>
+            <button type="button" aria-pressed={approvedOnly} onClick={() => updateFilter(true)}>
+              {t.approved} <span>{approvedCount}</span>
+            </button>
+          </div>
+        </div>
       {results.length ? (
         <ul className="catalog-songs" aria-labelledby="catalog-title">
           {results.slice(start, end).map((song) => {
             const approved = isApprovedCatalogSong(song);
             const { rhythm, readiness } = assessSongQuality(song);
             const title = song.artist ? `${song.artist} — ${song.title}` : song.title;
+            const source = song.sources?.find((entry) => entry.role === "note-source")?.name;
             const status = approved ? t.verified : readiness === "review-required" ? t.review : readiness === "rhythmic-draft" ? t.rhythmicDraft : t.melodyOnly;
             return (
               <li key={song.id}>
@@ -112,10 +128,11 @@ export function CatalogBrowser<Song extends CatalogSong>({ songs, language, acti
                   aria-label={`${t.openSong} · ${title}`} aria-describedby={`catalog-status-${song.id}`} onClick={() => onOpen(song)}>
                   <span className="catalog-song-name">
                     <strong>{song.title}</strong>
-                    {song.artist && <span className="catalog-song-artist">{song.artist}</span>}
-                    <span id={`catalog-status-${song.id}`} className={approved ? "catalog-song-status approved" : "catalog-song-status"}>
-                      {status}{approved && rhythm === "equal-beats" ? ` · ${t.equalBeats}` : ""}
-                    </span>
+                    {(song.artist || source) && <span className="catalog-song-artist">{[song.artist, source].filter(Boolean).join(" · ")}</span>}
+                  </span>
+                  <span id={`catalog-status-${song.id}`} className="catalog-song-status">
+                    <span className={approved ? "approved" : undefined}>{status}</span>
+                    {approved && rhythm === "equal-beats" && <small>{t.equalBeats}</small>}
                   </span>
                   <span className="catalog-song-open" aria-hidden="true">{t.open}</span>
                 </button>
@@ -136,6 +153,7 @@ export function CatalogBrowser<Song extends CatalogSong>({ songs, language, acti
           <button type="button" disabled={currentPage === lastPage} onClick={() => setPage(currentPage + 1)}>{t.next}</button>
         </div>
       )}
-    </aside>
+      </div>
+    </section>
   );
 }
