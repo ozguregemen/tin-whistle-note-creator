@@ -29,6 +29,8 @@ test("Tin Whistle Note Creator ana sayfasını sunucu tarafında oluşturur", as
   assert.match(html, /Notalar\.net/);
   assert.match(html, /Melody cross-checked/);
   assert.match(html, /Paste notes/);
+  assert.match(html, />Convert to notes<\/button>/);
+  assert.match(html, /id="source-tab-search"[^>]+aria-selected="true"[^>]*>Search online<\/button>/);
   assert.match(html, />MIDI \/ MusicXML</);
   assert.match(html, /id="input-workspace" hidden=""/);
   assert.match(html, /id="practice-workspace" hidden=""/);

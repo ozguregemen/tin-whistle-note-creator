@@ -1,19 +1,15 @@
 "use client";
 
-export type WorkArea = "catalog" | "web" | "import" | "practice";
+export type WorkArea = "catalog" | "convert" | "practice";
 
 export const workspaceCopy = {
   en: {
     navigation: "Work areas",
     catalog: "Catalog",
-    import: "Import",
+    convert: "Convert to notes",
     practice: "Practice",
-    importTitle: "Import a melody",
-    importHint: "Choose how you want to turn a melody into fingerings.",
+    convertHint: "Find a song online or turn your own melody into tin whistle fingerings.",
     online: "Search online",
-    onlineTitle: "Find sheet music online",
-    onlineHint: "Search external music sources by song or artist.",
-    back: "Back to catalog",
     practiceEmpty: "Choose a melody to practise",
     practiceEmptyHint: "Open a song from the catalog or import a melody of your own.",
     example: "Use example",
@@ -26,14 +22,10 @@ export const workspaceCopy = {
   tr: {
     navigation: "Çalışma alanları",
     catalog: "Katalog",
-    import: "İçe aktar",
+    convert: "Notaya çevir",
     practice: "Prova",
-    importTitle: "Melodi içe aktar",
-    importHint: "Melodiyi parmak dizilimine çevirmek için bir giriş yöntemi seç.",
+    convertHint: "İnternetten bir şarkı bul veya kendi melodini tin whistle parmak dizilimine çevir.",
     online: "İnternette ara",
-    onlineTitle: "İnternette nota bul",
-    onlineHint: "Şarkı veya sanatçı adıyla harici nota kaynaklarını ara.",
-    back: "Kataloğa dön",
     practiceEmpty: "Prova için bir melodi seç",
     practiceEmptyHint: "Katalogdan bir şarkı aç veya kendi melodini içe aktar.",
     example: "Örneği kullan",
@@ -54,7 +46,6 @@ export function WorkspaceNavigation({ language, area, languageLabel, languageAct
   onNavigate: (area: WorkArea) => void;
 }) {
   const t = workspaceCopy[language];
-  const selected = area === "web" ? "catalog" : area;
   return (
     <header className="app-header" id="top">
       <div className="app-bar shell">
@@ -63,8 +54,8 @@ export function WorkspaceNavigation({ language, area, languageLabel, languageAct
           <span>Tin Whistle Note Creator</span>
         </a>
         <nav className="app-nav" aria-label={t.navigation}>
-          {(["catalog", "import", "practice"] as const).map((view) => (
-            <button key={view} type="button" aria-current={selected === view ? "page" : undefined} onClick={() => onNavigate(view)}>
+          {(["catalog", "convert", "practice"] as const).map((view) => (
+            <button key={view} type="button" aria-current={area === view ? "page" : undefined} onClick={() => onNavigate(view)}>
               {t[view]}
             </button>
           ))}

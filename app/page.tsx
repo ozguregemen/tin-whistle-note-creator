@@ -518,8 +518,8 @@ const FALLBACK_SONGS: Song[] = [
 
 const REMOTE_CATALOG_URL = "https://raw.githubusercontent.com/ozguregemen/tin-whistle-note-creator/main/catalog/catalog.json";
 const THE_SESSION_SEARCH_URL = "https://thesession.org/tunes/search?format=json&q=";
-const INPUT_MODES = ["audio", "paste", "score"] as const;
-type InputMode = "search" | typeof INPUT_MODES[number];
+const INPUT_MODES = ["search", "audio", "paste", "score"] as const;
+type InputMode = typeof INPUT_MODES[number];
 const EXAMPLE_NOTES = "D4 E4 F#4 G4 | A4 G4 F#4 E4";
 const WEB_STATUSES = new Set<StatusKey>(["notFound", "searching", "sourceFound", "discoveryFound", "queueing", "processing", "needsReview", "sourceUnavailable", "sourceRetrying"]);
 const EDITABLE_WHISTLE_NOTES = [4, 5, 6].flatMap((octave) =>
@@ -624,7 +624,7 @@ export default function Home() {
   const [catalog, setCatalog] = useState<Song[]>(FALLBACK_SONGS);
   const [area, setArea] = useState<WorkArea>("catalog");
   const areaRef = useRef<WorkArea>("catalog");
-  const importMode = useRef<typeof INPUT_MODES[number]>("audio");
+  const inputModeRef = useRef<InputMode>("search");
   const [query, setQuery] = useState("");
   const [manualNotes, setManualNotes] = useState("");
   const [song, setSong] = useState<Song | null>(null);
@@ -671,7 +671,7 @@ export default function Home() {
   const whistleLoadPromiseRef = useRef<Promise<boolean> | null>(null);
   const t = COPY[language];
   const ui = workspaceCopy[language];
-  const showInputStatus = area === "web" ? WEB_STATUSES.has(status) : mode === "paste" ? status === "invalidNotes"
+  const showInputStatus = mode === "search" ? WEB_STATUSES.has(status) : mode === "paste" ? status === "invalidNotes"
     : mode === "score" ? status === "scoreUnavailable" : Boolean(audioPhase || audioError || (status.startsWith("audio") && status !== "audioConverted"));
   const audioPhaseText = audioPhase === "audioTranscribing" && audioUsesServer
     ? t.audioServerTranscribing : audioPhase ? t[audioPhase] : "";
@@ -746,7 +746,7 @@ export default function Home() {
     let active = true;
     // Resuming a user-started background conversion after reload is intentional.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    navigateWorkspace("web");
+    navigateWorkspace("convert");
     setStatus("processing");
     setSourceError("");
     waitForSourceJob(api, requestId).then((job: SourceJob) => {
@@ -754,7 +754,7 @@ export default function Home() {
       if (job.status === "completed" && job.song) {
         setSong(restoreStoredCorrection(applyCuratedTempo(job.song) as Song));
         setStatus("liveFound");
-        showPracticeResult("web");
+        showPracticeResult("search");
       } else if (job.status === "needs-review") {
         setSourceError(job.reason || "");
         setStatus("needsReview");
@@ -1295,8 +1295,7 @@ export default function Home() {
     setSourceCandidates([]);
     if (youtubeVideoId(query)) {
       setAudioUrl(query.trim());
-      importMode.current = "audio";
-      navigateWorkspace("import");
+      switchInputMode("audio");
       window.requestAnimationFrame(() => document.getElementById("audio-url")?.focus());
       return;
     }
@@ -1348,7 +1347,7 @@ export default function Home() {
         sources: [{ name: "The Session", url: result.url, role: "note-source" }],
       });
       setStatus("liveFound");
-      showPracticeResult("web");
+      showPracticeResult("search");
     } catch (error: unknown) {
       setSourceError(error instanceof Error ? error.message : "");
       setStatus("sourceUnavailable");
@@ -1388,7 +1387,7 @@ export default function Home() {
           setSong(restoreStoredCorrection(applyCuratedTempo(queued.song) as Song));
           setSourceCandidates([]);
           setStatus("liveFound");
-          showPracticeResult("web");
+          showPracticeResult("search");
           window.localStorage.removeItem("twnc-pending-source-job");
           return;
         }
@@ -1408,7 +1407,7 @@ export default function Home() {
           setSong(restoreStoredCorrection(applyCuratedTempo(job.song) as Song));
           setSourceCandidates([]);
           setStatus("liveFound");
-          showPracticeResult("web");
+          showPracticeResult("search");
           return;
         }
         if (job.status === "needs-review") reviewRequired = true;
@@ -1437,7 +1436,7 @@ export default function Home() {
       sources: [],
     });
     setStatus("converted");
-    showPracticeResult("import");
+    showPracticeResult("paste");
   }
 
   function navigateInputModes(event: ReactKeyboardEvent<HTMLButtonElement>, currentMode: typeof INPUT_MODES[number]) {
@@ -1465,13 +1464,13 @@ export default function Home() {
   }
 
   function switchInputMode(nextMode: InputMode) {
-    if (nextMode !== "search") importMode.current = nextMode;
-    if (nextMode !== mode) {
+    if (nextMode !== inputModeRef.current) {
       audioImportRef.current?.abort();
       setAudioPhase(null);
       setAudioError(null);
       if (nextMode === "audio") setAudioCapabilities(null);
     }
+    inputModeRef.current = nextMode;
     setMode(nextMode);
   }
 
@@ -1565,7 +1564,7 @@ export default function Home() {
       });
       changeTempo(result.rhythm.bpm);
       setStatus("audioConverted");
-      showPracticeResult("import");
+      showPracticeResult("audio");
     });
   }
 
@@ -1603,7 +1602,7 @@ export default function Home() {
       });
       changeTempo(parsed.tempo || 90);
       setStatus("scoreImported");
-      showPracticeResult("import");
+      showPracticeResult("score");
     } catch (error: unknown) {
       setSourceError(error instanceof Error ? error.message : "");
       setStatus("scoreUnavailable");
@@ -1627,12 +1626,14 @@ export default function Home() {
     const current = areaRef.current;
     if (current === next) return;
     if (current === "practice") stopPractice();
-    if (current === "import") document.querySelector<HTMLAudioElement>("#input-workspace audio")?.pause();
-    if (next === "import") switchInputMode(importMode.current);
-    if (next === "web") switchInputMode("search");
+    if (current === "convert") document.querySelector<HTMLAudioElement>("#input-workspace audio")?.pause();
     areaRef.current = next;
     setArea(next);
-    const target = { catalog: "catalog-title", web: "song-search", import: "import-title", practice: "preview-title" }[next];
+    const target = {
+      catalog: "catalog-title",
+      convert: inputModeRef.current === "search" ? "song-search" : "convert-title",
+      practice: "preview-title",
+    }[next];
     window.requestAnimationFrame(() => {
       if (areaRef.current !== next) return;
       document.getElementById(target)?.focus({ preventScroll: true });
@@ -1640,8 +1641,8 @@ export default function Home() {
     });
   }
 
-  function showPracticeResult(origin: WorkArea) {
-    if (areaRef.current === origin) navigateWorkspace("practice");
+  function showPracticeResult(origin: InputMode) {
+    if (areaRef.current === "convert" && inputModeRef.current === origin) navigateWorkspace("practice");
   }
 
   function openWebSearch(term: string) {
@@ -1651,7 +1652,8 @@ export default function Home() {
       setStatus("catalogPrepared");
       setSourceError("");
     }
-    navigateWorkspace("web");
+    switchInputMode("search");
+    navigateWorkspace("convert");
   }
 
   function openCatalogSong(selected: Song) {
@@ -1672,26 +1674,25 @@ export default function Home() {
             busy={(sourceIsBusy || status === "searching") || audioBusy} onOpen={openCatalogSong} onSearchOnline={openWebSearch} />
         </div>
 
-        <section id="input-workspace" hidden={area !== "import" && area !== "web"} aria-labelledby="import-title">
-          {area === "web" && <button className="secondary-action back-to-catalog" type="button" onClick={() => navigateWorkspace("catalog")}>{ui.back}</button>}
+        <section id="input-workspace" hidden={area !== "convert"} aria-labelledby="convert-title">
           <div className="screen-heading">
             <div>
-              <h1 id="import-title" tabIndex={-1}>{area === "web" ? ui.onlineTitle : ui.importTitle}</h1>
-              <p>{area === "web" ? ui.onlineHint : ui.importHint}</p>
+              <h1 id="convert-title" tabIndex={-1}>{ui.convert}</h1>
+              <p>{ui.convertHint}</p>
             </div>
           </div>
           <div className="converter-card">
-            <div className="mode-tabs" hidden={area === "web"} role="tablist" aria-label={t.inputModes}>
+            <div className="mode-tabs" role="tablist" aria-label={t.inputModes}>
               {INPUT_MODES.map((source) => (
                 <button key={source} id={`source-tab-${source}`} type="button" role="tab" aria-controls={`source-panel-${source}`}
                   aria-selected={mode === source} tabIndex={mode === source ? 0 : -1}
                   onKeyDown={(event) => navigateInputModes(event, source)} onClick={() => switchInputMode(source)}>
-                  {source === "audio" ? ui.audioSource : source === "score" ? ui.scoreSource : ui.pasteSource}
+                  {source === "search" ? ui.online : source === "audio" ? ui.audioSource : source === "score" ? ui.scoreSource : ui.pasteSource}
                 </button>
               ))}
             </div>
             {mode === "search" ? (
-              <form id="source-panel-search" onSubmit={findSong}>
+              <form id="source-panel-search" role="tabpanel" aria-labelledby="source-tab-search" onSubmit={findSong}>
                 <label htmlFor="song-search">{t.searchLabel}</label>
                 <div className="search-row">
                   <span aria-hidden="true">⌕</span>
@@ -1769,7 +1770,7 @@ export default function Home() {
               </div>
             )}
             {showInputStatus && <p className={`status status-${mode === "audio" && audioPhase ? audioPhase : status}`} role="status"><span className="status-dot" /><span className="status-message">{mode === "audio" && audioError ? mediaErrorMessage(audioError, language) : mode === "audio" && audioPhase ? `${audioPhaseText}${audioPhase === "audioTranscribing" ? ` ${transcriptionProgress}%` : ""}` : t[status]}{sourceError && <small>{sourceError}</small>}</span></p>}
-            {area === "web" && ["notFound", "needsReview", "sourceUnavailable"].includes(status) && (
+            {mode === "search" && ["notFound", "needsReview", "sourceUnavailable"].includes(status) && (
               <a className="request-button" href={`https://github.com/ozguregemen/tin-whistle-note-creator/issues/new?title=${encodeURIComponent(`Song request: ${query}`)}`} target="_blank" rel="noreferrer">{t.requestSong}</a>
             )}
           </div>
@@ -1890,7 +1891,7 @@ export default function Home() {
               <p>{ui.practiceEmptyHint}</p>
               <div className="practice-empty-actions">
                 <button className="secondary-action" type="button" onClick={() => navigateWorkspace("catalog")}>{ui.catalog}</button>
-                <button className="secondary-action" type="button" onClick={() => navigateWorkspace("import")}>{ui.import}</button>
+                <button className="secondary-action" type="button" onClick={() => navigateWorkspace("convert")}>{ui.convert}</button>
               </div>
             </div>
           )}

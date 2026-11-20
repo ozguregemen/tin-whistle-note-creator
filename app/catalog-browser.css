@@ -16,7 +16,6 @@
 .app-content h1 { max-width:none; margin:0; color:var(--ink); font:750 clamp(1.8rem,4vw,2.75rem)/1.12 system-ui,sans-serif; letter-spacing:-.04em; }
 .screen-heading p,.practice-empty p { max-width:60ch; margin:8px 0 0; color:var(--muted); font-size:1rem; line-height:1.5; }
 .secondary-action { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:8px 13px; border:1px solid #b9c9bf; border-radius:8px; background:var(--card); color:var(--green-dark); font-size:14px; font-weight:750; text-align:center; }
-.app-content .back-to-catalog { margin-bottom:14px; }
 .catalog-browser,.app-content .converter-card,.app-content .workspace { min-width:0; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 2px 6px rgba(24,48,37,.04); }
 .catalog-browser { padding:0 18px; }
 .catalog-tools { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 0; }
@@ -74,10 +73,12 @@
   .app-nav button:not([aria-current]):hover,.app-language:hover { background:#29483a; }
   .secondary-action:hover,.catalog-song:not(:disabled):hover,.catalog-pagination button:not(:disabled):hover,.catalog-empty button:hover { background:#eef6f0; }
 }
-@media (max-width:680px) {
+@media (max-width:750px) {
   .app-bar { grid-template-columns:minmax(0,1fr) auto; gap:8px; padding-block:10px; }
   .app-nav { grid-column:1/-1; grid-row:2; }
-  .app-nav button { flex:1; padding-inline:5px; }
+  .app-nav button { flex:1; min-width:0; padding-inline:5px; line-height:1.2; }
+}
+@media (max-width:680px) {
   .app-content { padding-block:24px 40px; }
   .screen-heading { align-items:flex-start; flex-direction:column; margin-bottom:16px; }
   .catalog-tools { align-items:stretch; flex-direction:column; }
@@ -87,6 +88,7 @@
   .catalog-song-status { grid-column:1; grid-row:2; }
   .catalog-song-open { grid-column:2; grid-row:1/3; }
   .app-content .converter-card,.app-content .workspace { padding:14px; }
+  .app-content .mode-tabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
 @media (max-width:360px) {
   .app-content .practice-main { grid-template-columns:auto minmax(0,1fr); gap:8px; }
