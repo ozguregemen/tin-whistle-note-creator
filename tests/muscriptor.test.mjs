@@ -201,7 +201,9 @@ test("YouTube isteğinde yalnızca video kimliğini iletir ve MP3 dosyasını d�
     assert.equal(options.headers.Authorization, "Bearer test-token");
     return new Response(mp3Frame, { headers: { "Content-Type": "audio/mpeg", "Content-Length": String(mp3Frame.length) } });
   });
-  const mp3 = await downloadYoutubeAudio(id);
+  const download = await downloadYoutubeAudio(id);
+  const { file: mp3, song } = download;
+  assert.equal(song, null);
   assert.equal(mp3.name, `youtube-${id}.mp3`);
   assert.equal(mp3.type, "audio/mpeg");
   assert.deepEqual(new Uint8Array(await mp3.arrayBuffer()), mp3Frame);
@@ -219,7 +221,7 @@ test("YouTube MP3 remains available when melody transcription fails", async () =
     model: "muscriptor-large",
     youtubeEnabled: true,
     resolve: () => assert.fail("YouTube should use the MP3 service"),
-    resolveYoutube: async (videoId) => { assert.equal(videoId, id); return mp3; },
+    resolveYoutube: async (videoId) => { assert.equal(videoId, id); return { file: mp3, song: null }; },
     onYoutubeFile: (file) => { download = file; },
     onStage: (stage) => stages.push(stage),
     transcribe: async (file, progress, options) => {

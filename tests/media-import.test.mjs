@@ -130,10 +130,11 @@ test('server error keys cannot select object prototype values as UI messages', a
 
 test('YouTube is prepared once, and only the selected samples reach transcription', async (t) => {
   const file = new File([bytes], 'song.mp3', { type: 'audio/mpeg' });
+  const song = { title: 'Bu Akşam', artist: 'Duman' };
   const source = await prepareAudioInput('https://youtu.be/abcdefghijk', {
-    youtubeEnabled: true, resolveYoutube: async () => file,
+    youtubeEnabled: true, resolveYoutube: async () => ({ file, song }),
   });
-  assert.deepEqual(source, { blob: file, name: 'song.mp3', origin: 'url', youtube: true });
+  assert.deepEqual(source, { blob: file, name: 'song.mp3', origin: 'url', youtube: true, youtubeSong: song });
   const oldContext = globalThis.AudioContext;
   globalThis.AudioContext = class {
     async decodeAudioData() {

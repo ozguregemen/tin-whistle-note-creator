@@ -68,12 +68,14 @@ export async function prepareAudioInput(source, {
   let name = source instanceof File ? source.name : 'Audio';
   const origin = typeof source === 'string' ? 'url' : 'file';
   const videoId = typeof source === 'string' && youtubeEnabled ? youtubeVideoId(source) : null;
+  let youtubeSong = null;
   if (videoId) {
     onStage('audioConverting');
-    const file = await resolveYoutube(videoId, { signal });
+    const { file, song } = await resolveYoutube(videoId, { signal });
     signal?.throwIfAborted();
     blob = file;
     name = file.name;
+    youtubeSong = song;
   } else if (typeof source === 'string') {
     onStage('audioFetching');
     ({ blob, name } = await resolve(source, { apiUrl, signal }));
@@ -81,7 +83,7 @@ export async function prepareAudioInput(source, {
   signal?.throwIfAborted();
   if (!(blob instanceof Blob) || !blob.size) throw new MediaError('not_audio');
   if (blob.size > MAX_AUDIO_BYTES) throw new MediaError('file_too_large');
-  return { blob, name, origin, youtube: !!videoId };
+  return { blob, name, origin, youtube: !!videoId, youtubeSong };
 }
 
 /**

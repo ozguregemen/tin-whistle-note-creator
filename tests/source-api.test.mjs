@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createSourceApi } from "../worker/source-api.mjs";
+import { readYoutubeSong, YOUTUBE_SONG_HEADER } from "../app/youtube-song.mjs";
 
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -27,6 +28,11 @@ test("GitHub Pages can discover the audio model and download MP3 through the Wor
     ALLOWED_ORIGINS: origin, AUDIO_SERVICE_URL: service, AUDIO_SERVICE_TOKEN: "audio-test-token",
     AUDIO_RATE_LIMITER: { limit: async ({ key }) => { limited.push(key); return { success: true }; } },
   }, async (input, init) => {
+    if (input.startsWith("https://www.youtube.com/oembed?")) {
+      assert.equal(new URL(input).searchParams.get("url"), "https://www.youtube.com/watch?v=abcdefghijk");
+      assert.equal(new Headers(init.headers).has("Authorization"), false);
+      return jsonResponse({ title: "Duman – Bu Akşam (Official Video)", author_name: "Duman" });
+    }
     assert.equal(new Headers(init.headers).get("Authorization"), "Bearer audio-test-token");
     if (input === `${service}/capabilities`) return jsonResponse({ model: "muscriptor-large", youtubeMp3: true });
     if (input === `${service}/transcribe`) return new Response('data: {"type":"transcription_complete"}\n\n', {
@@ -55,6 +61,8 @@ test("GitHub Pages can discover the audio model and download MP3 through the Wor
   }));
   assert.equal(mp3.headers.get("Content-Type"), "audio/mpeg");
   assert.equal(mp3.headers.get("Access-Control-Allow-Origin"), origin);
+  assert.equal(mp3.headers.get("Access-Control-Expose-Headers"), YOUTUBE_SONG_HEADER);
+  assert.deepEqual(readYoutubeSong(mp3.headers), { title: "Bu Akşam", artist: "Duman" });
   assert.equal(await mp3.text(), "mp3");
   assert.deepEqual(limited, ["audio-service:anonymous", "audio-service:192.0.2.5"]);
 });
@@ -77,6 +85,9 @@ test("Audio jobs reject a missing or disallowed origin and honor the rate limite
   const siteAudio = await handle(new Request("https://worker.test/api/audio-transcription", siteRequest));
   assert.equal(siteAudio.headers.get("Access-Control-Allow-Origin"), sitesOrigin);
   assert.equal((await handle(new Request("https://worker.test/api/catalog", siteRequest))).status, 403);
+  const siteTempo = await handle(new Request("https://worker.test/api/tempo?title=Dracula&artist=Tame%20Impala", siteRequest));
+  assert.equal(siteTempo.headers.get("Access-Control-Allow-Origin"), sitesOrigin);
+  assert.equal((await siteTempo.json()).bpm, 115);
 });
 
 test("Worker yalnızca desteklenen kaynakları GitHub Actions kuyruğuna gönderir", async () => {

@@ -14,7 +14,8 @@ import { assessSongQuality } from "./catalog-quality.mjs";
 import { applyCuratedTempo } from "./curated-tempos.mjs";
 import { arrangePhrasesForDWhistle, estimateDWhistleRegisters, fingeringFor, isUpperWhistleRegister } from "./fingerings.mjs";
 import { replacePhraseNote, serializeNotePhrases } from "./note-corrections.mjs";
-import { BPM_MAX, BPM_MIN, bpmFromInputDraft, buildPhraseRanges, buildPlaybackPlan, clampBpm, commitBpmInput, frequencyForWhistleNote, nextPlaybackIndex, noteNeedsFollowing, remainingBeatsAfterElapsed } from "./practice.mjs";
+import { BPM_MAX, BPM_MIN, bpmFromInputDraft, buildPhraseRanges, buildPlaybackPlan, clampBpm, commitBpmInput, frequencyForWhistleNote, nextPlaybackIndex, noteNeedsFollowing, rebaseTranscribedRhythm, remainingBeatsAfterElapsed } from "./practice.mjs";
+import { youtubeTempoLookupTitle, youtubeTempoMatches } from "./youtube-song.mjs";
 import { importScoreFile, timedPhrasesToString } from "./score-file-import.mjs";
 import { normalizeSearchText, searchMatchScore } from "./search-relevance.mjs";
 import { buildSourceAttemptOrder, waitForSourceJob } from "./source-jobs.mjs";
@@ -40,6 +41,8 @@ type Song = {
   id: string;
   title: string;
   artist?: string;
+  youtubeSong?: { title: string; artist: string };
+  youtubeTempo?: { bpm: number; sourceUrl?: string };
   aliases: string[];
   subtitle: Record<Language, string>;
   difficulty: Record<Language, string>;
@@ -216,6 +219,9 @@ const COPY = {
     tempo: "Tempo",
     bpmInput: "BPM value",
     tempoSearching: "Finding original BPM…",
+    youtubeSongTitle: "YouTube audio",
+    youtubeTempoFound: "Catalog tempo",
+    youtubeTempoMissing: "Catalog tempo not found",
     originalTempo: "Original tempo · BPM database",
     scoreTempo: "Tempo from score",
     defaultTempo: "90 BPM practice default · original tempo not found",
@@ -394,6 +400,9 @@ const COPY = {
     tempo: "Tempo",
     bpmInput: "BPM değeri",
     tempoSearching: "Orijinal BPM aranıyor…",
+    youtubeSongTitle: "YouTube sesi",
+    youtubeTempoFound: "Katalog temposu",
+    youtubeTempoMissing: "Katalog temposu bulunamadı",
     originalTempo: "Orijinal tempo · BPM veritabanı",
     scoreTempo: "Nota kaynağındaki tempo",
     defaultTempo: "90 BPM pratik varsayılanı · orijinal tempo bulunamadı",
@@ -542,7 +551,7 @@ const NOTE_NAMES: Record<string, string> = {
 
 function normalizeNote(raw: string): ParsedNote | null {
   const cleaned = raw.trim().replaceAll("♯", "#").replaceAll("♭", "b");
-  const match = cleaned.match(/^([A-Ga-g]|do|re|ré|mi|fa|sol|la|si)([#b]?)([3-6]|['′+])?$/i);
+  const match = cleaned.match(/^([A-Ga-g]|do|re|ré|mi|fa|sol|la|si)([#b]?)(-[12]|[0-8]|['′+])?$/i);
   if (!match) return null;
   let pitch = SOLFEGE[match[1].toUpperCase()] ?? match[1].toUpperCase();
   if (match[2] === "#") pitch += "#";
@@ -552,7 +561,7 @@ function normalizeNote(raw: string): ParsedNote | null {
   }
   const octaveMarker = match[3];
   const upperRegister = octaveMarker === "'" || octaveMarker === "′" || octaveMarker === "+";
-  const octave = /^\d$/.test(octaveMarker ?? "")
+  const octave = /^-?\d$/.test(octaveMarker ?? "")
     ? Number(octaveMarker)
     : upperRegister
       ? (pitch === "C" || pitch === "C#" ? 6 : 5)
@@ -662,6 +671,7 @@ export default function Home() {
   const loopEnabledRef = useRef(false);
   const selectedPhraseRef = useRef(0);
   const bpmRef = useRef(clampBpm(FALLBACK_SONGS[0].rhythm?.bpm ?? 90));
+  const bpmEditedRef = useRef(false);
   const isPlayingRef = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioScheduledSourceNode | null>(null);
@@ -827,6 +837,7 @@ export default function Home() {
     setSelectedPhraseIndex(0);
     setEditingNotes(false);
     const initialBpm = clampBpm(song?.rhythm?.bpm ?? 90);
+    bpmEditedRef.current = false;
     bpmRef.current = initialBpm;
     setBpm(initialBpm);
     setBpmInput(String(initialBpm));
@@ -835,10 +846,12 @@ export default function Home() {
   }, [song?.id]);
 
   useEffect(() => {
+    const youtubeSong = song?.youtubeSong;
     const api = sourceApiUrl();
     const tempoSource = song?.rhythm?.tempoSource;
-    const alreadyResolved = tempoSource === "score" || tempoSource === "curated" || tempoSource === "database" || tempoSource === "audio-estimate";
-    if (!song || song.sourceStatus === "manual" || alreadyResolved) {
+    const alreadyResolved = youtubeSong ? Boolean(song.youtubeTempo)
+      : tempoSource === "score" || tempoSource === "curated" || tempoSource === "database" || tempoSource === "audio-estimate";
+    if (!song || (song.sourceStatus === "manual" && !youtubeSong) || alreadyResolved) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTempoStatus(alreadyResolved ? "resolved" : "idle");
       return;
@@ -851,33 +864,43 @@ export default function Home() {
     const controller = new AbortController();
     const selectedSongId = song.id;
     setTempoStatus("loading");
-    const params = new URLSearchParams({ title: song.title });
+    const params = new URLSearchParams({ title: youtubeSong ? youtubeTempoLookupTitle(youtubeSong.title) : song.title });
     if (song.artist) params.set("artist", song.artist);
     fetch(`${api}/api/tempo?${params}`, { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         if (response.status === 404) return null;
         if (!response.ok) throw new Error(`Tempo API returned ${response.status}`);
-        return response.json() as Promise<{ bpm: number; confidence: number; sourceUrl?: string; provider?: string }>;
+        return response.json() as Promise<{ bpm: number; confidence: number; title?: string; artist?: string; sourceUrl?: string; provider?: string }>;
       })
       .then((tempo) => {
-        if (!tempo) { setTempoStatus("unavailable"); return; }
-        const resolvedBpm = Math.min(220, Math.max(40, Math.round(Number(tempo.bpm))));
-        if (!Number.isFinite(resolvedBpm)) { setTempoStatus("unavailable"); return; }
-        setSong((current) => current?.id === selectedSongId ? {
-          ...current,
-          rhythm: {
-            bpm: resolvedBpm,
-            source: current.rhythm?.source ?? "estimated",
-            tempoSource: tempo.provider === "curated" ? "curated" : "database",
-            tempoConfidence: Number(tempo.confidence) || 0,
-            ...(tempo.sourceUrl ? { tempoUrl: tempo.sourceUrl } : {}),
-            durations: current.rhythm?.durations ?? [],
-            ...(current.rhythm?.gaps ? { gaps: current.rhythm.gaps } : {}),
-          },
-        } : current);
+        if (controller.signal.aborted) return;
+        if (!tempo || (youtubeSong && !youtubeTempoMatches(youtubeSong, tempo))) { setTempoStatus("unavailable"); return; }
+        const resolvedBpm = Math.round(Number(tempo.bpm));
+        if (!Number.isFinite(resolvedBpm) || resolvedBpm < BPM_MIN || resolvedBpm > BPM_MAX) { setTempoStatus("unavailable"); return; }
+        const applyPracticeTempo = !youtubeSong || (!bpmEditedRef.current && !isPlayingRef.current
+          && !playbackPhaseRef.current && tempoSource !== "audio-estimate");
+        setSong((current) => {
+          if (current?.id !== selectedSongId) return current;
+          const rhythm = youtubeSong ? rebaseTranscribedRhythm(current.rhythm, resolvedBpm) : current.rhythm;
+          const originalTempo = youtubeSong ? { youtubeTempo: { bpm: resolvedBpm, sourceUrl: tempo.sourceUrl } } : {};
+          if (!applyPracticeTempo) return { ...current, ...originalTempo };
+          return {
+            ...current,
+            ...originalTempo,
+            rhythm: {
+              bpm: resolvedBpm,
+              source: current.rhythm?.source ?? "estimated",
+              tempoSource: tempo.provider === "curated" ? "curated" : "database",
+              tempoConfidence: Number(tempo.confidence) || 0,
+              ...(tempo.sourceUrl ? { tempoUrl: tempo.sourceUrl } : {}),
+              durations: rhythm?.durations ?? [],
+              ...(rhythm?.gaps ? { gaps: rhythm.gaps } : {}),
+            },
+          };
+        });
         // Preserve the existing in-flight tempo rescheduling behaviour.
         // eslint-disable-next-line react-hooks/immutability
-        changeTempo(resolvedBpm);
+        if (applyPracticeTempo) changeTempo(resolvedBpm);
         setTempoStatus("resolved");
       })
       .catch((error: unknown) => {
@@ -887,7 +910,7 @@ export default function Home() {
     return () => controller.abort();
     // BPM lookup is keyed by stable song identity; query text edits must not retrigger it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song?.artist, song?.id, song?.rhythm?.tempoSource, song?.sourceStatus, song?.title]);
+  }, [song?.artist, song?.id, song?.rhythm?.tempoSource, song?.sourceStatus, song?.title, song?.youtubeSong, song?.youtubeTempo]);
 
   useEffect(() => () => {
     if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
@@ -1454,6 +1477,7 @@ export default function Home() {
   }
 
   function editBpmInput(value: string) {
+    bpmEditedRef.current = true;
     setBpmInput(value);
     const liveBpm = bpmFromInputDraft(value);
     if (liveBpm !== null) changeTempo(liveBpm, false);
@@ -1532,16 +1556,17 @@ export default function Home() {
 
   async function transcribeSelection(range: AudioClipRange) {
     if (!preparedAudio || !audioCapabilities) return;
-    const { blob, name, origin } = preparedAudio;
+    const { blob, name, origin, youtube, youtubeSong } = preparedAudio;
     const model = audioCapabilities.provider;
     await runAudioAction(async ({ signal, isCurrent, onStage, onProgress }) => {
       const { result } = await transcribeAudioInput(blob, { signal, model, range, onStage, onProgress });
       if (!isCurrent()) return;
-      if (!result.noteCount || !result.notes) {
+      if (!result.noteCount || !result.notes?.split(/[|\s]+/).some(normalizeNote)) {
         setStatus("audioUnavailable");
         return;
       }
-      const title = name.replace(/\.[^.]+$/, "").replaceAll(/[_-]+/g, " ").trim() || t.customTitle;
+      const title = youtube ? youtubeSong?.title || t.youtubeSongTitle
+        : name.replace(/\.[^.]+$/, "").replaceAll(/[_-]+/g, " ").trim() || t.customTitle;
       const evidence = result.melody.confidence.level;
       const provenance = result.melody.provider === MUSCRIPTOR_LARGE ? {
         en: "MuScriptor Large · listening review needed",
@@ -1554,6 +1579,7 @@ export default function Home() {
       setSong({
         id: `audio-${Date.now()}`,
         title,
+        ...(youtubeSong ? { youtubeSong, ...(youtubeSong.artist ? { artist: youtubeSong.artist } : {}) } : {}),
         aliases: [],
         subtitle: { en: `${section} · ${provenance.en}`, tr: `${section} · ${provenance.tr}` },
         difficulty: { en: "Machine transcription", tr: "Makine transkripsiyonu" },
@@ -1764,7 +1790,7 @@ export default function Home() {
                   <p className="audio-url-help" id="audio-url-privacy">{!audioCapabilities ? t.audioChecking : audioUsesServer ? t.audioServerPrivacy : audioYoutubeEnabled ? t.audioYoutubeLocalPrivacy : t.audioUrlPrivacy}</p>
                   {preparedAudio?.youtube && <p className="audio-url-help"><a href={preparedAudio.url} download={preparedAudio.name}>{t.audioYoutubeDownload}</a></p>}
                 </form>
-                {preparedAudio && <AudioClipPicker key={preparedAudio.url} url={preparedAudio.url} name={preparedAudio.name}
+                {preparedAudio && <AudioClipPicker key={preparedAudio.url} url={preparedAudio.url} name={preparedAudio.youtubeSong?.title ?? preparedAudio.name}
                   language={language} busy={audioDisabled} onTranscribe={transcribeSelection} />}
                 {audioPhase === "audioTranscribing" && <progress aria-label={audioPhaseText} max="100" value={transcriptionProgress}>{transcriptionProgress}%</progress>}
               </div>
@@ -1795,7 +1821,8 @@ export default function Home() {
                 </div>
                 <div className="tempo-control" role="group" aria-labelledby="practice-tempo-label">
                   <span id="practice-tempo-label" className="tempo-label">{t.tempo}</span>
-                  <input id="practice-bpm" type="range" min={BPM_MIN} max={BPM_MAX} step="1" value={bpm} aria-label={t.tempo} onChange={(event) => changeTempo(Number(event.target.value))} />
+                  <input id="practice-bpm" type="range" min={BPM_MIN} max={BPM_MAX} step="1" value={bpm} aria-label={t.tempo}
+                    onChange={(event) => { bpmEditedRef.current = true; changeTempo(Number(event.target.value)); }} />
                   <div className="bpm-field">
                     <label className="sr-only" htmlFor="practice-bpm-number">{t.bpmInput}</label>
                     <input
@@ -1832,6 +1859,12 @@ export default function Home() {
                   <span className={`tempo-origin ${tempoStatus}`}>
                   {tempoStatus === "loading"
                     ? t.tempoSearching
+                    : song.youtubeTempo
+                      ? song.youtubeTempo.sourceUrl
+                        ? <a href={song.youtubeTempo.sourceUrl} target="_blank" rel="noreferrer">{song.youtubeTempo.bpm} BPM · {t.youtubeTempoFound}</a>
+                        : `${song.youtubeTempo.bpm} BPM · ${t.youtubeTempoFound}`
+                    : song.youtubeSong && tempoStatus === "unavailable"
+                      ? t.youtubeTempoMissing
                     : song.rhythm?.tempoSource === "database"
                       ? song.rhythm.tempoUrl
                         ? <a href={song.rhythm.tempoUrl} target="_blank" rel="noreferrer">{t.originalTempo}</a>

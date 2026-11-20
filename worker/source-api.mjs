@@ -174,7 +174,7 @@ export function createSourceApi(env, fetchFn = fetch) {
     const url = new URL(request.url);
     const audioHandler = url.pathname === `/${MUSCRIPTOR_API_PATH}` ? handleAudioTranscription
       : url.pathname === `/${YOUTUBE_AUDIO_API_PATH}` ? handleYoutubeAudio : null;
-    const origin = allowedOrigin(request, env, Boolean(audioHandler));
+    const origin = allowedOrigin(request, env, Boolean(audioHandler) || url.pathname === "/api/tempo");
     const cors = corsHeaders(origin);
     if (!origin) return json({ error: "Origin is not allowed" }, 403);
     if (audioHandler) cors["Access-Control-Allow-Headers"] = "Content-Type, X-Transcription-Provider";

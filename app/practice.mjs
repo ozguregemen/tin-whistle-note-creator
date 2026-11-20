@@ -69,6 +69,19 @@ export function buildPlaybackPlan(phrases, rhythm, bpm = 90) {
   }));
 }
 
+// Transcription stores seconds as beats at its reference BPM. Keep the timing
+// in seconds when a catalog BPM replaces that reference.
+export function rebaseTranscribedRhythm(rhythm, bpm) {
+  if (rhythm?.source !== "transcribed" || !(rhythm.bpm > 0)) return rhythm;
+  const scale = bpm / rhythm.bpm;
+  return {
+    ...rhythm,
+    bpm,
+    durations: rhythm.durations.map((phrase) => phrase.map((value) => value * scale)),
+    ...(rhythm.gaps ? { gaps: rhythm.gaps.map((phrase) => phrase.map((value) => value * scale)) } : {}),
+  };
+}
+
 export function remainingBeatsAfterElapsed(remainingBeats, elapsedMilliseconds, bpm) {
   const safeRemaining = Math.max(0, Number(remainingBeats) || 0);
   const safeElapsed = Math.max(0, Number(elapsedMilliseconds) || 0);

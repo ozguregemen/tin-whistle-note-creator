@@ -1,6 +1,7 @@
 import { AUDIO_SNIFF_BYTES, MAX_AUDIO_BYTES, MediaError, cancelMediaBody,
   mediaDeadline, readLimitedBody, validateAudioPrefix } from "../shared/audio-media.mjs";
 import { audioApiUrl } from "./muscriptor.mjs";
+import { readYoutubeSong } from "./youtube-song.mjs";
 
 export const YOUTUBE_AUDIO_API_PATH = "api/youtube-audio";
 const VIDEO_ID = /^[\w-]{11}$/;
@@ -53,7 +54,7 @@ export async function downloadYoutubeAudio(videoId, { signal } = {}) {
     const parts = await readLimitedBody(response, MAX_AUDIO_BYTES, deadline);
     const file = new File(parts, `youtube-${videoId}.mp3`, { type: "audio/mpeg" });
     validateAudioPrefix(new Uint8Array(await file.slice(0, AUDIO_SNIFF_BYTES).arrayBuffer()), file.type);
-    return file;
+    return { file, song: readYoutubeSong(response.headers) };
   } catch (error) {
     const reason = signal?.aborted ? signal.reason : deadline.signal.aborted ? deadline.signal.reason
       : error instanceof MediaError ? error : new MediaError("youtube_failed");

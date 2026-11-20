@@ -1,6 +1,8 @@
 import { MAX_AUDIO_BYTES } from "../shared/audio-limits.mjs";
 import { MUSCRIPTOR_LARGE } from "../app/muscriptor.mjs";
 import { isYoutubeVideoId } from "../app/youtube-audio.mjs";
+import { YOUTUBE_SONG_HEADER } from "../app/youtube-song.mjs";
+import { fetchYoutubeSong } from "./youtube-metadata.mjs";
 
 const MAX_MULTIPART_BYTES = MAX_AUDIO_BYTES + 64 * 1024;
 const NO_STORE = { "Cache-Control": "no-store" };
@@ -125,6 +127,7 @@ export async function handleYoutubeAudio(request, env, fetchFn = fetch) {
 
   const body = await request.json().catch(() => null);
   if (!isYoutubeVideoId(body?.videoId)) return audioError(400);
+  const songPromise = fetchYoutubeSong(body.videoId, fetchFn, request.signal);
 
   try {
     const response = await service.fetch(new URL(`youtube/${body.videoId}/mp3`, service.url).href, {
@@ -136,11 +139,14 @@ export async function handleYoutubeAudio(request, env, fetchFn = fetch) {
     if (response.ok && response.body && response.headers.get("Content-Type")?.startsWith("audio/mpeg")) {
       const length = Number(response.headers.get("Content-Length"));
       if (Number.isSafeInteger(length) && length > 0 && length <= MAX_AUDIO_BYTES) {
+        const song = await songPromise;
         return new Response(response.body, { headers: {
           ...NO_STORE,
           "Content-Type": "audio/mpeg",
           "Content-Length": String(length),
           "Content-Disposition": `attachment; filename="youtube-${body.videoId}.mp3"`,
+          ...(song ? { [YOUTUBE_SONG_HEADER]: encodeURIComponent(JSON.stringify(song)),
+            "Access-Control-Expose-Headers": YOUTUBE_SONG_HEADER } : {}),
         } });
       }
     }
