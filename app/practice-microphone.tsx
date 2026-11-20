@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { fingeringFor } from "./fingerings.mjs";
+import { describeLiveNote } from "./live-note-display.mjs";
 import { createPitchDetector, createPitchTracker, PITCH_WINDOW_SIZE } from "./live-pitch.mjs";
 
 const COPY = {
@@ -15,7 +15,15 @@ const COPY = {
     listening: "Listening",
     waiting: "Play a note",
     detected: "Detected note",
-    notation: "Written for high D whistle",
+    notation: "Written for high D",
+    fingering: "High D fingering",
+    inferred: "From the detected note",
+    mouthpiece: "From the mouthpiece down",
+    noFingeringYet: "Play a note to see which holes to cover.",
+    outOfRange: "This note is outside the high D fingering chart.",
+    closed: "Closed",
+    half: "Half-open",
+    open: "Open",
     unsupported: "Microphone access is unavailable here. Try opening the site in a browser tab.",
     denied: "Allow microphone access in your browser and try again.",
     missing: "Connect a microphone and try again.",
@@ -32,7 +40,15 @@ const COPY = {
     listening: "Dinleniyor",
     waiting: "Bir nota çal",
     detected: "Algılanan nota",
-    notation: "Yüksek Re tin whistle yazımı",
+    notation: "Yüksek Re yazımı",
+    fingering: "Yüksek Re parmak dizilimi",
+    inferred: "Duyulan notaya göre",
+    mouthpiece: "Ağızlıktan aşağı doğru",
+    noFingeringYet: "Hangi delikleri kapatacağını görmek için bir nota çal.",
+    outOfRange: "Bu ses yüksek Re tin whistle tablosunun dışında.",
+    closed: "Kapalı",
+    half: "Yarım açık",
+    open: "Açık",
     unsupported: "Burada mikrofona erişilemiyor. Siteyi bir tarayıcı sekmesinde açmayı dene.",
     denied: "Tarayıcıdan mikrofon izni verip tekrar dene.",
     missing: "Bir mikrofon bağlayıp tekrar dene.",
@@ -42,6 +58,8 @@ const COPY = {
 };
 
 type Pitch = NonNullable<ReturnType<ReturnType<typeof createPitchDetector>>>;
+const HOLE_LEGEND = ["closed", "half", "open"] as const;
+const EMPTY_HOLES = Array.from({ length: 6 }, () => "pending");
 type State = "idle" | "requesting" | "listening" | "unsupported" | "denied" | "missing" | "failed" | "ended";
 type Capture = {
   context: AudioContext;
@@ -63,6 +81,45 @@ function microphoneError(error: unknown): State {
     if (error.name === "NotFoundError") return "missing";
   }
   return "failed";
+}
+
+export function LiveNoteReadout({ note, language }: { note: Pitch | null; language: "en" | "tr" }) {
+  const copy = COPY[language];
+  const display = note ? describeLiveNote(note, language) : null;
+  const hasFingering = Boolean(display?.holes);
+  const holes = display?.holes ?? EMPTY_HOLES;
+  return (
+    <div className="practice-microphone-readout">
+      <div className="practice-microphone-pitch">
+        <span className="practice-microphone-label">{copy.detected}</span>
+        <div className="practice-microphone-note" aria-live="polite" aria-atomic="true">
+          {display ? <><strong>{display.sounding}</strong><span>{display.name}</span></> : <span className="idle-note">{copy.waiting}</span>}
+        </div>
+        {note && <p>{Math.round(note.frequency)} Hz{display?.written && <span> · {copy.notation} {display.written}</span>}</p>}
+      </div>
+      <div className="practice-microphone-fingering">
+        <div>
+          <h3>{copy.fingering}</h3>
+          <p>{copy.inferred}</p>
+        </div>
+        <div className="practice-microphone-holes">
+          <div className="practice-microphone-whistle"
+            role={hasFingering ? "img" : undefined}
+            aria-label={display?.holes ? [copy.mouthpiece, ...display.holes.map(state => copy[state])].join(", ") : undefined}
+            aria-hidden={!hasFingering || undefined}>
+            {holes.map((state, index) => <span className={`hole ${state}`} aria-hidden="true" key={index} />)}
+          </div>
+          {display?.holes ? (
+            <ul className="practice-microphone-counts">
+              {HOLE_LEGEND.map(state => (
+                <li key={state}><span className={`hole ${state}`} aria-hidden="true" /><strong>{display.counts[state]}</strong> {copy[state]}</li>
+              ))}
+            </ul>
+          ) : <p>{display ? copy.outOfRange : copy.noFingeringYet}</p>}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function PracticeMicrophone({ language, onStart, onUseChange }: {
@@ -169,28 +226,18 @@ export function PracticeMicrophone({ language, onStart, onUseChange }: {
     }
   }
 
-  const soundingNote = note ? `${note.pitch}${note.octave}`.replace("#", "♯") : "";
-  const writtenNote = note && fingeringFor(note.pitch, note.octave - 1)
-    ? `${note.pitch}${note.octave - 1}`.replace("#", "♯") : "";
-
   return (
     <section className="practice-microphone" aria-labelledby="practice-microphone-title">
-      <div className="practice-microphone-copy">
-        <h2 id="practice-microphone-title">{copy.title}</h2>
-        <p role="status">{copy[state]}</p>
-      </div>
-      {state === "listening" && (
-        <div className="practice-microphone-result">
-          <div aria-live="polite" aria-atomic="true">
-            {note && <span className="sr-only">{copy.detected} </span>}
-            <strong>{soundingNote || copy.waiting}</strong>
-          </div>
-          {note && <small>{Math.round(note.frequency)} Hz{writtenNote && ` · ${copy.notation} ${writtenNote}`}</small>}
+      <div className="practice-microphone-header">
+        <div className="practice-microphone-copy">
+          <h2 id="practice-microphone-title">{copy.title}</h2>
+          <p className={state === "listening" ? "microphone-live" : undefined} role="status">{copy[state]}</p>
         </div>
-      )}
-      <button type="button" className="secondary-action" onClick={() => active ? stop() : void start()}>
-        {state === "requesting" ? copy.cancel : active ? copy.stop : copy.start}
-      </button>
+        <button type="button" className={`secondary-action${active ? "" : " microphone-start"}`} onClick={() => active ? stop() : void start()}>
+          {state === "requesting" ? copy.cancel : active ? copy.stop : copy.start}
+        </button>
+      </div>
+      {state === "listening" && <LiveNoteReadout note={note} language={language} />}
     </section>
   );
 }

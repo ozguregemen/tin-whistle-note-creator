@@ -115,15 +115,45 @@
 .youtube-score-options .source-result span { font-size:.875rem; }
 .youtube-score-options button:disabled { opacity:.55; cursor:default; }
 
-.practice-microphone { display:flex; align-items:center; flex-wrap:wrap; gap:12px 20px; margin:0 0 14px; padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:#f1f7f3; text-align:left; }
-.practice-microphone-copy { flex:1 1 15rem; }
-.practice-microphone h2 { margin:0 0 5px; font:750 1rem/1.3 system-ui,sans-serif; }
-.practice-microphone p,.practice-microphone small { display:block; margin:0; color:var(--muted); font-size:.875rem; line-height:1.45; }
-.practice-microphone-result { flex:1 1 9rem; }
-.practice-microphone-result strong { display:block; color:var(--green-dark); font:750 1.375rem/1.2 system-ui,sans-serif; }
+.practice-microphone { margin:0 0 14px; padding:16px; border:1px solid #cfdcd3; border-radius:16px; background:#f2f7f3; text-align:left; }
+.practice-microphone-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px 20px; }
+.practice-microphone-header h2 { margin:0 0 5px; font:750 1.0625rem/1.25 system-ui,sans-serif; }
+.practice-microphone p { margin:0; color:var(--muted); font-size:.875rem; line-height:1.45; }
+.practice-microphone .microphone-live { display:inline-flex; align-items:center; gap:7px; color:var(--green-dark); font-weight:700; }
+.microphone-live::before { width:8px; height:8px; border-radius:50%; background:#2b7952; content:""; }
+.practice-microphone .microphone-start { background:var(--green-dark); border-color:var(--green-dark); color:white; }
+.practice-microphone .microphone-start:hover { background:#244536; }
+.practice-microphone-readout { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); gap:12px; margin-top:14px; }
+.practice-microphone-pitch { display:flex; flex-direction:column; justify-content:center; gap:14px; padding:clamp(12px,3vw,26px); border-radius:12px; background:#18382c; color:#f5faf6; }
+.practice-microphone-label { color:#bfd8c9; font-weight:700; font-size:.875rem; }
+.practice-microphone-note { display:grid; gap:5px; }
+.practice-microphone-note strong { font:760 clamp(2.35rem,7vw,4.75rem)/.98 system-ui,sans-serif; letter-spacing:-.055em; }
+.practice-microphone-note span { color:#d6eade; font:650 clamp(1.125rem,3.6vw,1.75rem)/1.2 system-ui,sans-serif; }
+.practice-microphone-note .idle-note { line-height:1.25; }
+.practice-microphone-pitch p { color:#bfd8c9; font-variant-numeric:tabular-nums; }
+.practice-microphone-fingering { display:grid; align-content:start; gap:14px; min-width:0; padding:clamp(12px,2.5vw,22px); border:1px solid var(--line); border-radius:12px; background:var(--card); }
+.practice-microphone-fingering h3 { margin:0 0 4px; font:750 1rem/1.25 system-ui,sans-serif; }
+.practice-microphone-holes { display:flex; align-items:center; gap:clamp(8px,2.2vw,24px); }
+.practice-microphone-whistle { position:relative; display:grid; justify-items:center; flex:none; width:46px; gap:6px; margin:8px 0 0; padding:12px 0; border:1px solid #c3d5c8; border-radius:10px; background:#e2ece4; }
+.practice-microphone-whistle::before { position:absolute; inset:-8px 8px auto; height:9px; border:1px solid #c3d5c8; border-radius:6px 6px 0 0; background:#d0e2d4; content:""; }
+.practice-microphone-whistle .hole { width:14px; height:14px; }
+.practice-microphone-whistle .hole:nth-child(3) { margin-bottom:4px; }
+.practice-microphone-whistle .pending { border-color:#adbfaf; }
+.practice-microphone-counts { display:grid; gap:8px; min-width:0; margin:0; padding:0; list-style:none; }
+.practice-microphone-counts li { display:grid; grid-template-columns:10px 1.2ch minmax(0,1fr); align-items:center; gap:6px; color:var(--muted); font-size:.875rem; line-height:1.3; }
+.practice-microphone-counts strong { color:var(--ink); font-variant-numeric:tabular-nums; }
 .practice-empty .practice-microphone { max-width:740px; margin:24px auto 0; }
 @media (max-width:520px) {
-  .practice-microphone { gap:10px; }
-  .practice-microphone-copy { flex-basis:100%; }
+  .practice-microphone { padding:12px; }
+  .practice-microphone-readout { gap:8px; grid-template-columns:minmax(0,.95fr) minmax(0,1.25fr); }
+  .practice-microphone-whistle { width:29px; }
+  .practice-microphone-whistle::before { inset-inline:5px; }
+  .practice-microphone-whistle .hole { width:12px; height:12px; }
+  .practice-microphone-fingering h3 { font-size:.9375rem; overflow-wrap:anywhere; }
+  .practice-microphone-counts li { grid-template-columns:1.2ch minmax(0,1fr); gap:4px; }
+  .practice-microphone-counts .hole { display:none; }
+}
+@media (max-width:350px) {
+  .practice-microphone-readout { grid-template-columns:1fr; }
 }
 @media print { .practice-microphone { display:none !important; } }
