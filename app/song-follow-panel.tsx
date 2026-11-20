@@ -31,8 +31,12 @@ export const songFollowCopy = {
     attempts: "Your playing",
     pending: "Waiting",
     current: "Current step",
-    reference: "Reference melody",
-    referenceHint: "The guide follows your pace. Use headphones for a clearer microphone signal.",
+    guide: "Guide mode",
+    guideHint: "The guide plays each note first. Play when you see “Your turn”.",
+    hearNote: "Hear next note",
+    guidePlaying: "Guide playing",
+    guideReady: "Your turn",
+    guideUnavailable: "Guide audio could not start. Try playing the note again.",
     unavailable: "This song has no playable high D whistle sequence.",
   },
   tr: {
@@ -60,11 +64,17 @@ export const songFollowCopy = {
     attempts: "Çaldıkların",
     pending: "Bekliyor",
     current: "Sıradaki adım",
-    reference: "Referans melodi",
-    referenceHint: "Rehber ses senin hızında ilerler. Mikrofonun çalışını daha net duyması için kulaklık kullan.",
+    guide: "Rehber modu",
+    guideHint: "Rehber önce sıradaki notayı çalar. “Sıra sende” yazdığında çal.",
+    hearNote: "Sıradaki notayı dinle",
+    guidePlaying: "Rehber çalıyor",
+    guideReady: "Sıra sende",
+    guideUnavailable: "Rehber sesi başlatılamadı. Notayı tekrar dinlemeyi dene.",
     unavailable: "Bu şarkı için çalınabilir bir yüksek Re nota dizisi bulunamadı.",
   },
 };
+
+export type GuidePhase = "idle" | "playing" | "ready" | "unavailable";
 
 const EMPTY_FINGERING = ["open", "open", "open", "open", "open", "open"] as const;
 
@@ -82,14 +92,20 @@ function FollowFingering({ holes, copy }: {
 }
 
 export function SongFollowPanel({
-  language, steps, progress, referenceEnabled, onReferenceChange, onReset,
+  language, steps, progress, guideEnabled, guidePhase, onGuideChange, onHearNote, replayDisabled, onReset,
+  playbackIndex, followPlayback,
 }: {
   language: "en" | "tr";
   steps: FollowStep[];
   progress: FollowProgress;
-  referenceEnabled: boolean;
-  onReferenceChange: (value: boolean) => void;
+  guideEnabled: boolean;
+  guidePhase: GuidePhase;
+  onGuideChange: (value: boolean) => void;
+  onHearNote: () => void;
+  replayDisabled: boolean;
   onReset: () => void;
+  playbackIndex: number;
+  followPlayback: boolean;
 }) {
   const copy = songFollowCopy[language];
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -100,18 +116,24 @@ export function SongFollowPanel({
   const repeated = progress.matched > 0 && !finished && steps[progress.matched - 1].midi === steps[progress.matched].midi;
   const heard = progress.feedback ? describeLiveNote(pitchAndOctave(progress.feedback.midi), language) : null;
   const response = progress.feedback ? (progress.feedback.correct ? "correct" : "wrong") : "ready";
+  const playbackActive = playbackIndex >= 0;
+  const currentNote = playbackActive ? playbackIndex : progress.matched;
+  const guideStatus = guidePhase === "playing" ? copy.guidePlaying
+    : guidePhase === "ready" ? copy.guideReady
+      : guidePhase === "unavailable" ? copy.guideUnavailable : "";
 
   useEffect(() => {
+    if (playbackActive && !followPlayback) return;
     const scroll = scrollRef.current;
     const headers = headersRef.current;
-    const note = scoreRef.current?.children[Math.min(progress.matched, steps.length - 1)];
+    const note = scoreRef.current?.children[Math.min(currentNote, steps.length - 1)];
     if (!scroll || !headers || !note) return;
     const noteBounds = note.getBoundingClientRect();
     const visibleTop = headers.getBoundingClientRect().bottom + 4;
     const visibleBottom = scroll.getBoundingClientRect().bottom - 4;
     if (noteBounds.top < visibleTop) scroll.scrollTop += noteBounds.top - visibleTop;
     else if (noteBounds.bottom > visibleBottom) scroll.scrollTop += noteBounds.bottom - visibleBottom;
-  }, [progress.matched, steps.length]);
+  }, [currentNote, followPlayback, playbackActive, steps.length]);
 
   return (
     <div className="song-follow">
@@ -133,13 +155,21 @@ export function SongFollowPanel({
       </div>
 
       <div className="song-follow-options">
-        <div>
-          <label className="song-follow-reference">
-            <input type="checkbox" checked={referenceEnabled} onChange={event => onReferenceChange(event.target.checked)}
-              aria-describedby={referenceEnabled ? "song-follow-reference-hint" : undefined} />
-            {copy.reference}
-          </label>
-          {referenceEnabled && <p id="song-follow-reference-hint">{copy.referenceHint}</p>}
+        <div className={`song-follow-guide${guideEnabled ? " enabled" : ""}`}>
+          <div>
+            <label className="song-follow-guide-toggle">
+              <input type="checkbox" checked={guideEnabled} onChange={event => onGuideChange(event.target.checked)}
+                aria-describedby={guideEnabled ? "song-follow-guide-hint" : undefined} />
+              {copy.guide}
+            </label>
+            {guideEnabled && <p id="song-follow-guide-hint">{copy.guideHint}</p>}
+          </div>
+          {guideEnabled && !finished && (
+            <div className="song-follow-guide-actions">
+              <span className={`song-follow-guide-status ${guidePhase}`} role="status">{guideStatus}</span>
+              <button type="button" className="secondary-action" onClick={onHearNote} disabled={replayDisabled}>{copy.hearNote}</button>
+            </div>
+          )}
         </div>
         {progress.feedback && !finished && <button type="button" className="secondary-action" onClick={onReset}>{copy.reset}</button>}
       </div>
@@ -152,7 +182,7 @@ export function SongFollowPanel({
         <div className="song-follow-lanes">
           <ol className="song-follow-grid song-follow-notes" role="list" aria-labelledby="song-follow-notes-title" ref={scoreRef}>
             {labels.map((label, index) => {
-              const current = index === progress.matched;
+              const current = index === currentNote;
               return (
                 <li key={index} className={`song-follow-tile song-follow-note${current ? " current" : ""}`} aria-current={current ? "step" : undefined}>
                   <span className="song-follow-position" aria-hidden="true">{index + 1}</span>

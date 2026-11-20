@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createPitchDetector, PITCH_WINDOW_SIZE } from "../app/live-pitch.mjs";
+import { PITCH_WINDOW_SIZE } from "../app/live-pitch.mjs";
 import { buildPlaybackPlan, frequencyForWhistleNote } from "../app/practice.mjs";
-import { referenceFrequency } from "../app/practice-reference.mjs";
-import { buildFollowSteps, createSongFollower, createWhistleReleaseDetector, FOLLOW_MIN_FREQUENCY } from "../app/song-follow.mjs";
+import { playReferenceNote } from "../app/practice-reference.mjs";
+import { buildFollowSteps, createSongFollower, createWhistleReleaseDetector } from "../app/song-follow.mjs";
 
 const steps = [{ midi: 74 }, { midi: 74 }, { midi: 76 }];
 
@@ -59,20 +59,43 @@ test("breathing or tonguing can rearm a repeat while the older part of the sampl
   assert.equal(released(samples), false);
 });
 
-test("the reference alone is outside the scoring band but the real whistle pitch remains detectable", () => {
-  const sampleRate = 48_000;
-  const pitch = "D";
-  const detect = createPitchDetector(sampleRate, FOLLOW_MIN_FREQUENCY);
-  const guide = referenceFrequency(pitch);
-  const whistle = frequencyForWhistleNote(pitch, 4);
-  assert.ok(guide < FOLLOW_MIN_FREQUENCY);
-  const samples = Float32Array.from({ length: PITCH_WINDOW_SIZE }, (_, index) => {
-    const seconds = index / sampleRate;
-    return 0.025 * Math.sin(2 * Math.PI * guide * seconds);
-  });
-  assert.equal(detect(samples), null);
-  for (let index = 0; index < samples.length; index += 1) {
-    samples[index] += 0.14 * Math.sin(2 * Math.PI * whistle * index / sampleRate);
-  }
-  assert.equal(detect(samples)?.midi, 74);
+test("the guide plays in the target octave and protects the mic window after the cue", () => {
+  const connections = [];
+  const ramps = [];
+  const stops = [];
+  const volume = {
+    connect: output => connections.push(output),
+    disconnect() {},
+    gain: {
+      setValueAtTime() {},
+      linearRampToValueAtTime: level => ramps.push(level),
+      cancelScheduledValues() {},
+      setTargetAtTime() {},
+    },
+  };
+  const tone = {
+    frequency: { value: 0 },
+    connect: output => connections.push(output),
+    disconnect() {},
+    start() {},
+    stop: time => stops.push(time),
+  };
+  const context = {
+    currentTime: 2, sampleRate: 48_000, state: "running", destination: {},
+    createOscillator: () => tone,
+    createGain: () => volume,
+  };
+  const cue = playReferenceNote(context, { pitch: "D", octave: 6, midi: 86, durationMs: 400 });
+  const window = PITCH_WINDOW_SIZE / context.sampleRate;
+  assert.equal(tone.frequency.value, frequencyForWhistleNote("D", 5));
+  assert.deepEqual(connections, [volume, context.destination]);
+  assert.ok(Math.max(...ramps) >= 0.2);
+  assert.equal(cue.endsAt, 2.4);
+  assert.ok(cue.listenAt > cue.endsAt + window);
+
+  context.currentTime += 0.1;
+  cue.stop();
+  assert.equal(stops.at(-1), cue.endsAt);
+  assert.ok(cue.endsAt < 2.4);
+  assert.ok(cue.listenAt > cue.endsAt + window);
 });

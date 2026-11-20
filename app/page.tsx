@@ -630,6 +630,7 @@ export default function Home() {
   const [status, setStatus] = useState<StatusKey>("catalogPrepared");
   const [sourceError, setSourceError] = useState("");
   const [editingNotes, setEditingNotes] = useState(false);
+  const fingeringSheetRef = useRef<HTMLDivElement>(null);
   const [bpm, setBpm] = useState(clampBpm(FALLBACK_SONGS[0].rhythm?.bpm ?? 90));
   const [bpmInput, setBpmInput] = useState(String(clampBpm(FALLBACK_SONGS[0].rhythm?.bpm ?? 90)));
   const [tempoStatus, setTempoStatus] = useState<TempoStatus>("idle");
@@ -789,6 +790,9 @@ export default function Home() {
   const unsupported = allNotes.filter((note) => !note.holes);
   const playbackPlan = useMemo(() => buildPlaybackPlan(phrases, song?.rhythm, bpm), [phrases, song?.rhythm, bpm]);
   const followSteps = useMemo(() => buildFollowSteps(playbackPlan), [playbackPlan]);
+  useEffect(() => {
+    if (editingNotes) fingeringSheetRef.current?.querySelector("select")?.focus();
+  }, [editingNotes]);
   const playbackPlanRef = useRef(playbackPlan);
   // eslint-disable-next-line react-hooks/refs
   playbackPlanRef.current = playbackPlan;
@@ -805,7 +809,7 @@ export default function Home() {
     if (!followEnabled || !isPlaying || activeNoteIndex < 0) return;
     const frame = window.requestAnimationFrame(() => {
       const activeNote = document.querySelector<HTMLElement>(`[data-note-index="${activeNoteIndex}"]`);
-      if (!activeNote) return;
+      if (!activeNote?.getClientRects().length) return;
       const noteRect = activeNote.getBoundingClientRect();
       const panelRect = document.querySelector<HTMLElement>(".practice-panel")?.getBoundingClientRect();
       if (noteNeedsFollowing(noteRect.top, noteRect.bottom, panelRect?.bottom ?? 0, window.innerHeight)) {
@@ -1737,7 +1741,7 @@ export default function Home() {
   const practiceMicrophone = area === "practice" && (song || !pickingPracticeSong)
     ? <PracticeMicrophone key={`${song?.id ?? ""}:${song?.notes ?? ""}`} language={language}
       onStart={stopPractice} onUseChange={updateMicrophoneActive} steps={followSteps}
-      onChooseSong={song ? choosePracticeSong : undefined} />
+      onChooseSong={song ? choosePracticeSong : undefined} playbackIndex={activeNoteIndex} followPlayback={followEnabled} />
     : null;
   const pickerSongs = song && !catalog.some(item => item.id === song.id) ? [song, ...catalog] : catalog;
 
@@ -1862,7 +1866,7 @@ export default function Home() {
               <div><h1 id="preview-title" tabIndex={-1}>{song.artist ? `${song.artist} — ` : ""}{song.title}</h1><div className="workspace-subtitle"><p>{song.sourceConfidence === "estimated" ? t.textEstimated : song.subtitle[language]} · {song.difficulty[language]} · D tin whistle{song.userEdited ? ` · ${t.userCorrected}` : ""}</p>{songQuality && <span className={`readiness-badge readiness-${songQuality.readiness}`}>{readinessLabel}</span>}</div></div>
               <div className="workspace-actions">
                 <div className="legend"><span className="hole closed" /> {t.closed} <span className="hole half" /> {t.half} <span className="hole open" /> {t.open}</div>
-                <button type="button" className={`correct-notes-button${editingNotes ? " active" : ""}`} aria-pressed={editingNotes} onClick={() => setEditingNotes((current) => !current)}>{editingNotes ? t.finishCorrection : t.correctNotes}</button>
+                <button type="button" className={`correct-notes-button${editingNotes ? " active" : ""}`} aria-pressed={editingNotes} aria-controls="fingering-sheet" onClick={() => setEditingNotes((current) => !current)}>{editingNotes ? t.finishCorrection : t.correctNotes}</button>
                 <button type="button" className="print-button" onClick={() => window.print()}>{t.print}</button>
               </div>
             </div>
@@ -1935,7 +1939,7 @@ export default function Home() {
             </section>
             {unsupported.length > 0 && <div className="warning" role="alert"><strong>{unsupported.length} {t.warningStart}</strong> {t.warningEnd}</div>}
             {editingNotes && <p className="correction-hint">{t.correctionHint}</p>}
-            <div className="phrases">
+            <div id="fingering-sheet" ref={fingeringSheetRef} className={`phrases${followSteps.length && !editingNotes ? " print-only" : ""}`}>
               {phrases.map((phrase, phraseIndex) => (
                 <article className={`phrase-card${loopEnabled && phraseIndex === selectedPhraseIndex ? " selected" : ""}`} key={phraseIndex}>
                   <div className="phrase-meta"><span>{t.phrase} {String(phraseIndex + 1).padStart(2, "0")}</span><span>{phrase.length} {phrase.length === 1 ? t.note : t.notes}</span></div>

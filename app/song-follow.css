@@ -37,9 +37,15 @@
 .song-follow-attempt.correct { border-color:#c2dbc9; background:#e7f3eb; }
 .song-follow-attempt.wrong { border-color:#ce8a81; background:#fcf0ed; }
 .song-follow-options { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px 14px; }
-.song-follow-reference { display:inline-flex; min-height:40px; align-items:center; gap:7px; font-size:.875rem; font-weight:700; cursor:pointer; }
-.song-follow-reference input { width:17px; height:17px; margin:0; accent-color:var(--green-dark); }
-.song-follow-options p { max-width:45ch; }
+.song-follow-guide { display:flex; flex:1 1 auto; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px 18px; }
+.song-follow-guide.enabled { padding:4px 10px 8px; border:1px solid #cfdad1; border-radius:10px; background:var(--card); }
+.song-follow-guide-toggle { display:inline-flex; min-height:40px; align-items:center; gap:7px; font-size:.875rem; font-weight:700; cursor:pointer; }
+.song-follow-guide-toggle input { width:17px; height:17px; margin:0; accent-color:var(--green-dark); }
+.song-follow-guide-actions { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
+.song-follow-guide-status { color:var(--green-dark); font-size:.8125rem; font-weight:700; }
+.song-follow-guide-status.unavailable { max-width:26ch; color:#8d3429; }
+.song-follow-guide p { max-width:48ch; }
+@media screen { .workspace .phrases.print-only { display:none; } }
 .practice-song-picker { width:min(46rem,calc(100% - 24px)); max-height:calc(100dvh - 28px); margin:auto; padding:16px; border:1px solid #c8d8ce; border-radius:15px; background:var(--card); color:var(--ink); }
 .practice-song-picker::backdrop { background:rgb(22 44 35 / .52); }
 .practice-song-picker header,.practice-song-picker footer { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 3px 12px; }

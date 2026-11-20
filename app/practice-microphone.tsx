@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { describeLiveNote } from "./live-note-display.mjs";
 import { createPitchDetector, createPitchTracker, PITCH_WINDOW_SIZE } from "./live-pitch.mjs";
 import { connectFollowInput, playReferenceNote } from "./practice-reference.mjs";
 import { createSongFollower, createWhistleReleaseDetector, emptyFollowProgress, FOLLOW_MIN_FREQUENCY, type FollowStep } from "./song-follow.mjs";
-import { SongFollowPanel, songFollowCopy } from "./song-follow-panel";
+import { SongFollowPanel, songFollowCopy, type GuidePhase } from "./song-follow-panel";
 
 const COPY = {
   en: {
@@ -69,6 +69,8 @@ type Capture = {
   stream?: MediaStream;
   source?: MediaStreamAudioSourceNode;
   frame?: number;
+  step?: FollowStep;
+  cue?: ReturnType<typeof playReferenceNote>;
 };
 
 function release(capture: Capture) {
@@ -125,34 +127,40 @@ export function LiveNoteReadout({ note, language }: { note: Pitch | null; langua
   );
 }
 
-export function PracticeMicrophone({ language, onStart, onUseChange, steps, onChooseSong }: {
+export function PracticeMicrophone({ language, onStart, onUseChange, steps, onChooseSong, playbackIndex, followPlayback }: {
   language: "en" | "tr";
   onStart: () => void;
   onUseChange: (active: boolean) => void;
   steps: FollowStep[];
   onChooseSong?: () => void;
+  playbackIndex: number;
+  followPlayback: boolean;
 }) {
   const copy = COPY[language];
   const follow = songFollowCopy[language];
   const captureRef = useRef<Capture | null>(null);
+  const previewRef = useRef<AudioContext | null>(null);
+  const guideEnabledRef = useRef(false);
   const [state, setState] = useState<State>("idle");
   const [note, setNote] = useState<Pitch | null>(null);
   const [mode, setMode] = useState<"song" | "free">(steps.length ? "song" : "free");
   const [progress, setProgress] = useState(emptyFollowProgress);
-  const [referenceEnabled, setReferenceEnabled] = useState(false);
+  const [guideEnabled, setGuideEnabled] = useState(false);
+  const [guidePhase, setGuidePhase] = useState<GuidePhase>("idle");
   const active = state === "requesting" || state === "listening";
   const following = mode === "song" && steps.length > 0;
   const finished = following && progress.matched === steps.length;
-  const referenceStep = following ? steps[progress.matched] : undefined;
+  const nextStep = following ? steps[progress.matched] : undefined;
 
-  useEffect(() => {
-    const context = captureRef.current?.context;
-    if (!referenceEnabled || state !== "listening" || !referenceStep || !context) return;
-    return playReferenceNote(context, referenceStep.pitch, referenceStep.durationMs);
-  }, [referenceEnabled, state, referenceStep]);
+  const stopPreview = useCallback(() => {
+    const context = previewRef.current;
+    previewRef.current = null;
+    if (context && context.state !== "closed") void context.close().catch(() => {});
+  }, []);
 
   useEffect(() => {
     function releaseCapture() {
+      stopPreview();
       const capture = captureRef.current;
       if (!capture) return;
       captureRef.current = null;
@@ -163,15 +171,17 @@ export function PracticeMicrophone({ language, onStart, onUseChange, steps, onCh
       releaseCapture();
       setState("idle");
       setNote(null);
+      setGuidePhase("idle");
     }
     window.addEventListener("pagehide", pageHidden);
     return () => {
       window.removeEventListener("pagehide", pageHidden);
       releaseCapture();
     };
-  }, [onUseChange]);
+  }, [onUseChange, stopPreview]);
 
   function stop(nextState: State = "idle") {
+    stopPreview();
     const capture = captureRef.current;
     if (capture) {
       captureRef.current = null;
@@ -180,11 +190,72 @@ export function PracticeMicrophone({ language, onStart, onUseChange, steps, onCh
     }
     setState(nextState);
     setNote(null);
+    setGuidePhase("idle");
   }
 
   function resetPractice() {
     stop();
     setProgress(emptyFollowProgress());
+  }
+
+  function cueStep(capture: Capture, step: FollowStep) {
+    try {
+      if (capture.context.state !== "running") {
+        setGuidePhase("unavailable");
+        return;
+      }
+      capture.cue?.stop();
+      capture.cue = playReferenceNote(capture.context, step);
+      setGuidePhase("playing");
+    } catch {
+      setGuidePhase("unavailable");
+    }
+  }
+
+  async function hearNextNote() {
+    const capture = captureRef.current;
+    if (capture) {
+      if (state !== "listening") return;
+      try {
+        if (capture.context.state !== "running") await capture.context.resume();
+        if (captureRef.current === capture && guideEnabledRef.current && capture.step) cueStep(capture, capture.step);
+      } catch {
+        if (captureRef.current === capture && guideEnabledRef.current) setGuidePhase("unavailable");
+      }
+      return;
+    }
+    if (!nextStep) return;
+    stopPreview();
+    onStart();
+    let context: AudioContext | undefined;
+    try {
+      context = new AudioContext();
+      previewRef.current = context;
+      setGuidePhase("playing");
+      await context.resume();
+      if (previewRef.current !== context) return;
+      playReferenceNote(context, nextStep, () => {
+        if (previewRef.current !== context) return;
+        stopPreview();
+        setGuidePhase("idle");
+      });
+    } catch {
+      if (context && previewRef.current !== context) return;
+      stopPreview();
+      setGuidePhase("unavailable");
+    }
+  }
+
+  function changeGuide(enabled: boolean) {
+    guideEnabledRef.current = enabled;
+    setGuideEnabled(enabled);
+    if (enabled) {
+      void hearNextNote();
+    } else {
+      stopPreview();
+      captureRef.current?.cue?.stop();
+      setGuidePhase("idle");
+    }
   }
 
   async function start() {
@@ -193,6 +264,8 @@ export function PracticeMicrophone({ language, onStart, onUseChange, steps, onCh
       setState("unsupported");
       return;
     }
+    stopPreview();
+    setGuidePhase("idle");
     let capture: Capture;
     try {
       capture = { context: new AudioContext() };
@@ -203,6 +276,7 @@ export function PracticeMicrophone({ language, onStart, onUseChange, steps, onCh
     captureRef.current = capture;
     const initialProgress = finished ? emptyFollowProgress() : progress;
     const follower = following ? createSongFollower(steps, initialProgress) : null;
+    if (follower) capture.step = steps[initialProgress.matched];
     if (finished) setProgress(initialProgress);
     onStart();
     onUseChange(true);
@@ -237,7 +311,9 @@ export function PracticeMicrophone({ language, onStart, onUseChange, steps, onCh
       let wasQuiet = false;
       function read(now: number) {
         if (captureRef.current !== capture) return;
-        if (follower) {
+        const cue = capture.cue;
+        const audioTime = capture.context.currentTime;
+        if (follower && (!cue || audioTime >= cue.endsAt)) {
           // A short energy window can detect a breath between repeated pitches
           // even when the longer window still holds the previous note.
           analyser.getFloatTimeDomainData(samples);
@@ -247,6 +323,15 @@ export function PracticeMicrophone({ language, onStart, onUseChange, steps, onCh
             track = createPitchTracker();
           }
           wasQuiet = quiet;
+        }
+        if (cue) {
+          if (audioTime < cue.listenAt) {
+            capture.frame = requestAnimationFrame(read);
+            return;
+          }
+          capture.cue = undefined;
+          track = createPitchTracker();
+          if (guideEnabledRef.current) setGuidePhase("ready");
         }
         if (now - lastUpdate >= 32) {
           lastUpdate = now;
@@ -260,6 +345,10 @@ export function PracticeMicrophone({ language, onStart, onUseChange, steps, onCh
                 stop();
                 return;
               }
+              if (updated.feedback?.correct) {
+                capture.step = steps[updated.matched];
+                if (guideEnabledRef.current && capture.step) cueStep(capture, capture.step);
+              }
             }
           } else if (next?.midi !== lastNote?.midi || Math.round(next?.frequency ?? 0) !== Math.round(lastNote?.frequency ?? 0)) {
             lastNote = next;
@@ -269,6 +358,7 @@ export function PracticeMicrophone({ language, onStart, onUseChange, steps, onCh
         capture.frame = requestAnimationFrame(read);
       }
       setState("listening");
+      if (guideEnabledRef.current && capture.step) cueStep(capture, capture.step);
       capture.frame = requestAnimationFrame(read);
     } catch (error) {
       if (captureRef.current === capture) stop(microphoneError(error));
@@ -301,7 +391,9 @@ export function PracticeMicrophone({ language, onStart, onUseChange, steps, onCh
       </div>
       {following
         ? <SongFollowPanel language={language} steps={steps} progress={progress}
-          referenceEnabled={referenceEnabled} onReferenceChange={setReferenceEnabled} onReset={resetPractice} />
+          guideEnabled={guideEnabled} guidePhase={guidePhase} onGuideChange={changeGuide}
+          onHearNote={() => void hearNextNote()} replayDisabled={state === "requesting"} onReset={resetPractice}
+          playbackIndex={playbackIndex} followPlayback={followPlayback} />
         : state === "listening" && <LiveNoteReadout note={note} language={language} />}
     </section>
   );

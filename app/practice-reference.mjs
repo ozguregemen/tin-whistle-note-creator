@@ -1,11 +1,6 @@
 import { frequencyForNote } from "./practice.mjs";
+import { PITCH_WINDOW_SIZE } from "./live-pitch.mjs";
 import { FOLLOW_MIN_FREQUENCY } from "./song-follow.mjs";
-
-/** @param {string} pitch */
-export function referenceFrequency(pitch) {
-  // The guide is voiced below the whistle's register to reduce speaker pickup.
-  return frequencyForNote(pitch, 3);
-}
 
 /** @param {AudioContext} context @param {AudioNode} source @param {AnalyserNode} analyser */
 export function connectFollowInput(context, source, analyser) {
@@ -21,19 +16,25 @@ export function connectFollowInput(context, source, analyser) {
   input.connect(analyser);
 }
 
-/** @param {AudioContext} context @param {string} pitch @param {number} durationMs */
-export function playReferenceNote(context, pitch, durationMs) {
+/**
+ * @param {AudioContext} context
+ * @param {import("./song-follow.mjs").FollowStep} step
+ * @param {() => void} [onEnded]
+ */
+export function playReferenceNote(context, step, onEnded) {
   const tone = context.createOscillator();
   const volume = context.createGain();
   const start = context.currentTime;
-  const duration = Math.min(1.1, Math.max(0.17, durationMs / 1000));
+  const duration = Math.min(0.5, Math.max(0.26, step.durationMs / 1000));
   const end = start + duration;
+  // Let speaker pickup decay and clear one full pitch window before scoring.
+  const inputTail = 0.18 + PITCH_WINDOW_SIZE / context.sampleRate;
 
-  tone.type = "sine";
-  tone.frequency.value = referenceFrequency(pitch);
+  tone.type = "triangle";
+  tone.frequency.value = frequencyForNote(step.pitch, step.octave);
   volume.gain.setValueAtTime(0, start);
-  volume.gain.linearRampToValueAtTime(0.09, start + 0.025);
-  volume.gain.linearRampToValueAtTime(0.065, end - 0.055);
+  volume.gain.linearRampToValueAtTime(0.24, start + 0.02);
+  volume.gain.linearRampToValueAtTime(0.17, end - 0.05);
   volume.gain.linearRampToValueAtTime(0, end);
   tone.connect(volume);
   volume.connect(context.destination);
@@ -42,15 +43,23 @@ export function playReferenceNote(context, pitch, durationMs) {
     ended = true;
     tone.disconnect();
     volume.disconnect();
+    onEnded?.();
   };
   tone.start(start);
   tone.stop(end);
 
-  return () => {
-    if (ended || context.state === "closed") return;
-    const now = context.currentTime;
-    volume.gain.cancelScheduledValues(now);
-    volume.gain.setTargetAtTime(0, now, 0.004);
-    tone.stop(Math.min(end, now + 0.02));
+  const cue = {
+    endsAt: end,
+    listenAt: end + inputTail,
+    stop() {
+      if (ended || context.state === "closed") return;
+      const now = context.currentTime;
+      volume.gain.cancelScheduledValues(now);
+      volume.gain.setTargetAtTime(0, now, 0.004);
+      cue.endsAt = Math.min(cue.endsAt, now + 0.02);
+      cue.listenAt = cue.endsAt + inputTail;
+      tone.stop(cue.endsAt);
+    },
   };
+  return cue;
 }
