@@ -1,0 +1,267 @@
+{
+  "requestId": "77c1fc1c-c8da-4a89-b5e6-59cbccae1ca9",
+  "status": "completed",
+  "confidence": "score-imported",
+  "song": {
+    "id": "songsterr-510694-hayat",
+    "sourceProcessingVersion": 2,
+    "title": "Hayat",
+    "artist": "Mor ve Ötesi",
+    "aliases": [
+      "hayat",
+      "Mor ve Ötesi — Hayat"
+    ],
+    "subtitle": {
+      "en": "Live Guitar Pro source · melody track imported",
+      "tr": "Canlı Guitar Pro kaynağı · melodi kanalı içe aktarıldı"
+    },
+    "difficulty": {
+      "en": "Source arrangement",
+      "tr": "Kaynak düzeni"
+    },
+    "notes": "E4 E4 E4 E4 F4 F4 E4 F4 G4 A4 G4 B4 | G4 B4 G4 B4 C5 C5 G4 C5 B4 B4 C5 D5 | D5 D5 C5 B4 C5 D5 D5 D5 C5 B4 C5 B4 | C5 B4 C5 B4 C5 B4 C5 B4 C5 B4 C5 B4 | C5 B4 C5 B4 C5 G4 G5 G4 G5 G4 F5 G4 | F5 G4 F5 G4 F5 G4 E5 G4 E5 G4 E5 G4 | E5 G4 D5 G4 E5 G4 D5 G4 E5 G4 D5 E4 | F4 F4 E4 F4 G4 D4 G#4 B4 G#4 D4 B4 G#4",
+    "rhythm": {
+      "bpm": 90,
+      "source": "score",
+      "tempoSource": "default",
+      "tempoConfidence": 0,
+      "durations": [
+        [
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          1,
+          1,
+          1,
+          1,
+          1,
+          2.5
+        ],
+        [
+          0.5,
+          1,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          1,
+          1,
+          0.5,
+          0.5
+        ],
+        [
+          0.5,
+          0.5,
+          1,
+          1,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          1,
+          1,
+          0.5,
+          0.5
+        ],
+        [
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5
+        ],
+        [
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5
+        ],
+        [
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5
+        ],
+        [
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5
+        ],
+        [
+          0.5,
+          0.5,
+          1,
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1,
+          1,
+          1,
+          1,
+          1.5
+        ]
+      ],
+      "gaps": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    "sourceStatus": "live",
+    "sourceConfidence": "score-imported",
+    "sources": [
+      {
+        "name": "Songsterr",
+        "url": "https://www.songsterr.com/a/wsa/mor-ve-otesi-hayat-sheet-s510694",
+        "role": "note-source"
+      }
+    ]
+  }
+}
