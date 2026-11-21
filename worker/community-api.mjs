@@ -9,6 +9,12 @@ const PASSWORD_COST = { N: 32768, r: 8, p: 3, maxmem: 64 * 1024 * 1024 };
 const SESSION_DURATION = 24 * 60 * 60 * 1000;
 const MAX_BODY_BYTES = 16 * 1024;
 const SONG_ID = /^community-[a-f0-9-]{36}$/;
+const RATING_COLUMNS = `(
+  song_id TEXT NOT NULL REFERENCES community_songs(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES community_users(id) ON DELETE CASCADE,
+  score REAL NOT NULL CHECK (score BETWEEN 1 AND 5 AND score * 2 = CAST(score * 2 AS INTEGER)),
+  PRIMARY KEY (song_id, user_id)
+)`;
 const RATING_FIELDS = `
   (SELECT ROUND(AVG(score), 1) FROM community_song_ratings WHERE song_id = s.id) AS rating_average,
   (SELECT COUNT(*) FROM community_song_ratings WHERE song_id = s.id) AS rating_count`;
@@ -16,30 +22,38 @@ const SELECT_SONG = `SELECT s.id, s.title, s.artist, s.notes, s.bpm, u.username,
   FROM community_songs s JOIN community_users u ON u.id = s.author_id`;
 
 export function initializeCommunityStorage(storage) {
-  storage.transactionSync(() => storage.sql.exec(`
-    CREATE TABLE IF NOT EXISTS community_users (
-      id TEXT PRIMARY KEY, username TEXT NOT NULL, username_key TEXT NOT NULL UNIQUE,
-      password_salt TEXT NOT NULL, password_hash TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS community_sessions (
-      token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES community_users(id) ON DELETE CASCADE,
-      expires_at INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS community_session_expiry ON community_sessions(expires_at);
-    CREATE TABLE IF NOT EXISTS community_songs (
-      id TEXT PRIMARY KEY, author_id TEXT NOT NULL REFERENCES community_users(id),
-      title TEXT NOT NULL, artist TEXT NOT NULL, notes TEXT NOT NULL,
-      bpm INTEGER NOT NULL CHECK (bpm BETWEEN 40 AND 220), search_text TEXT NOT NULL, updated_at INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS community_songs_by_update ON community_songs(updated_at DESC, id);
-    CREATE INDEX IF NOT EXISTS community_songs_by_author ON community_songs(author_id, updated_at DESC, id);
-    CREATE TABLE IF NOT EXISTS community_song_ratings (
-      song_id TEXT NOT NULL REFERENCES community_songs(id) ON DELETE CASCADE,
-      user_id TEXT NOT NULL REFERENCES community_users(id) ON DELETE CASCADE,
-      score INTEGER NOT NULL CHECK (score IN (1, 2, 3, 4, 5)),
-      PRIMARY KEY (song_id, user_id)
-    );
-  `));
+  const { sql } = storage;
+  storage.transactionSync(() => {
+    sql.exec(`
+      CREATE TABLE IF NOT EXISTS community_users (
+        id TEXT PRIMARY KEY, username TEXT NOT NULL, username_key TEXT NOT NULL UNIQUE,
+        password_salt TEXT NOT NULL, password_hash TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS community_sessions (
+        token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES community_users(id) ON DELETE CASCADE,
+        expires_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS community_session_expiry ON community_sessions(expires_at);
+      CREATE TABLE IF NOT EXISTS community_songs (
+        id TEXT PRIMARY KEY, author_id TEXT NOT NULL REFERENCES community_users(id),
+        title TEXT NOT NULL, artist TEXT NOT NULL, notes TEXT NOT NULL,
+        bpm INTEGER NOT NULL CHECK (bpm BETWEEN 40 AND 220), search_text TEXT NOT NULL, updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS community_songs_by_update ON community_songs(updated_at DESC, id);
+      CREATE INDEX IF NOT EXISTS community_songs_by_author ON community_songs(author_id, updated_at DESC, id);
+      CREATE TABLE IF NOT EXISTS community_song_ratings ${RATING_COLUMNS};
+    `);
+
+    const columns = sql.exec("PRAGMA table_info(community_song_ratings)").toArray();
+    if (!columns.some(column => column.name === "score" && column.type === "INTEGER")) return;
+    sql.exec(`
+      CREATE TABLE community_song_ratings_next ${RATING_COLUMNS};
+      INSERT INTO community_song_ratings_next (song_id, user_id, score)
+        SELECT song_id, user_id, score FROM community_song_ratings;
+      DROP TABLE community_song_ratings;
+      ALTER TABLE community_song_ratings_next RENAME TO community_song_ratings;
+    `);
+  });
 }
 
 class CommunityError extends Error {
@@ -208,7 +222,9 @@ async function saveRating(storage, request, songId) {
   const { sql } = storage;
   const { score } = (await requestBody(request)) ?? {};
   const user = requireAccount(sql, request);
-  if (!Number.isInteger(score) || score < 1 || score > 5) throw new CommunityError(400, "invalid_rating");
+  if (typeof score !== "number" || score < 1 || score > 5 || !Number.isInteger(score * 2)) {
+    throw new CommunityError(400, "invalid_rating");
+  }
   return storage.transactionSync(() => {
     const [saved] = sql.exec(`INSERT INTO community_song_ratings (song_id, user_id, score)
       SELECT id, ?, ? FROM community_songs WHERE id = ?

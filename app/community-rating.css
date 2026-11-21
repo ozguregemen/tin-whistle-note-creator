@@ -26,28 +26,46 @@
 .version-rating-form { display: flex; align-items: center; flex-wrap: wrap; gap: 0.45rem 0.8rem; }
 .version-rating-stars {
   display: flex;
-  flex-wrap: wrap;
+  width: 240px;
+  max-width: 100%;
   min-width: 0;
-  gap: 0.15rem;
   padding: 0;
   margin: 0;
   border: 0;
 }
-.version-rating-star { position: relative; display: grid; width: 44px; height: 44px; }
-.version-rating-star input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
-.version-rating-star span {
+.version-rating-star {
+  position: relative;
   display: grid;
   place-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 44px;
   border: 1px solid transparent;
   border-radius: 0.45rem;
-  color: #796b58;
-  font-size: 1.6rem;
-  line-height: 1;
 }
-.version-rating-star[data-filled="true"] span { color: #8b571f; }
-.version-rating-star input:checked + span { border-color: #d3b691; background: #f9eedb; }
-.version-rating-star input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 1px; }
-.version-rating-star input:hover:not(:disabled) + span { border-color: #d3b691; }
+.version-rating-glyph {
+  position: relative;
+  color: #796b58;
+  font: 1.6rem/1 "Segoe UI Symbol", system-ui, sans-serif;
+  pointer-events: none;
+}
+.version-rating-star[data-fill="1"] .version-rating-glyph,
+.version-rating-star[data-fill="0.5"] .version-rating-glyph {
+  color: #8b571f;
+}
+.version-rating-star[data-fill="1"] .version-rating-glyph::after,
+.version-rating-star[data-fill="0.5"] .version-rating-glyph::after {
+  position: absolute;
+  inset: 0;
+  content: "★";
+}
+.version-rating-star[data-fill="0.5"] .version-rating-glyph::after { clip-path: inset(0 50% 0 0); }
+.version-rating-choices { position: absolute; inset: -1px; display: flex; }
+.version-rating-choices input { flex: 1 1 0; min-width: 0; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.version-rating-choices input:disabled { cursor: default; }
+.version-rating-star:has(input:checked) { border-color: #d3b691; background: #f9eedb; }
+.version-rating-star:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 1px; }
+.version-rating-value { color: var(--muted); font-size: 0.875rem; font-variant-numeric: tabular-nums; min-width: 5ch; white-space: nowrap; }
 .version-rating-form button:disabled { opacity: 0.58; }
 .version-rating-feedback { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 0.875rem; }
 .version-rating-feedback[role="alert"] { color: #823926; }

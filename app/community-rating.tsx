@@ -17,9 +17,9 @@ const copy = {
   },
   tr: {
     heading: "Sürüm puanı", signIn: "Puan vermek için giriş yap", scale: "5 üzerinden puanın",
-    stars: (value: number) => `${value} yıldız`,
+    stars: (value: number) => `${value.toLocaleString("tr")} yıldız`,
     voteCount: (_count: number, formatted: string) => `${formatted} oy`,
-    vote: (score: number) => `Kayıtlı puanın ${score}/5`,
+    vote: (score: number) => `Kayıtlı puanın ${score.toLocaleString("tr")}/5`,
     save: "Puanı kaydet", saving: "Kaydediliyor…", saved: "Puanın kaydedildi.", loading: "Puan yükleniyor…",
     loadError: "Güncel puan yüklenemedi.", error: "Puanın kaydedilemedi. Tekrar dene.",
     rateLimit: "Biraz bekleyip tekrar dene.",
@@ -57,10 +57,12 @@ export function SongRating({ songId, rating, language, session, onSignIn, onSess
   const t = copy[language];
   const [detail, setDetail] = useState<CommunityRatingDetails | null>(null);
   const [draft, setDraft] = useState<number | null>(null);
+  const [preview, setPreview] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<"saved" | "error" | "loadError" | "rateLimit" | null>(null);
   const selected = draft ?? detail?.score ?? null;
+  const displayed = preview ?? selected;
   const path = `songs/${songId}/rating`;
   const feedback = loading ? t.loading : notice === "saved" ? t.saved : detail?.score == null ? "" : t.vote(detail.score);
 
@@ -108,19 +110,33 @@ export function SongRating({ songId, rating, language, session, onSignIn, onSess
       </div>
       {session ? (
         <form className="version-rating-form" onSubmit={save}>
-          <fieldset className="version-rating-stars" disabled={saving || loading}>
+          <fieldset className="version-rating-stars" disabled={saving || loading} onPointerLeave={() => setPreview(null)}>
             <legend className="sr-only">{t.scale}</legend>
-            {[1, 2, 3, 4, 5].map(value => {
-              const filled = value <= (selected ?? 0);
+            {[1, 2, 3, 4, 5].map(star => {
+              const fill = Math.max(0, Math.min(1, (displayed ?? 0) - star + 1));
+              const choices = star === 1 ? [star] : [star - 0.5, star];
               return (
-                <label key={value} className="version-rating-star" data-filled={filled}>
-                  <input type="radio" name="version-rating" value={value} aria-label={t.stars(value)}
-                    checked={value === selected} onChange={() => { setDraft(value); setNotice(null); }} />
-                  <span aria-hidden="true">{filled ? "★" : "☆"}</span>
-                </label>
+                <div key={star} className="version-rating-star" data-fill={fill}>
+                  <span className="version-rating-glyph" aria-hidden="true">☆</span>
+                  <div className="version-rating-choices">
+                    {choices.map(value => (
+                      <input key={value} type="radio" name="version-rating" value={value} aria-label={t.stars(value)}
+                        checked={value === selected}
+                        onPointerEnter={event => {
+                          if (event.pointerType !== "touch" && !saving && !loading) setPreview(value);
+                        }}
+                        onChange={() => {
+                          setDraft(value);
+                          setPreview(null);
+                          setNotice(null);
+                        }} />
+                    ))}
+                  </div>
+                </div>
               );
             })}
           </fieldset>
+          <span className="version-rating-value" aria-hidden="true">{displayed?.toLocaleString(language) ?? "–"} / 5</span>
           <button className="community-primary" type="submit" disabled={saving || loading || selected === null || selected === detail?.score}>
             {saving ? t.saving : t.save}
           </button>

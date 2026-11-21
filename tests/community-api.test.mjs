@@ -45,7 +45,7 @@ function communityRequests(context) {
     },
   };
   initializeCommunityStorage(storage);
-  return async (path, { method = "GET", body, token } = {}) => {
+  const request = async (path, { method = "GET", body, token } = {}) => {
     const response = await handleCommunity(new Request(`https://community.test/api/community/${path}`, {
       method,
       headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -53,10 +53,11 @@ function communityRequests(context) {
     }), storage);
     return { status: response.status, data: response.status === 204 ? null : await response.json() };
   };
+  return { request, database, storage };
 }
 
 test("community requires an account, attributes each version, and restricts edits to its author", async context => {
-  const request = communityRequests(context);
+  const { request } = communityRequests(context);
   const draft = { title: "Practice tune", artist: "Traditional", bpm: 168, notes: "Re Mi Fa# | Sol" };
   assert.equal((await request("songs", { method: "POST", body: draft })).status, 401);
   const password = "Bee%5R7u";
@@ -87,7 +88,7 @@ test("community requires an account, attributes each version, and restricts edit
 });
 
 test("community ratings are per version, update one vote per member, and rank by average then count", async context => {
-  const request = communityRequests(context);
+  const { request } = communityRequests(context);
   const [alice, bob] = await Promise.all(["Alice", "Bob"].map(username =>
     request("register", { method: "POST", body: { username, password: "Bee%5R7u" } })));
   const draft = { title: "Two versions", artist: "Traditional", bpm: 96, notes: "D4 E4" };
@@ -102,23 +103,53 @@ test("community ratings are per version, update one vote per member, and rank by
   assert.deepEqual(first.data.rating, { average: null, count: 0 });
   assert.deepEqual((await request(firstRating)).data, { average: null, count: 0, score: null });
   assert.equal((await vote(firstRating, 4)).status, 401);
-  for (const invalid of [0, 6, 2.5, "4"]) {
+  for (const invalid of [0, 0.5, 5.5, 6, 2.25, "4", "2.5", null]) {
     assert.deepEqual(await vote(firstRating, invalid, aliceToken), { status: 400, data: { error: "invalid_rating" } });
   }
   assert.deepEqual((await vote(firstRating, 4, aliceToken)).data, { average: 4, count: 1, score: 4 });
-  assert.deepEqual((await vote(firstRating, 5, bobToken)).data, { average: 4.5, count: 2, score: 5 });
-  assert.deepEqual((await request(firstRating, { token: aliceToken })).data, { average: 4.5, count: 2, score: 4 });
-  assert.deepEqual((await request(firstRating)).data, { average: 4.5, count: 2, score: null });
+  assert.deepEqual((await vote(firstRating, 4.5, bobToken)).data, { average: 4.3, count: 2, score: 4.5 });
+  assert.deepEqual((await request(firstRating, { token: aliceToken })).data, { average: 4.3, count: 2, score: 4 });
+  assert.deepEqual((await request(firstRating)).data, { average: 4.3, count: 2, score: null });
   assert.deepEqual((await vote(secondRating, 5, aliceToken)).data, { average: 5, count: 1, score: 5 });
   const ranked = await request("songs?q=versions");
   assert.deepEqual(ranked.data.songs.map(song => [song.id, song.rating]), [
-    [second.data.id, { average: 5, count: 1 }], [first.data.id, { average: 4.5, count: 2 }],
+    [second.data.id, { average: 5, count: 1 }], [first.data.id, { average: 4.3, count: 2 }],
   ]);
 
+  assert.deepEqual((await vote(firstRating, 4.5, aliceToken)).data, { average: 4.5, count: 2, score: 4.5 });
+  assert.deepEqual((await vote(firstRating, 5, bobToken)).data, { average: 4.8, count: 2, score: 5 });
   assert.deepEqual((await vote(firstRating, 5, aliceToken)).data, { average: 5, count: 2, score: 5 });
   assert.deepEqual((await vote(firstRating, 5, aliceToken)).data, { average: 5, count: 2, score: 5 });
   const edited = await request(`songs/${first.data.id}`, { method: "PUT", token: aliceToken, body: { ...draft, bpm: 110 } });
   assert.deepEqual(edited.data.rating, { average: 5, count: 2 });
   assert.deepEqual((await request("songs?q=versions")).data.songs.map(song => song.id), [first.data.id, second.data.id]);
   assert.equal((await vote(`songs/community-${crypto.randomUUID()}/rating`, 4, aliceToken)).status, 404);
+});
+
+test("half-star storage migrates existing votes and keeps them across restarts", async context => {
+  const { request, database, storage } = communityRequests(context);
+  const member = await request("register", { method: "POST", body: { username: "Alice", password: "Bee%5R7u" } });
+  const token = member.data.token;
+  const song = await request("songs", {
+    method: "POST", token, body: { title: "Legacy tune", artist: "Traditional", bpm: 96, notes: "D4 E4" },
+  });
+  const path = `songs/${song.data.id}/rating`;
+  database.exec(`
+    DROP TABLE community_song_ratings;
+    CREATE TABLE community_song_ratings (
+      song_id TEXT NOT NULL REFERENCES community_songs(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES community_users(id) ON DELETE CASCADE,
+      score INTEGER NOT NULL CHECK (score IN (1, 2, 3, 4, 5)),
+      PRIMARY KEY (song_id, user_id)
+    );
+    INSERT INTO community_song_ratings (song_id, user_id, score)
+      SELECT id, author_id, 4 FROM community_songs;
+  `);
+
+  initializeCommunityStorage(storage);
+  assert.deepEqual((await request(path, { token })).data, { average: 4, count: 1, score: 4 });
+  const saved = await request(path, { method: "PUT", token, body: { score: 3.5 } });
+  assert.deepEqual(saved, { status: 200, data: { average: 3.5, count: 1, score: 3.5 } });
+  initializeCommunityStorage(storage);
+  assert.deepEqual((await request(path, { token })).data, saved.data);
 });
