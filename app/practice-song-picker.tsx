@@ -9,7 +9,7 @@ type CatalogProps = ComponentProps<typeof CatalogBrowser>;
 type PickerSong = CatalogProps["songs"][number];
 
 export function PracticeSongPicker<Song extends PickerSong>({
-  language, songs, activeId, onClose, onPick, onImport,
+  language, songs, activeId, onClose, onPick, onImport, loadCommunity, communityRevision,
 }: {
   language: CatalogProps["language"];
   songs: Song[];
@@ -17,6 +17,8 @@ export function PracticeSongPicker<Song extends PickerSong>({
   onClose: () => void;
   onPick: (song: Song) => void;
   onImport: () => void;
+  loadCommunity?: (query: string, offset: number, signal?: AbortSignal) => Promise<{ songs: Song[]; nextOffset: number | null }>;
+  communityRevision?: number;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -39,6 +41,7 @@ export function PracticeSongPicker<Song extends PickerSong>({
         </button>
       </header>
       <CatalogBrowser compact songs={songs} language={language} activeId={activeId} busy={false}
+        loadCommunity={loadCommunity} communityRevision={communityRevision}
         onOpen={song => { dialogRef.current?.close(); onPick(song); }} />
       <footer>
         <button className="secondary-action" type="button" onClick={() => { dialogRef.current?.close(); onImport(); }}>

@@ -1,0 +1,218 @@
+import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { promisify } from "node:util";
+import { normalizeSearchText } from "../app/search-relevance.mjs";
+import { COMMUNITY_PAGE_SIZE, COMMUNITY_PATH, validateCommunitySong } from "../shared/community-song.mjs";
+
+const deriveKey = promisify(scrypt);
+const PASSWORD_COST = { N: 32768, r: 8, p: 3, maxmem: 64 * 1024 * 1024 };
+const SESSION_DURATION = 24 * 60 * 60 * 1000;
+const MAX_BODY_BYTES = 16 * 1024;
+const SONG_ID = /^community-[a-f0-9-]{36}$/;
+const SELECT_SONG = `SELECT s.id, s.title, s.artist, s.notes, s.bpm, u.username
+  FROM community_songs s JOIN community_users u ON u.id = s.author_id`;
+
+export function initializeCommunityStorage(storage) {
+  storage.transactionSync(() => storage.sql.exec(`
+    CREATE TABLE IF NOT EXISTS community_users (
+      id TEXT PRIMARY KEY, username TEXT NOT NULL, username_key TEXT NOT NULL UNIQUE,
+      password_salt TEXT NOT NULL, password_hash TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS community_sessions (
+      token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES community_users(id) ON DELETE CASCADE,
+      expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS community_session_expiry ON community_sessions(expires_at);
+    CREATE TABLE IF NOT EXISTS community_songs (
+      id TEXT PRIMARY KEY, author_id TEXT NOT NULL REFERENCES community_users(id),
+      title TEXT NOT NULL, artist TEXT NOT NULL, notes TEXT NOT NULL,
+      bpm INTEGER NOT NULL CHECK (bpm BETWEEN 40 AND 220), search_text TEXT NOT NULL, updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS community_songs_by_update ON community_songs(updated_at DESC, id);
+    CREATE INDEX IF NOT EXISTS community_songs_by_author ON community_songs(author_id, updated_at DESC, id);
+  `));
+}
+
+class CommunityError extends Error {
+  constructor(status, code, details = {}) {
+    super(code);
+    this.status = status;
+    this.payload = { error: code, ...details };
+  }
+}
+
+async function requestBody(request) {
+  const mime = request.headers.get("Content-Type")?.split(";")[0].trim();
+  if (mime !== "application/json" || !request.body) throw new CommunityError(400, "invalid_request");
+  if (Number(request.headers.get("Content-Length")) > MAX_BODY_BYTES) throw new CommunityError(413, "request_too_large");
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder();
+  let size = 0;
+  let text = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_BODY_BYTES) {
+        await reader.cancel();
+        throw new CommunityError(413, "request_too_large");
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    return JSON.parse(text + decoder.decode());
+  } catch (error) {
+    if (error instanceof CommunityError) throw error;
+    throw new CommunityError(400, "invalid_request");
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function tokenHash(token) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function requestSession(request) {
+  const token = request.headers.get("Authorization")?.match(/^Bearer ([a-f0-9]{64})$/)?.[1];
+  return token ? tokenHash(token) : null;
+}
+
+function requireAccount(sql, request) {
+  const hash = requestSession(request);
+  if (!hash) throw new CommunityError(401, "sign_in_required");
+  const [user] = sql.exec(`SELECT u.id, u.username FROM community_sessions s
+    JOIN community_users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ?`, hash, Date.now()).toArray();
+  if (!user) throw new CommunityError(401, "sign_in_required");
+  return user;
+}
+
+async function passwordHash(password, salt) {
+  return deriveKey(password, Buffer.from(salt, "hex"), 32, PASSWORD_COST);
+}
+
+function createSession(sql, user) {
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = Date.now() + SESSION_DURATION;
+  sql.exec("DELETE FROM community_sessions WHERE expires_at <= ?", Date.now());
+  sql.exec("INSERT INTO community_sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)", tokenHash(token), user.id, expiresAt);
+  return { username: user.username, token, expiresAt };
+}
+
+async function signIn(request, storage, register) {
+  const { sql } = storage;
+  const body = await requestBody(request);
+  const username = typeof body?.username === "string" ? body.username.trim() : "";
+  const password = body?.password;
+  const userKey = username.toLowerCase();
+  const passwordLength = typeof password === "string" ? [...password].length : 0;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{2,23}$/.test(username)) throw new CommunityError(400, "invalid_username");
+  if (passwordLength < 15 || passwordLength > 128) {
+    throw new CommunityError(400, "invalid_password");
+  }
+  if (register) {
+    const user = { id: crypto.randomUUID(), username };
+    const salt = randomBytes(16).toString("hex");
+    const hash = (await passwordHash(password, salt)).toString("hex");
+    return storage.transactionSync(() => {
+      const [created] = sql.exec(`INSERT INTO community_users (id, username, username_key, password_salt, password_hash)
+        VALUES (?, ?, ?, ?, ?) ON CONFLICT(username_key) DO NOTHING RETURNING id`, user.id, username, userKey, salt, hash).toArray();
+      if (!created) throw new CommunityError(409, "username_taken");
+      return createSession(sql, user);
+    });
+  }
+
+  const [user] = sql.exec("SELECT id, username, password_salt, password_hash FROM community_users WHERE username_key = ?", userKey).toArray();
+  const actual = await passwordHash(password, user?.password_salt ?? "0".repeat(32));
+  const matches = timingSafeEqual(actual, Buffer.from(user?.password_hash ?? "0".repeat(64), "hex"));
+  if (!user || !matches) throw new CommunityError(401, "incorrect_credentials");
+  return storage.transactionSync(() => createSession(sql, user));
+}
+
+function songResponse(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    ...(row.artist ? { artist: row.artist } : {}),
+    contributor: row.username,
+    aliases: [],
+    subtitle: { en: "Community arrangement", tr: "Topluluk düzenlemesi" },
+    difficulty: { en: "", tr: "" },
+    notes: row.notes,
+    rhythm: { bpm: row.bpm, source: "estimated", tempoSource: "user", durations: [] },
+    sourceStatus: "live",
+    sources: [],
+  };
+}
+
+function listSongs(sql, url, authorId) {
+  const offset = Number(url.searchParams.get("offset") ?? 0);
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100_000) throw new CommunityError(400, "invalid_request");
+  const query = normalizeSearchText((url.searchParams.get("q") ?? "").slice(0, 160));
+  const tokens = query.split(" ").filter(Boolean).slice(0, 10);
+  const filters = tokens.map(() => "instr(s.search_text, ?) > 0");
+  if (authorId) filters.push("s.author_id = ?");
+  const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
+  const results = sql.exec(`${SELECT_SONG} ${where} ORDER BY s.updated_at DESC, s.id LIMIT ? OFFSET ?`,
+    ...tokens, ...(authorId ? [authorId] : []), COMMUNITY_PAGE_SIZE + 1, offset).toArray();
+  return {
+    songs: results.slice(0, COMMUNITY_PAGE_SIZE).map(songResponse),
+    nextOffset: results.length > COMMUNITY_PAGE_SIZE ? offset + COMMUNITY_PAGE_SIZE : null,
+  };
+}
+
+async function writeSong(storage, request, existingId) {
+  const { sql } = storage;
+  const song = validateCommunitySong(await requestBody(request));
+  if ("error" in song) throw new CommunityError(400, song.error, song.note ? { note: song.note } : {});
+  const user = requireAccount(sql, request);
+  const searchText = normalizeSearchText([song.title, song.artist, user.username].join(" "));
+  const id = existingId ?? `community-${crypto.randomUUID()}`;
+  const values = [song.title, song.artist, song.notes, song.bpm, searchText, Date.now()];
+  if (existingId) {
+    const [updated] = sql.exec(`UPDATE community_songs SET title = ?, artist = ?, notes = ?, bpm = ?, search_text = ?, updated_at = ?
+      WHERE id = ? AND author_id = ? RETURNING id`, ...values, id, user.id).toArray();
+    if (!updated) throw new CommunityError(404, "song_not_found");
+  } else {
+    sql.exec(`INSERT INTO community_songs (title, artist, notes, bpm, search_text, updated_at, id, author_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, ...values, id, user.id);
+  }
+  return songResponse({ ...song, id, username: user.username });
+}
+
+export async function handleCommunity(request, storage) {
+  const { sql } = storage;
+  const url = new URL(request.url);
+  const path = url.pathname.slice(COMMUNITY_PATH.length + 1);
+  const method = request.method;
+  try {
+    if (method === "GET" && path === "songs") return Response.json(listSongs(sql, url));
+    if (method === "GET" && path === "session") {
+      const user = requireAccount(sql, request);
+      return Response.json({ username: user.username });
+    }
+    if (method === "GET" && path === "mine") {
+      const user = requireAccount(sql, request);
+      return Response.json(listSongs(sql, url, user.id));
+    }
+    if (method === "POST" && (path === "register" || path === "login")) {
+      const register = path === "register";
+      return Response.json(await signIn(request, storage, register), { status: register ? 201 : 200 });
+    }
+    if (method === "POST" && path === "logout") {
+      const hash = requestSession(request);
+      if (hash) sql.exec("DELETE FROM community_sessions WHERE token_hash = ?", hash);
+      return new Response(null, { status: 204 });
+    }
+    const updateId = path.startsWith("songs/") ? path.slice(6) : "";
+    const create = method === "POST" && path === "songs";
+    const update = method === "PUT" && SONG_ID.test(updateId);
+    if (create || update) {
+      return Response.json(await writeSong(storage, request, update ? updateId : null), { status: create ? 201 : 200 });
+    }
+    return Response.json({ error: "not_found" }, { status: 404 });
+  } catch (error) {
+    if (error instanceof CommunityError) return Response.json(error.payload, { status: error.status });
+    console.error("Community request failed", { route: path.split("/")[0], error: error?.name });
+    return Response.json({ error: "community_unavailable" }, { status: 503 });
+  }
+}

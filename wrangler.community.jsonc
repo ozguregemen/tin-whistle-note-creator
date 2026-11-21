@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tin-whistle-community",
+  "main": "worker/community-worker.mjs",
+  "compatibility_date": "2026-05-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "durable_objects": {
+    "bindings": [{ "name": "COMMUNITY", "class_name": "CommunityDirectory" }]
+  },
+  "migrations": [{ "tag": "community-v1", "new_sqlite_classes": ["CommunityDirectory"] }],
+  "ratelimits": [
+    { "name": "AUTH_LIMIT", "namespace_id": "2026112101", "simple": { "limit": 8, "period": 60 } }
+  ],
+  "vars": {
+    "ALLOWED_ORIGINS": "https://ozguregemen.github.io,https://nefes-tin-whistle.ozguregemenbusiness.chatgpt.site"
+  }
+}

@@ -49,6 +49,14 @@ test("catalog filters by partial title, artist, and alias without requiring Turk
   assert.deepEqual(browse(songs, "nilu", true, "tr"), []);
 });
 
+test("a contributor can be searched and their version stays out of Approved", () => {
+  const contribution = { ...approved, id: "contribution", contributor: "example-player", sourceStatus: "live" };
+  const [group] = browseCatalogGroups(groupCatalogSongs([approved, contribution]), "@example-player", false, "en");
+  assert.equal(group.song, approved);
+  assert.deepEqual(group.alternatives, [contribution]);
+  assert.deepEqual(browse([approved, contribution], "@example-player", true, "en"), []);
+});
+
 test("alternate scores share a catalog row, searchable aliases and a primary verified score", () => {
   const score = { id: "main", title: "Arkadaşım Eşek", artist: "Barış Manço", aliases: [], sourceStatus: "cross-checked" };
   const duplicate = { id: "duplicate", title: "arkadasim esek", artist: "Baris Manco", aliases: [], sourceStatus: "live" };
@@ -98,5 +106,10 @@ test("the screen and game themes appear in Approved with timed whistle excerpts"
     const phraseLengths = song.notes.split("|").map(phrase => phrase.trim().split(/\s+/).length);
     assert.deepEqual(song.rhythm.durations.map(phrase => phrase.length), phraseLengths);
     assert.ok(song.rhythm.durations.flat().every(duration => duration > 0));
+    if (id === "whistle-binks-sake") {
+      assert.equal(song.rhythm.bpm, 168);
+      assert.equal(phraseLengths.reduce((sum, count) => sum + count, 0), 84);
+      assert.equal(song.notes.split(" | ")[4], "D5 B4 A4 G4 E4 F#4 G4");
+    }
   }
 });

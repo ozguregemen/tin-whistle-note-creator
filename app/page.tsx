@@ -3,7 +3,10 @@
 import { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { parseAbcScore } from "./abc.mjs";
 import { AudioClipPicker, type AudioClipRange } from "./audio-clip-picker";
-import { CatalogBrowser } from "./catalog-browser";
+import { CatalogBrowser, CommunitySearchResults } from "./catalog-browser";
+import { listCommunitySongs, type CommunitySong } from "./community-client";
+import { SongEditor } from "./song-editor";
+import { NOTE_NAMES, normalizeNote, WHISTLE_NOTES } from "./note-notation.mjs";
 import { withBundledCatalogSongs } from "./catalog-browse.mjs";
 import whistleTunes from "../catalog/whistle-tunes.json";
 import { PracticeMicrophone } from "./practice-microphone";
@@ -52,6 +55,7 @@ type Song = {
   catalogTitle?: string;
   excerpt?: boolean;
   artist?: string;
+  contributor?: string;
   youtubeSong?: { title: string; artist: string };
   youtubeTempo?: { bpm: number; sourceUrl?: string };
   aliases: string[];
@@ -61,7 +65,7 @@ type Song = {
   rhythm?: {
     bpm: number;
     source: "score" | "text" | "estimated" | "transcribed";
-    tempoSource?: "score" | "curated" | "database" | "default" | "audio-estimate";
+    tempoSource?: "score" | "curated" | "database" | "default" | "user" | "audio-estimate";
     tempoConfidence?: number;
     tempoUrl?: string;
     durations: number[][];
@@ -525,42 +529,11 @@ const INPUT_MODES = ["search", "audio", "paste", "score"] as const;
 type InputMode = typeof INPUT_MODES[number];
 const EXAMPLE_NOTES = "D4 E4 F#4 G4 | A4 G4 F#4 E4";
 const WEB_STATUSES = new Set<StatusKey>(["notFound", "searching", "sourceFound", "discoveryFound", "queueing", "processing", "needsReview", "sourceUnavailable", "sourceRetrying"]);
-const EDITABLE_WHISTLE_NOTES = [4, 5, 6].flatMap((octave) =>
-  ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-    .filter((pitch) => fingeringFor(pitch, octave))
-    .map((pitch) => `${pitch}${octave}`),
-);
 
 function sourceApiUrl() {
   if (typeof window === "undefined") return "";
   const configured = (window as typeof window & { __TWNC_SOURCE_API_URL__?: string }).__TWNC_SOURCE_API_URL__ ?? "";
   return configured.startsWith("http") ? configured.replace(/\/$/, "") : "";
-}
-
-const SOLFEGE: Record<string, string> = { DO: "C", RE: "D", RÉ: "D", MI: "E", FA: "F", SOL: "G", LA: "A", SI: "B" };
-const NOTE_NAMES: Record<string, string> = {
-  C: "Do", "C#": "Do♯", D: "Re", "D#": "Re♯", E: "Mi", F: "Fa",
-  "F#": "Fa♯", G: "Sol", "G#": "Sol♯", A: "La", "A#": "La♯", B: "Si",
-};
-
-function normalizeNote(raw: string): ParsedNote | null {
-  const cleaned = raw.trim().replaceAll("♯", "#").replaceAll("♭", "b");
-  const match = cleaned.match(/^([A-Ga-g]|do|re|ré|mi|fa|sol|la|si)([#b]?)(-[12]|[0-8]|['′+])?$/i);
-  if (!match) return null;
-  let pitch = SOLFEGE[match[1].toUpperCase()] ?? match[1].toUpperCase();
-  if (match[2] === "#") pitch += "#";
-  if (match[2] === "b") {
-    const flatToSharp: Record<string, string> = { Db: "C#", Eb: "D#", Gb: "F#", Ab: "G#", Bb: "A#" };
-    pitch = flatToSharp[`${pitch}b`] ?? pitch;
-  }
-  const octaveMarker = match[3];
-  const upperRegister = octaveMarker === "'" || octaveMarker === "′" || octaveMarker === "+";
-  const octave = /^-?\d$/.test(octaveMarker ?? "")
-    ? Number(octaveMarker)
-    : upperRegister
-      ? (pitch === "C" || pitch === "C#" ? 6 : 5)
-      : (pitch === "C" || pitch === "C#" ? 5 : 4);
-  return { token: raw, pitch, octave, display: NOTE_NAMES[pitch] ?? pitch };
 }
 
 function parseArrangement(source: string, estimateRegisters = false): WhistleArrangement {
@@ -615,7 +588,7 @@ function Fingering({ note, index, globalIndex, active, language, editing, correc
       <strong>{displayPitch}</strong>
       <small>{writtenPitch} · {register}</small>
       {editing && <select className="note-correction" value={`${note.pitch}${note.octave}`} aria-label={`${correctionLabel} ${globalIndex + 1}`} onChange={(event) => onCorrection(event.target.value)}>
-        {EDITABLE_WHISTLE_NOTES.map((value) => <option value={value} key={value}>{value}</option>)}
+        {WHISTLE_NOTES.map((value) => <option value={value} key={value}>{value}</option>)}
       </select>}
     </div>
   );
@@ -625,6 +598,8 @@ export default function Home() {
   const [language, setLanguage] = useState<Language>("en");
   const [mode, setMode] = useState<InputMode>("search");
   const [catalog, setCatalog] = useState<Song[]>(FALLBACK_SONGS);
+  const [communityRevision, setCommunityRevision] = useState(0);
+  const [communitySearch, setCommunitySearch] = useState<{ query: string; songs: CommunitySong[] } | null>(null);
   const [area, setArea] = useState<WorkArea>("catalog");
   const areaRef = useRef<WorkArea>("catalog");
   const inputModeRef = useRef<InputMode>("search");
@@ -857,7 +832,7 @@ export default function Home() {
     const api = sourceApiUrl();
     const tempoSource = song?.rhythm?.tempoSource;
     const alreadyResolved = youtubeSong ? Boolean(song.youtubeTempo)
-      : tempoSource === "score" || tempoSource === "curated" || tempoSource === "database" || tempoSource === "audio-estimate";
+      : tempoSource === "score" || tempoSource === "curated" || tempoSource === "database" || tempoSource === "user" || tempoSource === "audio-estimate";
     if (!song || (song.sourceStatus === "manual" && !youtubeSong) || alreadyResolved) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTempoStatus(alreadyResolved ? "resolved" : "idle");
@@ -1322,6 +1297,7 @@ export default function Home() {
 
   async function findSong(event?: FormEvent) {
     event?.preventDefault();
+    setCommunitySearch(null);
     setSourceError("");
     setSourceCandidates([]);
     if (youtubeVideoId(query)) {
@@ -1334,6 +1310,11 @@ export default function Home() {
     if (!normalizeSearchText(query)) { setStatus("notFound"); return; }
 
     setStatus("searching");
+    const term = query.trim();
+    const communityLookup = listCommunitySongs(term).then(({ songs }) => {
+      setCommunitySearch({ query: term, songs });
+      return songs.length > 0;
+    }).catch(() => false);
     try {
       const api = sourceApiUrl();
       if (api) {
@@ -1347,7 +1328,8 @@ export default function Home() {
         }
       }
 
-      const tunes = await searchSessionTunes(query.trim());
+      if (await communityLookup) { setStatus("catalogFound"); return; }
+      const tunes = await searchSessionTunes(term);
       const result = tunes
         .map((item) => ({ item, score: searchMatchScore(query, [item.name, item.alias ?? "", `${item.name} ${item.type ?? ""}`]) }))
         .filter((candidate) => candidate.score > 0)
@@ -1356,8 +1338,9 @@ export default function Home() {
 
       await openSessionTune(result, "search");
     } catch (error: unknown) {
-      setSourceError(error instanceof Error ? error.message : "");
-      setStatus("sourceUnavailable");
+      const foundCommunity = await communityLookup;
+      if (!foundCommunity) setSourceError(error instanceof Error ? error.message : "");
+      setStatus(foundCommunity ? "catalogFound" : "sourceUnavailable");
     }
   }
 
@@ -1705,6 +1688,7 @@ export default function Home() {
       listen: "preview-title",
       convert: inputModeRef.current === "search" ? "song-search" : "convert-title",
       practice: "preview-title",
+      editor: "editor-title",
     }[next];
     window.requestAnimationFrame(() => {
       if (areaRef.current !== next) return;
@@ -1731,7 +1715,10 @@ export default function Home() {
   function openCatalogSong(selected: Song, destination: "listen" | "practice" = "listen") {
     setSourceError("");
     setSourceCandidates([]);
-    setSong((current) => current?.id === selected.id ? current : restoreStoredCorrection(selected));
+    setSong((current) => {
+      if (selected.contributor) return selected;
+      return current?.id === selected.id ? current : restoreStoredCorrection(selected);
+    });
     setStatus("catalogFound");
     navigateWorkspace(destination);
   }
@@ -1755,8 +1742,11 @@ export default function Home() {
       <main className="app-content shell">
         <div id="catalog-workspace" hidden={area !== "catalog"}>
           <CatalogBrowser songs={catalog} language={language} activeId={song?.id}
+            loadCommunity={listCommunitySongs} communityRevision={communityRevision}
             busy={(sourceIsBusy || status === "searching") || audioBusy} onOpen={openCatalogSong} onSearchOnline={openWebSearch} />
         </div>
+
+        <SongEditor language={language} visible={area === "editor"} onSaved={() => setCommunityRevision(revision => revision + 1)} onListen={openCatalogSong} />
 
         <section id="input-workspace" hidden={area !== "convert"} aria-labelledby="convert-title">
           <div className="screen-heading">
@@ -1783,6 +1773,7 @@ export default function Home() {
                   <input id="song-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.searchPlaceholder} />
                   <button type="submit" disabled={(sourceIsBusy || status === "searching") || !query.trim()}>{status === "searching" ? "…" : t.find}</button>
                 </div>
+                {communitySearch?.query === query.trim() && <CommunitySearchResults songs={communitySearch.songs} language={language} onOpen={openCatalogSong} />}
                 {sourceCandidates.length > 0 && <div className="source-results" aria-label={t.sourceFound}>
                   {sourceCandidates.map((candidate) => {
                     const candidateQuality = candidate.quality
@@ -1867,7 +1858,7 @@ export default function Home() {
           {viewingPlayback && <button type="button" className="secondary-action catalog-return" onClick={() => navigateWorkspace("catalog")}>{ui.backToCatalog}</button>}
           {song ? <section className={`workspace${!viewingPlayback && microphoneActive ? " practice-listening" : ""}`} aria-labelledby="preview-title">
             <div className="workspace-heading">
-              <div><h1 id="preview-title" tabIndex={-1}>{song.artist ? `${song.artist} — ` : ""}{song.title}</h1><div className="workspace-subtitle"><p>{song.sourceConfidence === "estimated" ? t.textEstimated : song.subtitle[language]} · {song.difficulty[language]} · D tin whistle{song.userEdited ? ` · ${t.userCorrected}` : ""}</p>{songQuality && <span className={`readiness-badge readiness-${songQuality.readiness}`}>{readinessLabel}</span>}</div></div>
+              <div><h1 id="preview-title" tabIndex={-1}>{song.artist ? `${song.artist} — ` : ""}{song.title}</h1><div className="workspace-subtitle"><p>{song.sourceConfidence === "estimated" ? t.textEstimated : song.subtitle[language]} · {song.contributor ? ui.addedBy(song.contributor) : song.difficulty[language]} · D tin whistle{song.userEdited ? ` · ${t.userCorrected}` : ""}</p>{songQuality && <span className={`readiness-badge readiness-${songQuality.readiness}`}>{readinessLabel}</span>}</div></div>
               <div className="workspace-actions">
                 <button type="button" className="secondary-action" onClick={() => navigateWorkspace(viewingPlayback ? "practice" : "listen")}>
                   {viewingPlayback ? ui.practiseSong : ui.listen}
@@ -1935,6 +1926,8 @@ export default function Home() {
                       ? song.rhythm.tempoUrl
                         ? <a href={song.rhythm.tempoUrl} target="_blank" rel="noreferrer">{t.originalTempo}</a>
                         : t.originalTempo
+                      : song.rhythm?.tempoSource === "user"
+                        ? ui.communityTempo
                       : song.rhythm?.tempoSource === "score" || song.rhythm?.tempoSource === "curated"
                         ? t.scoreTempo
                         : song.rhythm?.tempoSource === "audio-estimate"
@@ -2002,6 +1995,7 @@ export default function Home() {
               openCatalogSong(selected, "practice");
               window.requestAnimationFrame(() => document.getElementById("preview-title")?.focus({ preventScroll: true }));
             }}
+            loadCommunity={listCommunitySongs} communityRevision={communityRevision}
             onImport={() => navigateWorkspace("convert")} />}
         </section>
       </main>

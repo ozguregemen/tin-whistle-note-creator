@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-21T10:16:42.165Z",
+  "generatedAt": "2026-11-21T10:54:54.045Z",
   "songs": [
     {
       "id": "duman-bu-aksam",
@@ -19122,38 +19122,130 @@
       ],
       "excerpt": true,
       "subtitle": {
-        "en": "Opening refrain · short D whistle arrangement",
-        "tr": "Açılış nakaratı · kısa Re tin whistle düzeni"
+        "en": "Opening refrain and verse · approximate rhythm",
+        "tr": "Açılış nakaratı ve kıta · yaklaşık ritim"
       },
       "difficulty": {
         "en": "Intermediate",
         "tr": "Orta"
       },
-      "notes": "B4 D5 D5 D5 E5 D5 B4 D5 | B4 D5 D5 D5 E5 D5 B4 G4",
+      "notes": "B4 D5 D5 D5 E5 D5 B4 D5 | B4 D5 D5 D5 E5 D5 B4 G4 | B4 D5 D5 D5 E5 D5 B4 D5 | B4 D5 D5 D5 E5 D5 B4 G4 | D5 B4 A4 G4 E4 F#4 G4 | D5 B4 A4 G4 E4 G4 D4 | E4 G4 D4 | E4 F#4 G4 | C5 B4 B4 A4 G4 A4 | D5 B4 A4 G4 E4 F#4 G4 | D5 B4 A4 G4 E4 G4 D4 | E4 G4 D4 | E4 F#4 G4 | C5 B4 G4 A4 A4 G4",
       "rhythm": {
-        "bpm": 115,
-        "source": "score",
-        "tempoSource": "score",
+        "bpm": 168,
+        "source": "text",
+        "tempoSource": "user",
         "durations": [
           [
             0.667,
             0.667,
             0.666,
-            4,
+            2,
             1.333,
             0.667,
             2,
-            4
+            2
           ],
           [
             0.667,
             0.667,
             0.666,
-            4,
+            2,
             1.333,
             0.667,
             2,
-            4
+            2
+          ],
+          [
+            0.667,
+            0.667,
+            0.666,
+            2,
+            1.333,
+            0.667,
+            2,
+            2
+          ],
+          [
+            0.667,
+            0.667,
+            0.666,
+            2,
+            1.333,
+            0.667,
+            2,
+            2
+          ],
+          [
+            1.333,
+            0.667,
+            1.333,
+            0.667,
+            1.333,
+            0.667,
+            2
+          ],
+          [
+            1.333,
+            0.667,
+            1.333,
+            0.667,
+            1.333,
+            0.667,
+            2
+          ],
+          [
+            1.333,
+            0.667,
+            2
+          ],
+          [
+            1.333,
+            0.667,
+            2
+          ],
+          [
+            0.667,
+            0.667,
+            0.666,
+            0.667,
+            0.667,
+            0.666
+          ],
+          [
+            1.333,
+            0.667,
+            1.333,
+            0.667,
+            1.333,
+            0.667,
+            2
+          ],
+          [
+            1.333,
+            0.667,
+            1.333,
+            0.667,
+            1.333,
+            0.667,
+            2
+          ],
+          [
+            1.333,
+            0.667,
+            2
+          ],
+          [
+            1.333,
+            0.667,
+            2
+          ],
+          [
+            0.667,
+            0.667,
+            0.666,
+            0.667,
+            0.667,
+            0.666
           ]
         ],
         "gaps": [
@@ -19176,14 +19268,106 @@
             0,
             0,
             0
+          ],
+          [
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
           ]
         ]
       },
       "sourceStatus": "cross-checked",
       "sources": [
         {
-          "name": "Irish Folk Songs · D whistle tab",
-          "url": "https://www.irish-folk-songs.com/blog/binks-brew-sheet-music-and-tin-whistle-notes",
+          "name": "D whistle fingering chart",
+          "url": "https://www.reddit.com/r/OnePiece/comments/106qlt5/",
           "role": "note-source"
         },
         {

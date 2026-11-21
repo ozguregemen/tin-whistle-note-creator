@@ -13,7 +13,7 @@ export function withBundledCatalogSongs(songs, bundled) {
   return [...songs, ...bundled.filter(song => !ids.has(song.id))];
 }
 
-/** @typedef {{ title: string, catalogTitle?: string, artist?: string, aliases: string[] }} CatalogSong */
+/** @typedef {{ title: string, catalogTitle?: string, artist?: string, aliases: string[], contributor?: string }} CatalogSong */
 /** @template {CatalogSong} T
  * @typedef {{ title: string, song: T, alternatives: T[] }} CatalogGroup
  */
@@ -56,8 +56,9 @@ export function browseCatalogGroups(groups, query, approvedOnly, language) {
   return groups.filter(({ title, song, alternatives }) => {
     if (approvedOnly && !isApprovedCatalogSong(song)) return false;
     if (tokens.length === 0) return true;
-    return [song, ...alternatives].some(version => {
-      const searchable = normalizeSearchText([title, version.title, version.artist, ...version.aliases].filter(Boolean).join(" "));
+    const versions = approvedOnly ? [song, ...alternatives.filter(isApprovedCatalogSong)] : [song, ...alternatives];
+    return versions.some(version => {
+      const searchable = normalizeSearchText([title, version.title, version.artist, version.contributor, ...version.aliases].filter(Boolean).join(" "));
       return tokens.every(token => searchable.includes(token));
     });
   }).sort((left, right) =>

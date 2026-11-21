@@ -1,4 +1,4 @@
-const KNOWN_TEMPO_SOURCES = new Set(["score", "curated", "database"]);
+const KNOWN_TEMPO_SOURCES = new Set(["score", "curated", "database", "user"]);
 const RHYTHM_SOURCES = new Set(["score", "text", "transcribed"]);
 const READINESS_RANK = Object.freeze({
   "review-required": 0,
