@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { extractTextTimedPhrases, mergeSongIntoCatalog } from "./source-processing.mjs";
 
 const SOURCE_FILE = new URL("../catalog/sources.json", import.meta.url);
+const WHISTLE_FILE = new URL("../catalog/whistle-tunes.json", import.meta.url);
 const OUTPUT_FILE = new URL("../catalog/catalog.json", import.meta.url);
 
 function applyOctaves(phrases, octaves) {
@@ -64,6 +65,7 @@ async function syncSong(config) {
 }
 
 const manifest = JSON.parse(await readFile(SOURCE_FILE, "utf8"));
+const whistleTunes = JSON.parse(await readFile(WHISTLE_FILE, "utf8"));
 const refreshedSongs = [];
 for (const song of manifest.songs) refreshedSongs.push(await syncSong(song));
 
@@ -75,7 +77,7 @@ try {
 }
 
 let nextCatalog = previousCatalog || { schemaVersion: 1, songs: [] };
-for (const song of refreshedSongs) nextCatalog = mergeSongIntoCatalog(nextCatalog, song);
+for (const song of [...refreshedSongs, ...whistleTunes.songs]) nextCatalog = mergeSongIntoCatalog(nextCatalog, song);
 
 if (previousCatalog && JSON.stringify(previousCatalog.songs) === JSON.stringify(nextCatalog.songs)) {
   console.log(`Checked ${refreshedSongs.length} web-sourced song(s); no changes.`);

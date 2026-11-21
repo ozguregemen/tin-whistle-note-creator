@@ -4,6 +4,8 @@ import { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useCallbac
 import { parseAbcScore } from "./abc.mjs";
 import { AudioClipPicker, type AudioClipRange } from "./audio-clip-picker";
 import { CatalogBrowser } from "./catalog-browser";
+import { withBundledCatalogSongs } from "./catalog-browse.mjs";
+import whistleTunes from "../catalog/whistle-tunes.json";
 import { PracticeMicrophone } from "./practice-microphone";
 import { PracticeSongPicker } from "./practice-song-picker";
 import { buildFollowSteps } from "./song-follow.mjs";
@@ -47,6 +49,7 @@ type SongSource = {
 type Song = {
   id: string;
   title: string;
+  catalogTitle?: string;
   artist?: string;
   youtubeSong?: { title: string; artist: string };
   youtubeTempo?: { bpm: number; sourceUrl?: string };
@@ -489,6 +492,7 @@ const COPY = {
   },
 } as const;
 
+const WHISTLE_TUNES = whistleTunes.songs as Song[];
 const FALLBACK_SONGS: Song[] = [
   {
     id: "duman-bu-aksam",
@@ -512,6 +516,7 @@ const FALLBACK_SONGS: Song[] = [
       { name: "HKLPS Müzik · YouTube", url: "https://www.youtube.com/watch?v=LWWKiIJ9RD0", role: "cross-check" },
     ],
   },
+  ...WHISTLE_TUNES,
 ];
 
 const REMOTE_CATALOG_URL = "https://raw.githubusercontent.com/ozguregemen/tin-whistle-note-creator/main/catalog/catalog.json";
@@ -723,7 +728,8 @@ export default function Home() {
       })
       .then((remoteCatalog) => {
         if (!Array.isArray(remoteCatalog.songs) || remoteCatalog.songs.length === 0) return;
-        const correctedSongs = remoteCatalog.songs.map((item) => restoreStoredCorrection(applyCuratedTempo(item) as Song));
+        const songs = withBundledCatalogSongs(remoteCatalog.songs, WHISTLE_TUNES);
+        const correctedSongs = songs.map((item) => restoreStoredCorrection(applyCuratedTempo(item) as Song));
         setCatalog(correctedSongs);
         setSong((current) => correctedSongs.find((item) => item.id === current?.id) ?? current);
         setStatus((current) => current === "catalogPrepared" ? "catalogUpdated" : current);

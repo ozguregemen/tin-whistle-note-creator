@@ -25,7 +25,7 @@
 .catalog-filters button span { margin-inline-start:3px; font-variant-numeric:tabular-nums; }
 .catalog-browser input { width:min(100%, 440px); min-width:0; min-height:44px; padding:8px 12px; border:1px solid #b9c9bf; border-radius:8px; background:var(--card); color:var(--ink); font-size:16px; }
 .catalog-songs { margin:0; padding:0; list-style:none; }
-.catalog-songs li { border-top:1px solid var(--line); }
+.catalog-songs > li { border-top:1px solid var(--line); }
 .catalog-song { display:grid; grid-template-columns:minmax(0,1fr) minmax(150px,auto) minmax(92px,auto); align-items:center; gap:8px 18px; width:100%; min-height:72px; padding:12px 10px; border:0; border-radius:8px; background:transparent; color:var(--ink); text-align:start; }
 .catalog-song:focus-visible { outline-offset:-3px; }
 .catalog-song[aria-current="true"] { background:#f0f8f2; }
@@ -37,6 +37,11 @@
 .catalog-song-status small { font-size:12px; }
 .catalog-song-open { justify-self:end; color:var(--green-dark); font-size:14px; font-weight:750; }
 .catalog-song:disabled .catalog-song-open { opacity:.55; }
+.catalog-versions { margin:0 0 8px 10px; }
+.catalog-versions summary { width:fit-content; min-height:44px; padding:11px 10px 8px 4px; border-radius:6px; color:var(--green-dark); font-size:14px; font-weight:700; cursor:pointer; }
+.catalog-versions ul { margin:0; padding:0 6px; list-style:none; border-inline-start:2px solid #bfd5c6; background:#f2f7f3; border-radius:0 8px 8px 0; }
+.catalog-versions li + li { border-top:1px solid var(--line); }
+.catalog-versions .catalog-song { min-height:62px; padding-block:9px; }
 .catalog-pagination { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px; padding:8px 0; border-top:1px solid var(--line); }
 .catalog-pagination button,.catalog-empty button { min-height:44px; padding:6px 10px; border:0; border-radius:7px; background:transparent; color:var(--green-dark); font-size:14px; font-weight:750; }
 .catalog-pagination button:disabled { color:var(--muted); opacity:.6; }

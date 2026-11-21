@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-20T07:48:07.883Z",
+  "generatedAt": "2026-11-21T09:20:54.435Z",
   "songs": [
     {
       "id": "duman-bu-aksam",
@@ -2841,7 +2841,8 @@
           "url": "https://www.gitaregitim.net/cok-uzaklarda-caddelerde-ruzgar-nota-tab/",
           "role": "note-source"
         }
-      ]
+      ],
+      "catalogTitle": "Caddelerde Rüzgar"
     },
     {
       "id": "notalar-1169-arkadasim-esek",
@@ -2867,7 +2868,8 @@
           "url": "https://www.notalar.net/arkadasim-esek-do-re-mi-notalari/",
           "role": "note-source"
         }
-      ]
+      ],
+      "artist": "Barış Manço"
     },
     {
       "id": "gitaregitim-9459-arkadasim-esek",
@@ -3045,7 +3047,8 @@
           "url": "https://www.gitaregitim.net/arkadasim-esek-nota-tab/",
           "role": "note-source"
         }
-      ]
+      ],
+      "artist": "Barış Manço"
     },
     {
       "id": "notalar-1847-arkadasim-esek-flut",
@@ -3071,7 +3074,9 @@
           "url": "https://www.notalar.net/arkadasim-esek-flut-notalari/",
           "role": "note-source"
         }
-      ]
+      ],
+      "artist": "Barış Manço",
+      "catalogTitle": "Arkadaşım Eşek"
     },
     {
       "id": "notalar-1491-sen-aglama",
@@ -13507,7 +13512,7 @@
       "id": "songsterr-3335354-saygimdan",
       "sourceProcessingVersion": 2,
       "title": "Saygımdan",
-      "artist": "Bengü, Bengü, Zeki Güner",
+      "artist": "Bengü",
       "aliases": [
         "saygımdan",
         "Bengü, Bengü, Zeki Güner — Saygımdan"
@@ -16117,7 +16122,8 @@
           "url": "https://www.songsterr.com/a/wsa/bengu-saygimdan-v-2-sheet-s5370857",
           "role": "note-source"
         }
-      ]
+      ],
+      "catalogTitle": "Saygımdan"
     },
     {
       "id": "songsterr-6078617-kai-s-theme-epic-version",
@@ -18418,6 +18424,689 @@
           "name": "Songsterr",
           "url": "https://www.songsterr.com/a/wsa/muslum-gurses-affet-sheet-s671202",
           "role": "note-source"
+        }
+      ]
+    },
+    {
+      "id": "whistle-amazing-grace",
+      "title": "Amazing Grace",
+      "aliases": [
+        "New Britain",
+        "Amazing Grace tin whistle"
+      ],
+      "subtitle": {
+        "en": "Melody cross-checked with a D whistle source",
+        "tr": "Ezgi, Re tin whistle kaynağıyla karşılaştırıldı"
+      },
+      "difficulty": {
+        "en": "Beginner",
+        "tr": "Başlangıç"
+      },
+      "notes": "D4 G4 B4 G4 B4 A4 G4 E4 D4 | D4 G4 B4 G4 B4 A4 D5 | B4 D5 B4 G4 B4 A4 G4 E4 D4 | D4 G4 B4 G4 B4 A4 G4",
+      "rhythm": {
+        "bpm": 88,
+        "source": "score",
+        "tempoSource": "default",
+        "durations": [
+          [
+            1,
+            2,
+            0.5,
+            0.5,
+            2,
+            1,
+            2,
+            1,
+            2
+          ],
+          [
+            1,
+            2,
+            0.5,
+            0.5,
+            2,
+            1,
+            5
+          ],
+          [
+            1,
+            2,
+            0.5,
+            0.5,
+            2,
+            1,
+            2,
+            1,
+            2
+          ],
+          [
+            1,
+            2,
+            0.5,
+            0.5,
+            2,
+            1,
+            5
+          ]
+        ]
+      },
+      "sourceStatus": "cross-checked",
+      "sources": [
+        {
+          "name": "Hymnary · New Britain",
+          "url": "https://hymnary.org/tune/new_britain",
+          "role": "note-source"
+        },
+        {
+          "name": "LearnTinWhistle · D whistle tab",
+          "url": "https://learntinwhistle.com/tabs/amazing-grace/",
+          "role": "cross-check"
+        }
+      ]
+    },
+    {
+      "id": "whistle-auld-lang-syne",
+      "title": "Auld Lang Syne",
+      "aliases": [
+        "Auld Lang Syne tin whistle",
+        "For Auld Lang Syne",
+        "New Year song",
+        "Yılbaşı ezgisi"
+      ],
+      "subtitle": {
+        "en": "Melody cross-checked with a D whistle source",
+        "tr": "Ezgi, Re tin whistle kaynağıyla karşılaştırıldı"
+      },
+      "difficulty": {
+        "en": "Intermediate",
+        "tr": "Orta"
+      },
+      "notes": "D4 G4 G4 G4 B4 A4 G4 A4 B4 A4 G4 G4 B4 D5 E5 G5 E5 | D5 B4 B4 G4 A4 G4 A4 B4 A4 G4 E4 E4 D4 G4 | E5 D5 B4 B4 G4 A4 G4 A4 E5 D5 B4 B4 D5 E5 G5 E5 | D5 B4 B4 G4 A4 G4 A4 B4 A4 G4 E4 E4 D4 G4",
+      "rhythm": {
+        "bpm": 92,
+        "source": "score",
+        "tempoSource": "default",
+        "durations": [
+          [
+            1,
+            1.5,
+            0.5,
+            1,
+            1,
+            1.5,
+            0.5,
+            1,
+            0.5,
+            0.5,
+            1.5,
+            0.5,
+            1,
+            1,
+            2,
+            1.5,
+            0.5
+          ],
+          [
+            1.5,
+            0.5,
+            1,
+            1,
+            1.5,
+            0.5,
+            1,
+            0.5,
+            0.5,
+            1.5,
+            0.5,
+            1,
+            1,
+            2
+          ],
+          [
+            1,
+            1.5,
+            0.5,
+            1,
+            1,
+            1.5,
+            0.5,
+            1,
+            1,
+            1.5,
+            0.5,
+            1,
+            1,
+            2,
+            1.5,
+            0.5
+          ],
+          [
+            1.5,
+            0.5,
+            1,
+            1,
+            1.5,
+            0.5,
+            1,
+            0.5,
+            0.5,
+            1.5,
+            0.5,
+            1,
+            1,
+            2
+          ]
+        ],
+        "gaps": [
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      },
+      "sourceStatus": "cross-checked",
+      "sources": [
+        {
+          "name": "Elias Howe · The Musician’s Companion (1842)",
+          "url": "https://trillian.mit.edu/~jc/music/book/EliasHowe/MusiciansCompanionP1/10041_Auld_Lang_Syne.abc",
+          "role": "note-source"
+        },
+        {
+          "name": "TinWhistleTab · D whistle tab",
+          "url": "https://www.tinwhistletab.com/tabs/auld_lang_syne_tin_whistle_tab",
+          "role": "cross-check"
+        }
+      ]
+    },
+    {
+      "id": "whistle-ode-to-joy",
+      "title": "Ode to Joy",
+      "artist": "Ludwig van Beethoven",
+      "aliases": [
+        "An die Freude",
+        "Hymn to Joy",
+        "Neşeye Övgü",
+        "Beethoven Ninth Symphony"
+      ],
+      "subtitle": {
+        "en": "Melody cross-checked with a D whistle source",
+        "tr": "Ezgi, Re tin whistle kaynağıyla karşılaştırıldı"
+      },
+      "difficulty": {
+        "en": "Beginner",
+        "tr": "Başlangıç"
+      },
+      "notes": "B4 B4 C5 D5 D5 C5 B4 A4 G4 G4 A4 B4 B4 A4 A4 | B4 B4 C5 D5 D5 C5 B4 A4 G4 G4 A4 B4 A4 G4 G4 | A4 A4 B4 G4 A4 B4 C5 B4 G4 A4 B4 C5 B4 A4 G4 A4 D4 | B4 B4 C5 D5 D5 C5 B4 A4 G4 G4 A4 B4 A4 G4 G4",
+      "rhythm": {
+        "bpm": 96,
+        "source": "score",
+        "tempoSource": "default",
+        "durations": [
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1.5,
+            0.5,
+            2
+          ],
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1.5,
+            0.5,
+            2
+          ],
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            0.5,
+            0.5,
+            1,
+            1,
+            1,
+            0.5,
+            0.5,
+            1,
+            1,
+            1,
+            1,
+            2
+          ],
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1.5,
+            0.5,
+            2
+          ]
+        ]
+      },
+      "sourceStatus": "cross-checked",
+      "sources": [
+        {
+          "name": "Hymnary · Hymn to Joy",
+          "url": "https://hymnary.org/tune/hymn_to_joy_beethoven",
+          "role": "note-source"
+        },
+        {
+          "name": "TinWhistleTab · D whistle tab",
+          "url": "https://www.tinwhistletab.com/tabs/ode-to-joy-tin-whistle-tab",
+          "role": "cross-check"
+        }
+      ]
+    },
+    {
+      "id": "whistle-the-rakes-of-mallow",
+      "title": "The Rakes of Mallow",
+      "aliases": [
+        "Rakes of Mallow",
+        "The Rakes of Mallow polka",
+        "The Rakes of Mallow tin whistle"
+      ],
+      "subtitle": {
+        "en": "Melody cross-checked with a D whistle source",
+        "tr": "Ezgi, Re tin whistle kaynağıyla karşılaştırıldı"
+      },
+      "difficulty": {
+        "en": "Intermediate",
+        "tr": "Orta"
+      },
+      "notes": "G4 B4 G4 B4 G4 B4 C5 B4 A4 G4 | F#4 A4 F#4 A4 F#4 A4 D5 C5 B4 A4 | G4 B4 G4 B4 G4 B4 D5 B4 | C5 B4 A4 G4 F#4 G4 A4 C5 B4 G4 G4 | G5 F#5 E5 D5 C5 B4 C5 D5 B4 | G5 F#5 E5 D5 C5 B4 E5 A4 | G5 F#5 E5 D5 C5 B4 C5 D5 B4 | C5 B4 A4 G4 F#4 G4 A4 C5 B4 G4 G4",
+      "rhythm": {
+        "bpm": 86,
+        "source": "score",
+        "tempoSource": "default",
+        "durations": [
+          [
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.25,
+            0.25,
+            0.25,
+            0.25
+          ],
+          [
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.25,
+            0.25,
+            0.25,
+            0.25
+          ],
+          [
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5
+          ],
+          [
+            0.25,
+            0.25,
+            0.25,
+            0.25,
+            0.25,
+            0.25,
+            0.25,
+            0.25,
+            0.5,
+            0.5,
+            0.5
+          ],
+          [
+            0.5,
+            0.25,
+            0.25,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5
+          ],
+          [
+            0.5,
+            0.25,
+            0.25,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5
+          ],
+          [
+            0.5,
+            0.25,
+            0.25,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5
+          ],
+          [
+            0.25,
+            0.25,
+            0.25,
+            0.25,
+            0.25,
+            0.25,
+            0.25,
+            0.25,
+            0.5,
+            0.5,
+            0.5
+          ]
+        ],
+        "gaps": [
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0.5,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0.5,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      },
+      "sourceStatus": "cross-checked",
+      "sources": [
+        {
+          "name": "O’Neill’s Music of Ireland (1903) · no. 1814",
+          "url": "https://trillian.mit.edu/~jc/music/book/ONeills/_1850/X/1814_bs.abc",
+          "role": "note-source"
+        },
+        {
+          "name": "LearnTinWhistle · D whistle tab",
+          "url": "https://learntinwhistle.com/tabs/the-rakes-of-mallow/",
+          "role": "cross-check"
+        }
+      ]
+    },
+    {
+      "id": "whistle-twinkle-twinkle-little-star",
+      "title": "Twinkle, Twinkle, Little Star",
+      "aliases": [
+        "Twinkle Twinkle",
+        "Ah vous dirai-je maman",
+        "Küçük Yıldız",
+        "Parla Parla Küçük Yıldız"
+      ],
+      "subtitle": {
+        "en": "Melody cross-checked with a D whistle source",
+        "tr": "Ezgi, Re tin whistle kaynağıyla karşılaştırıldı"
+      },
+      "difficulty": {
+        "en": "Beginner",
+        "tr": "Başlangıç"
+      },
+      "notes": "D4 D4 A4 A4 B4 B4 A4 | G4 G4 F#4 F#4 E4 E4 D4 | A4 A4 G4 G4 F#4 F#4 E4 | A4 A4 G4 G4 F#4 F#4 E4 | D4 D4 A4 A4 B4 B4 A4 | G4 G4 F#4 F#4 E4 E4 D4",
+      "rhythm": {
+        "bpm": 92,
+        "source": "score",
+        "tempoSource": "default",
+        "durations": [
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            2
+          ],
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            2
+          ],
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            2
+          ],
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            2
+          ],
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            2
+          ],
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            2
+          ]
+        ]
+      },
+      "sourceStatus": "cross-checked",
+      "sources": [
+        {
+          "name": "The Morgan Library · Ah! vous dirai-je, maman",
+          "url": "https://www.themorgan.org/exhibitions/online/mozart/418",
+          "role": "note-source"
+        },
+        {
+          "name": "Happy Whistling · D whistle notes",
+          "url": "https://www.youtube.com/watch?v=xmlV3uBrhIc&t=50s",
+          "role": "cross-check"
         }
       ]
     }
