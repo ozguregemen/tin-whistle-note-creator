@@ -3,7 +3,7 @@ import { buildPlaybackPlan } from "./practice.mjs";
 import { buildFollowSteps } from "./song-follow.mjs";
 
 /** @typedef {{ en: string, tr: string }} Localized */
-/** @typedef {{ id: string, title: Localized, guide: Localized, kind: "exercise" | "song", focus: string[], bpm: number, score: string }} TutorialLesson */
+/** @typedef {{ id: string, title: Localized, guide: Localized, kind: "exercise" | "song", focus: string[], bpm: number, score: string, meter?: "2/4" | "3/4" | "6/8" }} TutorialLesson */
 /** @typedef {{ id: string, title: Localized, summary: Localized, lessons: TutorialLesson[] }} TutorialUnit */
 
 /** @type {TutorialUnit[]} */
@@ -21,6 +21,15 @@ export const TUTORIAL_UNITS = [
           tr: "Başparmaklarınla çalgıyı arkadan destekle ve sol elini ağızlığa yakın tut. Yalnızca en üst deliği işaret parmağının yumuşak kısmıyla kapat. Hafifçe üfleyerek sabit bir Si sesi çıkar. Her tekrardan önce kısa bir ara ver.",
         },
         kind: "exercise", focus: ["B4"], bpm: 60, score: "B4:2 B4:2 B4:2",
+      },
+      {
+        id: "b-to-a",
+        title: { en: "From B to A", tr: "Si’den La’ya" },
+        guide: {
+          en: "Keep your left index finger down and lower your middle finger to move from B to A. Keep the air steady through the change. On the way back, lift just the middle finger.",
+          tr: "Si’den La’ya geçerken sol işaret parmağın yerinde kalsın, orta parmağını indir. Geçiş boyunca sabit üfle. Si’ye dönerken sadece orta parmağını kaldır.",
+        },
+        kind: "exercise", focus: ["B4", "A4"], bpm: 60, score: "B4:2 A4:2 B4:2 A4:2 B4:2",
       },
       {
         id: "b-a-g",
@@ -76,6 +85,16 @@ export const TUTORIAL_UNITS = [
         kind: "song", focus: ["D4", "F#4", "A4"], bpm: 74,
         score: "D4 E4 F#4 D4 D4 E4 F#4 D4 F#4 G4 A4:2 F#4 G4 A4:2",
       },
+      {
+        id: "twinkle-twinkle",
+        title: { en: "Twinkle, Twinkle, Little Star", tr: "Parla Parla Küçük Yıldız" },
+        guide: {
+          en: "Play the first two phrases. For the opening jump from low D to A, keep the top two fingers down and lift the lower four together. Breathe after the long A.",
+          tr: "Ezginin ilk iki cümlesini çal. Başta pes Re’den La’ya geçerken üstteki iki parmağın kapalı kalsın, alttaki dört parmağını birlikte kaldır. Uzun La’dan sonra nefes al.",
+        },
+        kind: "song", focus: ["D4", "A4", "B4"], bpm: 72,
+        score: "D4 D4 A4 A4 B4 B4 A4:2 G4 G4 F#4 F#4 E4 E4 D4:2",
+      },
     ],
   },
   {
@@ -112,6 +131,16 @@ export const TUTORIAL_UNITS = [
         },
         kind: "song", focus: ["F#4", "G4", "A4"], bpm: 78,
         score: "F#4 F#4 G4 A4 A4 G4 F#4 E4 D4 D4 E4 F#4 F#4:1.5 E4:0.5 E4:2",
+      },
+      {
+        id: "three-beat-waltz",
+        title: { en: "A three-beat waltz", tr: "Üç vuruşluk vals" },
+        guide: {
+          en: "Count one, two, three as the example plays. The first beat of each bar sounds a little stronger. Keep counting the second beat when a note lasts two beats.",
+          tr: "Örnek çalarken bir, iki, üç diye say. Her ölçünün ilk vuruşu biraz daha güçlü duyulur. Bir nota iki vuruş sürdüğünde ikinci vuruşu da saymaya devam et.",
+        },
+        kind: "exercise", focus: ["D4", "F#4", "A4"], bpm: 72, meter: "3/4",
+        score: "D4 F#4 A4 A4 G4 E4 D4:2 F#4 E4:2 D4",
       },
     ],
   },
@@ -150,6 +179,130 @@ export const TUTORIAL_UNITS = [
         kind: "song", focus: ["D4", "G4", "D5"], bpm: 80,
         score: "D4 G4:2 B4:0.5 G4:0.5 B4:2 A4 G4:2 E4 D4:2 D4 G4:2 B4:0.5 G4:0.5 B4:2 A4 D5:5",
       },
+      {
+        id: "upper-f-sharp",
+        title: { en: "Upper F♯", tr: "Tiz Fa diyez" },
+        guide: {
+          en: "Begin on upper D and climb through E to F♯. Keep the air flowing as you change fingers. End by easing back to low F♯ with the same fingering and gentler air.",
+          tr: "Tiz Re’den başla, Mi üzerinden Fa diyeze çık. Parmak değiştirirken hava akışını sürdür. Sonunda aynı parmak dizilimiyle daha yumuşak üfleyip pes Fa diyeze dön.",
+        },
+        kind: "exercise", focus: ["F#4", "E5", "F#5"], bpm: 68,
+        score: "D5 E5 F#5:2 E5 F#5 E5 D5:2 F#5:2 F#4:2",
+      },
+    ],
+  },
+  {
+    id: "new-keys",
+    title: { en: "New keys", tr: "Yeni tonlar" },
+    summary: { en: "Reach upper G and use C natural in G major and E minor.", tr: "Tiz Sol’a ulaş, Do natüreli Sol majör ve Mi minörde kullan." },
+    lessons: [
+      {
+        id: "upper-g",
+        title: { en: "Upper G", tr: "Tiz Sol" },
+        guide: {
+          en: "Use the same three closed holes for both Gs. As you climb from upper E through F♯, keep the air focused. Soften the air when you return to low G.",
+          tr: "İki Sol için de üstteki üç deliği kapat. Tiz Mi’den Fa diyez üzerinden yukarı çıkarken hava akışını sabit tut. Pes Sol’a dönerken nefesini yumuşat.",
+        },
+        kind: "exercise", focus: ["G4", "F#5", "G5"], bpm: 68,
+        score: "G4:2 E5 F#5 G5:2 F#5 E5 G5:2 G4:2",
+      },
+      {
+        id: "c-natural",
+        title: { en: "C natural", tr: "Do natürel" },
+        guide: {
+          en: "For C natural, leave the top hole open and close holes two and three. For C♯, open all six holes. Listen to the small step between the two notes before trying the changes.",
+          tr: "Do natürel için en üst deliği açık bırak, ikinci ve üçüncü delikleri kapat. Do diyezde altı delik de açık. Geçişi çalmadan önce iki ses arasındaki yarım tonu dinle.",
+        },
+        kind: "exercise", focus: ["B4", "C5", "C#5"], bpm: 68,
+        score: "B4 C5:2 C#5:2 C5:2 B4 A4 B4 C5:2",
+      },
+      {
+        id: "g-major-scale",
+        title: { en: "G major scale", tr: "Sol majör dizisi" },
+        guide: {
+          en: "Climb from low G to upper G and return. Remember C natural on the way up and down. Break the scale into shorter groups if the upper notes need another try.",
+          tr: "Pes Sol’dan tiz Sol’a çık ve geri dön. Hem çıkarken hem inerken Do natürel çal. Tiz geçişlerde zorlanırsan diziyi kısa gruplar halinde çalış.",
+        },
+        kind: "exercise", focus: ["G4", "C5", "G5"], bpm: 72,
+        score: "G4 A4 B4 C5 D5 E5 F#5 G5:2 F#5 E5 D5 C5 B4 A4 G4:2",
+      },
+      {
+        id: "e-minor-air",
+        title: { en: "An air in E minor", tr: "Mi minör ezgisi" },
+        guide: {
+          en: "Apply C natural in a short original melody. Keep the higher phrase flowing and hear the return to low E at the end.",
+          tr: "Do natüreli kısa, özgün bir ezgide kullan. Tiz cümlede nefes akışını sürdür ve sonda ezginin pes Mi’ye döndüğünü dinle.",
+        },
+        kind: "song", focus: ["E4", "C5", "E5"], bpm: 72,
+        score: "E4 G4 A4 B4 B4 C5 B4 G4 A4 B4 C5 D5 E5:2 D5 C5 B4 A4 F#4 E4:2",
+      },
+    ],
+  },
+  {
+    id: "irish-dances",
+    title: { en: "Irish dance tunes", tr: "İrlanda dans ezgileri" },
+    summary: { en: "Hear the pulse of a polka and a jig, then play each in a tune.", tr: "Polka ve jig vuruşlarını duy, ardından ikisini de bir ezgide çal." },
+    lessons: [
+      {
+        id: "polka-pulse",
+        title: { en: "Polka pulse", tr: "Polka vuruşu" },
+        guide: {
+          en: "Tap two beats per bar. Hear a stronger first beat followed by a lighter second beat, which sometimes contains two quicker notes.",
+          tr: "Her ölçüde iki vuruş tut. İlk vuruş daha güçlü duyulur. Daha hafif olan ikinci vuruş kimi ölçülerde iki kısa notaya bölünür.",
+        },
+        kind: "exercise", focus: ["G4", "B4", "C5"], bpm: 76, meter: "2/4",
+        score: "G4 B4:0.5 A4:0.5 G4 B4:0.5 C5:0.5 D5 C5:0.5 B4:0.5 A4 G4",
+      },
+      {
+        id: "rakes-of-mallow",
+        title: { en: "The Rakes of Mallow", tr: "The Rakes of Mallow" },
+        guide: {
+          en: "Use the two-beat pulse in the opening strain. Listen to the quick turns at the ends of the phrases, then work through the notes at your own pace.",
+          tr: "İki vuruşlu düzeni ezginin ilk bölümünde uygula. Cümle sonlarındaki hızlı geçişleri dinle, ardından notaları kendi hızında çal.",
+        },
+        kind: "song", focus: ["G4", "C5", "D5"], bpm: 76, meter: "2/4",
+        score: [
+          "G4:0.5 B4:0.5 G4:0.5 B4:0.5 G4:0.5 B4:0.5 C5:0.25 B4:0.25 A4:0.25 G4:0.25",
+          "F#4:0.5 A4:0.5 F#4:0.5 A4:0.5 F#4:0.5 A4:0.5 D5:0.25 C5:0.25 B4:0.25 A4:0.25",
+          "G4:0.5 B4:0.5 G4:0.5 B4:0.5 G4:0.5 B4:0.5 D5:0.5 B4:0.5",
+          "C5:0.25 B4:0.25 A4:0.25 G4:0.25 F#4:0.25 G4:0.25 A4:0.25 C5:0.25 B4:0.5 G4:0.5 G4:1",
+        ].join(" "),
+      },
+      {
+        id: "jig-pulse",
+        title: { en: "Two groups of three", tr: "Jig’in üçlü grupları" },
+        guide: {
+          en: "Hear two groups of three in 6/8. Tap on counts one and four. Keep the three notes in each group moving at an even pace.",
+          tr: "6/8’lik ölçüde iki tane üçlü grup duy. Birinci ve dördüncü sayılarda vuruş tut. Her grubun üç notasını eşit aralıklarla çal.",
+        },
+        kind: "exercise", focus: ["G4", "A4", "D5"], bpm: 84, meter: "6/8",
+        score: [
+          "G4:0.5 B4:0.5 D5:0.5 B4:0.5 A4:0.5 G4:0.5",
+          "F#4:0.5 A4:0.5 D5:0.5 A4:0.5 G4:0.5 F#4:0.5",
+          "E4:0.5 G4:0.5 B4:0.5 G4:0.5 F#4:0.5 E4:0.5",
+          "D4:0.5 F#4:0.5 A4:0.5 D5:1.5",
+        ].join(" "),
+      },
+      {
+        id: "irish-washerwoman",
+        title: { en: "The Irish Washerwoman", tr: "The Irish Washerwoman" },
+        guide: {
+          en: "Play the first strain of this traditional jig. Hear the two pulses in each bar. Take a short breath halfway through, then play to the final held G.",
+          tr: "Bu geleneksel jig’in ilk bölümünü çal. Her ölçüdeki iki ana vuruşu duy. Ortada kısa bir nefes al ve ezgiyi uzun Sol ile bitir.",
+        },
+        kind: "song", focus: ["G4", "C5", "D5"], bpm: 84, meter: "6/8",
+        // Goulding setting from the O'Neill collection, with the pickup omitted and the final G held.
+        score: [
+          "B4:0.5 G4:0.5 G4:0.5 D4:0.5 G4:0.5 G4:0.5",
+          "B4:0.5 G4:0.5 B4:0.5 D5:0.5 C5:0.5 B4:0.5",
+          "C5:0.5 A4:0.5 A4:0.5 E4:0.5 A4:0.5 A4:0.5",
+          "C5:0.5 A4:0.5 C5:0.5 E5:0.5 D5:0.5 C5:0.5",
+          "B4:0.5 G4:0.5 G4:0.5 D4:0.5 G4:0.5 G4:0.5",
+          "B4:0.5 G4:0.5 B4:0.5 D5:0.5 C5:0.5 B4:0.5",
+          "C5:0.5 B4:0.5 C5:0.5 A4:0.5 D5:0.5 C5:0.5",
+          "B4:0.5 G4:0.5 G4:0.5 G4:1.5",
+        ].join(" "),
+      },
     ],
   },
 ];
@@ -157,7 +310,10 @@ export const TUTORIAL_UNITS = [
 export const TUTORIAL_LESSONS = TUTORIAL_UNITS.flatMap(unit => unit.lessons);
 export const TUTORIAL_PROGRESS_PREFIX = "twnc-tutorial:completed:";
 
-/** @param {TutorialLesson} lesson */
+/**
+ * @param {TutorialLesson} lesson
+ * @returns {import("./song-follow.mjs").FollowStep[]}
+ */
 export function buildTutorialSteps(lesson) {
   const notes = [];
   const beats = [];
@@ -169,7 +325,17 @@ export function buildTutorialSteps(lesson) {
     notes.push(note);
     beats.push(length);
   }
-  return buildFollowSteps(buildPlaybackPlan([notes], { durations: [beats] }, lesson.bpm));
+  const steps = buildFollowSteps(buildPlaybackPlan([notes], { durations: [beats] }, lesson.bpm));
+  if (!lesson.meter) return steps;
+  const barLength = lesson.meter === "2/4" ? 2 : 3;
+  let elapsed = 0;
+  return steps.map((step, index) => {
+    const position = elapsed % barLength;
+    elapsed += beats[index];
+    if (position === 0) return { ...step, accent: "bar" };
+    if (lesson.meter === "6/8" && position === 1.5) return { ...step, accent: "beat" };
+    return step;
+  });
 }
 
 /** @param {Pick<Storage, "getItem">} storage */

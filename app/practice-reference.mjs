@@ -20,7 +20,7 @@ export function connectFollowInput(context, source, analyser) {
  * @param {AudioContext} context
  * @param {import("./song-follow.mjs").FollowStep} step
  * @param {() => void} [onEnded]
- * @param {{ start: number, duration: number }} [timing]
+ * @param {{ start: number, duration: number, accent?: import("./song-follow.mjs").FollowStep["accent"] }} [timing]
  */
 export function playReferenceNote(context, step, onEnded, timing) {
   const tone = context.createOscillator();
@@ -30,12 +30,13 @@ export function playReferenceNote(context, step, onEnded, timing) {
   const end = start + duration;
   // Let speaker pickup decay and clear one full pitch window before scoring.
   const inputTail = 0.18 + PITCH_WINDOW_SIZE / context.sampleRate;
+  const emphasis = timing?.accent === "bar" ? 1.3 : timing?.accent === "beat" ? 1.15 : 1;
 
   tone.type = "triangle";
   tone.frequency.value = frequencyForNote(step.pitch, step.octave);
   volume.gain.setValueAtTime(0, start);
-  volume.gain.linearRampToValueAtTime(0.24, start + 0.02);
-  volume.gain.linearRampToValueAtTime(0.17, end - 0.05);
+  volume.gain.linearRampToValueAtTime(0.24 * emphasis, start + 0.02);
+  volume.gain.linearRampToValueAtTime(0.17 * emphasis, end - 0.05);
   volume.gain.linearRampToValueAtTime(0, end);
   tone.connect(volume);
   volume.connect(context.destination);
@@ -74,7 +75,7 @@ export function playReferenceSequence(context, steps, onEnded) {
   let start = context.currentTime + 0.04;
   return steps.map((step, index) => {
     const spacing = step.durationMs / 1000;
-    const timing = { start, duration: spacing * 0.86 };
+    const timing = { start, duration: spacing * 0.86, accent: step.accent };
     playReferenceNote(context, step, index === steps.length - 1 ? onEnded : undefined, timing);
     start += spacing;
     return timing.start;

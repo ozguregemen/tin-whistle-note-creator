@@ -3,7 +3,7 @@ import { midiForWhistleNote } from "./whistle-sampler.mjs";
 
 export const FOLLOW_MIN_FREQUENCY = 420;
 
-/** @typedef {{ pitch: string, octave: number, midi: number, durationMs: number }} FollowStep */
+/** @typedef {{ pitch: string, octave: number, midi: number, durationMs: number, accent?: "bar" | "beat" }} FollowStep */
 /** @typedef {{ matched: number, feedback: { midi: number, correct: boolean } | null }} FollowProgress */
 
 /**

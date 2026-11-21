@@ -160,7 +160,9 @@ export function TutorialWorkspace({ language, onUseChange }: {
         </button>
         <header className="tutorial-lesson-heading">
           <div>
-            <p className="tutorial-lesson-position">{t.count(index + 1, total)} · {t[lesson.kind]}</p>
+            <p className="tutorial-lesson-position">
+              {t.count(index + 1, total)} · {t[lesson.kind]}{lesson.meter && ` · ${lesson.meter}`}
+            </p>
             <h1 id="tutorial-title" tabIndex={-1} ref={titleRef}>{lesson.title[language]}</h1>
           </div>
           <span className="tutorial-lesson-progress">{t.progress} <strong>{percentage}</strong></span>
