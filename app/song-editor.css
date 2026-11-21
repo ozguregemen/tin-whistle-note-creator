@@ -205,6 +205,18 @@
 .editor-finger-tools [aria-pressed="true"] { border-color: var(--green-dark); background: var(--green-dark); color: #fff; }
 .editor-finger-tools [aria-pressed="true"]:hover { background: #254838; }
 .editor-actions button { border-color: #adcbba; background: #f1f7f2; }
+.editor-register-choices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.65rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid #e5d3bf;
+  border-radius: 0.55rem;
+  background: var(--warning-soft);
+}
+.editor-register-choices p { margin: 0; color: var(--warning); }
 .editor-note-grid {
   --lane-padding: 0.52rem;
   --tile-gap: 0.46rem;

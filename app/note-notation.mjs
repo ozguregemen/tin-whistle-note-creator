@@ -45,3 +45,12 @@ const patternNotes = new Map(WHISTLE_NOTES.map(token => {
 export function noteForPattern(holes, register) {
   return patternNotes.get(`${register}:${holes}`) ?? null;
 }
+
+/** @param {string} holes */
+export function noteChoicesForPattern(holes) {
+  const registers = /** @type {const} */ ([1, 2, 3]);
+  return registers.flatMap(register => {
+    const note = noteForPattern(holes, register);
+    return note ? [{ register, note }] : [];
+  });
+}

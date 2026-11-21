@@ -2,7 +2,7 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { fingeringFor } from "./fingerings.mjs";
-import { NOTE_NAMES, noteForPattern, registerForNote } from "./note-notation.mjs";
+import { NOTE_NAMES, noteChoicesForPattern, noteForPattern, registerForNote } from "./note-notation.mjs";
 import { MAX_COMMUNITY_NOTATION, MAX_COMMUNITY_NOTES, parseCommunityNotation, validateCommunitySong } from "../shared/community-song.mjs";
 import {
   communityIssue, communityRequest, type CommunityIssue, type CommunitySession, type CommunitySong,
@@ -19,6 +19,7 @@ const copy = {
     half: "Half cover", addNote: "Add note", addPhrase: "Add phrase", openHoles: "All holes open",
     note: "Note", hole: "Hole", remove: "Remove card", register: "Register", first: "Lower",
     second: "Upper", third: "Third", newPhrase: "New phrase", noMatch: "Check fingering",
+    chooseRegister: "Choose register", registerHint: "This fingering works in these registers.",
     publish: "Publish to catalog", update: "Save changes", saving: "Saving…",
     published: "Published to the catalog.", updated: "Arrangement updated.", listen: "Listen",
     notesEntered: (count: number) => `${count} ${count === 1 ? "note" : "notes"}`,
@@ -44,6 +45,7 @@ const copy = {
     half: "Yarım kapat", addNote: "Nota ekle", addPhrase: "Bölüm ekle", openHoles: "Tümü açık",
     note: "Nota", hole: "Delik", remove: "Kartı kaldır", register: "Ses bölgesi", first: "Alt",
     second: "Üst", third: "Üçüncü", newPhrase: "Yeni bölüm", noMatch: "Dizilimi kontrol et",
+    chooseRegister: "Oktav seç", registerHint: "Bu dizilim şu ses bölgelerinde çalınır.",
     publish: "Katalogda yayımla", update: "Değişiklikleri kaydet", saving: "Kaydediliyor…",
     published: "Düzenleme katalogda yayımlandı.", updated: "Düzenleme güncellendi.", listen: "Dinle",
     notesEntered: (count: number) => `${count} nota`,
@@ -137,6 +139,7 @@ export function SongEditor({ language, visible, source, author, session, onExpir
 }) {
   const t = copy[language];
   const gridRef = useRef<HTMLOListElement>(null);
+  const registerRef = useRef<HTMLSelectElement>(null);
   const listenRef = useRef<HTMLButtonElement>(null);
   const editingId = source && source.contributor === author ? source.id : null;
   const [title, setTitle] = useState(source?.title ?? "");
@@ -157,9 +160,19 @@ export function SongEditor({ language, visible, source, author, session, onExpir
   const selectedIndex = Math.max(0, cells.findIndex(cell => cell.id === selectedCell));
   const activeCell = cells[selectedIndex];
   const activeLabel = `${t.note} ${selectedIndex + 1}`;
-  const resolvedNotes = cells.map(cellNote);
-  const notesEntered = resolvedNotes.filter(Boolean).length;
+  const registerLabels = { 1: t.first, 2: t.second, 3: t.third };
+  const resolved = cells.map(cell => {
+    const note = cellNote(cell);
+    return { note, choices: cell.entered && !note ? noteChoicesForPattern(cell.holes) : [] };
+  });
+  const registerChoices = resolved[selectedIndex].choices;
+  const notesEntered = resolved.filter(({ note }) => note).length;
   const canImport = Boolean(source?.notes && (method === "text" ? !notation.trim() : !cells.some(cell => cell.entered)));
+
+  function noteLabel(note: NonNullable<ReturnType<typeof noteForPattern>>) {
+    const pitch = `${note.pitch}${note.octave}`;
+    return language === "tr" ? `${NOTE_NAMES[note.pitch]} · ${pitch}` : pitch;
+  }
 
   function fillDiagramFromNotes(notes: string) {
     const diagram = diagramFromNotes(notes);
@@ -278,7 +291,7 @@ export function SongEditor({ language, visible, source, author, session, onExpir
               <div className="editor-toolbar">
                 <div className="editor-finger-tools" role="group" aria-label={activeLabel}>
                   <label>{t.register}
-                    <select value={activeCell.register} aria-label={`${activeLabel} · ${t.register}`}
+                    <select ref={registerRef} value={activeCell.register} aria-label={`${activeLabel} · ${t.register}`}
                       onChange={event => patchCell(activeCell.id, { register: Number(event.target.value) as Register })}>
                       <option value={1}>{t.first}</option><option value={2}>{t.second}</option><option value={3}>{t.third}</option>
                     </select>
@@ -292,9 +305,20 @@ export function SongEditor({ language, visible, source, author, session, onExpir
                   <button type="button" className="secondary-action" disabled={cells.length >= MAX_COMMUNITY_NOTES} onClick={() => appendCell(true)}>{t.addPhrase}</button>
                 </div>
               </div>
+              {registerChoices.length > 0 && (
+                <div className="editor-register-choices" role="group" aria-label={`${activeLabel} · ${t.chooseRegister}`}>
+                  <p>{t.registerHint}</p>
+                  {registerChoices.map(({ register, note }) => (
+                    <button key={register} type="button" className="secondary-action" onClick={() => {
+                      patchCell(activeCell.id, { register });
+                      registerRef.current?.focus({ preventScroll: true });
+                    }}>{registerLabels[register]} · {noteLabel(note)}</button>
+                  ))}
+                </div>
+              )}
               <ol className="song-follow-grid song-follow-attempts editor-note-grid" ref={gridRef} aria-describedby="editor-note-hint">
                 {cells.map((cell, index) => {
-                  const note = resolvedNotes[index];
+                  const { note, choices } = resolved[index];
                   const number = index + 1;
                   const described = `${t.note} ${number}`;
                   const current = cell.id === activeCell.id;
@@ -318,8 +342,8 @@ export function SongEditor({ language, visible, source, author, session, onExpir
                         ))}
                       </div>
                       <output aria-live={current ? "polite" : "off"}>{note
-                        ? language === "tr" ? `${NOTE_NAMES[note.pitch]} · ${note.pitch}${note.octave}` : `${note.pitch}${note.octave}`
-                        : cell.entered ? t.noMatch : ""}</output>
+                        ? noteLabel(note)
+                        : cell.entered ? (choices.length ? t.chooseRegister : t.noMatch) : ""}</output>
                     </li>
                   );
                 })}

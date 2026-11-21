@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { noteForPattern } from "../app/note-notation.mjs";
+import { noteChoicesForPattern, noteForPattern } from "../app/note-notation.mjs";
 import { parseCommunityNotation } from "../shared/community-song.mjs";
 import { handleCommunity, initializeCommunityStorage } from "../worker/community-api.mjs";
 
@@ -13,6 +13,8 @@ test("editor notation checks every note and the hole chart distinguishes registe
   assert.equal(noteForPattern("111110", 1).octave, 4);
   assert.equal(noteForPattern("111110", 2).octave, 5);
   assert.equal(noteForPattern("011111", 2).pitch, "D");
+  assert.equal(noteForPattern("011111", 1), null);
+  assert.deepEqual(noteChoicesForPattern("011111").map(({ register, note }) => [register, note.token]), [[2, "D5"], [3, "D6"]]);
   assert.equal(noteForPattern("010101", 1), null);
 });
 
@@ -53,11 +55,14 @@ test("community requires an account, attributes each version, and restricts edit
     }
     const draft = { title: "Practice tune", artist: "Traditional", bpm: 168, notes: "Re Mi Fa# | Sol" };
     assert.equal((await request("songs", { method: "POST", body: draft })).status, 401);
-    const password = "a dedicated fixture password";
+    const password = "Bee%5R7u";
+    const tooShort = await request("register", { method: "POST", body: { username: "Alice", password: password.slice(1) } });
+    assert.equal(tooShort.status, 400);
+    assert.equal(tooShort.data.error, "invalid_password");
     const alice = await request("register", { method: "POST", body: { username: "Alice", password } });
     assert.equal(alice.status, 201);
     assert.equal((await request("register", { method: "POST", body: { username: "alice", password } })).status, 409);
-    const bob = await request("register", { method: "POST", body: { username: "Bob", password } });
+    const bob = await request("register", { method: "POST", body: { username: "Bob", password: "a dedicated fixture password" } });
     assert.equal(bob.status, 201);
     assert.equal((await request("login", { method: "POST", body: { username: "Alice", password: password + " wrong" } })).status, 401);
     const login = await request("login", { method: "POST", body: { username: "ALICE", password } });

@@ -1,6 +1,7 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { normalizeSearchText } from "../app/search-relevance.mjs";
+import { MAX_COMMUNITY_PASSWORD_LENGTH, MIN_COMMUNITY_PASSWORD_LENGTH } from "../shared/community-auth.mjs";
 import { COMMUNITY_PAGE_SIZE, COMMUNITY_PATH, validateCommunitySong } from "../shared/community-song.mjs";
 
 const deriveKey = promisify(scrypt);
@@ -106,7 +107,7 @@ async function signIn(request, storage, register) {
   const userKey = username.toLowerCase();
   const passwordLength = typeof password === "string" ? [...password].length : 0;
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{2,23}$/.test(username)) throw new CommunityError(400, "invalid_username");
-  if (passwordLength < 15 || passwordLength > 128) {
+  if (passwordLength < MIN_COMMUNITY_PASSWORD_LENGTH || passwordLength > MAX_COMMUNITY_PASSWORD_LENGTH) {
     throw new CommunityError(400, "invalid_password");
   }
   if (register) {

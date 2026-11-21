@@ -1,18 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { MAX_COMMUNITY_PASSWORD_LENGTH, MIN_COMMUNITY_PASSWORD_LENGTH } from "../shared/community-auth.mjs";
 import {
   communityIssue, communityRequest, readCommunitySession, storeCommunitySession,
   type CommunityPage, type CommunitySession, type CommunitySong,
 } from "./community-client";
 import { SongEditor, type EditorSource } from "./song-editor";
 
+const passwordLengthRange = `${MIN_COMMUNITY_PASSWORD_LENGTH}–${MAX_COMMUNITY_PASSWORD_LENGTH}`;
+
 const copy = {
   en: {
     signIn: "Sign in", signUp: "Create account", close: "Close", checking: "Checking your session…",
     username: "Username", password: "Password", show: "Show", hide: "Hide", showPassword: "Show password", hidePassword: "Hide password",
     usernameHint: "Use 3–24 characters. Start with A–Z or a number. Dots, underscores and hyphens are also allowed.",
-    passwordHint: "Use 15–128 characters.", registered: "Already have an account?", newHere: "New here?",
+    passwordHint: `Use ${passwordLengthRange} characters.`, registered: "Already have an account?", newHere: "New here?",
     registerHelp: "Create a username and password to share your tin whistle arrangements.",
     signInHelp: "Sign in to manage your contributions.",
     addHelp: "An account lets you add songs to the catalog under your username.",
@@ -23,7 +26,7 @@ const copy = {
     empty: "Your published arrangements will appear here.", loading: "Loading your contributions…", more: "Show more", retry: "Try again",
     errors: {
       invalid_username: "Enter a username of 3–24 characters using letters, numbers, dots, hyphens or underscores.",
-      invalid_password: "Enter a password with 15–128 characters.",
+      invalid_password: `Enter a password with ${passwordLengthRange} characters.`,
       username_taken: "This username is taken. Choose another one or sign in.",
       incorrect_credentials: "The username or password is incorrect.",
       try_later: "Too many attempts. Wait a moment and try again.",
@@ -34,7 +37,7 @@ const copy = {
     signIn: "Giriş yap", signUp: "Hesap oluştur", close: "Kapat", checking: "Oturum kontrol ediliyor…",
     username: "Kullanıcı adı", password: "Şifre", show: "Göster", hide: "Gizle", showPassword: "Şifreyi göster", hidePassword: "Şifreyi gizle",
     usernameHint: "3–24 karakter. A–Z arası bir harf veya rakamla başla. Nokta, alt çizgi ve kısa çizgi de kullanabilirsin.",
-    passwordHint: "15–128 karakter kullan.", registered: "Zaten hesabın var mı?", newHere: "Hesabın yok mu?",
+    passwordHint: `${passwordLengthRange} karakter kullan.`, registered: "Zaten hesabın var mı?", newHere: "Hesabın yok mu?",
     registerHelp: "Tin whistle düzenlemelerini paylaşmak için bir kullanıcı adı ve şifre oluştur.",
     signInHelp: "Katkılarını yönetmek için giriş yap.",
     addHelp: "Kataloğa kendi kullanıcı adınla şarkı eklemek için hesap oluştur veya giriş yap.",
@@ -45,7 +48,7 @@ const copy = {
     empty: "Yayımladığın düzenlemeler burada görünecek.", loading: "Katkıların yükleniyor…", more: "Daha fazla göster", retry: "Tekrar dene",
     errors: {
       invalid_username: "3–24 karakterlik bir kullanıcı adı gir. Harf, rakam, nokta, tire veya alt çizgi kullan.",
-      invalid_password: "15–128 karakterlik bir şifre gir.",
+      invalid_password: `${passwordLengthRange} karakterlik bir şifre gir.`,
       username_taken: "Bu kullanıcı adı kullanılıyor. Başka bir ad seç veya giriş yap.",
       incorrect_credentials: "Kullanıcı adı veya şifre hatalı.",
       try_later: "Çok fazla deneme yapıldı. Biraz bekleyip tekrar dene.",
