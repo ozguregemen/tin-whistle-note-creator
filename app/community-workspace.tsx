@@ -24,6 +24,11 @@ const copy = {
     expired: "Your session ended. Sign in to keep working on this arrangement.",
     signingIn: "Signing in…", registering: "Creating account…", signingOut: "Signing out…", signOut: "Sign out",
     contributions: "My contributions", add: "Add song", listen: "Listen", edit: "Edit", arrange: "Create your version", editSong: "Edit song",
+    delete: "Delete", cancelDelete: "Cancel", confirmDelete: "Delete song", deleting: "Deleting…",
+    deleteTitle: (title: string) => `Delete “${title}”?`,
+    deleteHelp: "This permanently removes your arrangement and its ratings from the catalog.",
+    deleted: (title: string) => `“${title}” was deleted from the catalog.`,
+    deleteFailed: "The song could not be deleted. Try again.",
     empty: "Your published arrangements will appear here.", loading: "Loading your contributions…", more: "Show more", retry: "Try again",
     errors: {
       invalid_username: "Enter a username of 3–24 characters using letters, numbers, dots, hyphens or underscores.",
@@ -47,6 +52,11 @@ const copy = {
     expired: "Oturumun sona erdi. Bu düzenlemeye devam etmek için giriş yap.",
     signingIn: "Giriş yapılıyor…", registering: "Hesap oluşturuluyor…", signingOut: "Çıkış yapılıyor…", signOut: "Çıkış yap",
     contributions: "Katkılarım", add: "Şarkı ekle", listen: "Dinle", edit: "Düzenle", arrange: "Kendi sürümünü oluştur", editSong: "Şarkıyı düzenle",
+    delete: "Sil", cancelDelete: "Vazgeç", confirmDelete: "Şarkıyı sil", deleting: "Siliniyor…",
+    deleteTitle: (title: string) => `“${title}” silinsin mi?`,
+    deleteHelp: "Bu işlem düzenlemeni ve aldığı puanları katalogdan kalıcı olarak kaldırır.",
+    deleted: (title: string) => `“${title}” katalogdan silindi.`,
+    deleteFailed: "Şarkı silinemedi. Tekrar dene.",
     empty: "Yayımladığın düzenlemeler burada görünecek.", loading: "Katkıların yükleniyor…", more: "Daha fazla göster", retry: "Tekrar dene",
     errors: {
       invalid_username: "3–24 karakterlik bir kullanıcı adı gir. Harf, rakam, nokta, tire veya alt çizgi kullan.",
@@ -194,12 +204,13 @@ function AccountForm({ language, mode, context, onMode, onAuthenticated }: {
   );
 }
 
-function MyContributions({ language, session, onAdd, onEdit, onListen, onSignOut, onExpired }: {
+function MyContributions({ language, session, onAdd, onEdit, onListen, onDeleted, onSignOut, onExpired }: {
   language: Language;
   session: CommunitySession;
   onAdd: () => void;
   onEdit: (song: CommunitySong) => void;
   onListen: (song: CommunitySong) => void;
+  onDeleted: (songId: string) => void;
   onSignOut: () => void;
   onExpired: () => void;
 }) {
@@ -210,6 +221,14 @@ function MyContributions({ language, session, onAdd, onEdit, onListen, onSignOut
   const [issue, setIssue] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutIssue, setSignOutIssue] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<CommunitySong | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteIssue, setDeleteIssue] = useState<"deleteFailed" | "try_later" | null>(null);
+  const [removedTitle, setRemovedTitle] = useState<string | null>(null);
+  const deleteTrigger = useRef<HTMLButtonElement>(null);
+  const cancelDeleteButton = useRef<HTMLButtonElement>(null);
+  const addButton = useRef<HTMLButtonElement>(null);
+  const confirmingDelete = deleteTarget !== null;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -222,6 +241,10 @@ function MyContributions({ language, session, onAdd, onEdit, onListen, onSignOut
       });
     return () => controller.abort();
   }, [onExpired, request, session.token]);
+
+  useEffect(() => {
+    if (deleteTarget) cancelDeleteButton.current?.focus({ preventScroll: true });
+  }, [deleteTarget]);
 
   async function loadMore() {
     if (page?.nextOffset == null || busy) return;
@@ -236,6 +259,47 @@ function MyContributions({ language, session, onAdd, onEdit, onListen, onSignOut
       else setIssue(true);
     } finally {
       setBusy(false);
+    }
+  }
+
+  function askToDelete(song: CommunitySong, trigger: HTMLButtonElement) {
+    deleteTrigger.current = trigger;
+    setDeleteIssue(null);
+    setRemovedTitle(null);
+    setDeleteTarget(song);
+  }
+
+  function cancelDelete() {
+    setDeleteTarget(null);
+    window.requestAnimationFrame(() => deleteTrigger.current?.focus({ preventScroll: true }));
+  }
+
+  async function deleteSong() {
+    if (!deleteTarget || deleting || busy) return;
+    const { id, title } = deleteTarget;
+    setDeleting(true);
+    setDeleteIssue(null);
+    try {
+      await communityRequest(`songs/${id}`, { method: "DELETE", token: session.token }).catch((error: unknown) => {
+        if (communityIssue(error).error !== "song_not_found") throw error;
+      });
+      setPage(current => current && {
+        songs: current.songs.filter(song => song.id !== id),
+        nextOffset: current.nextOffset === null ? null : current.nextOffset - 1,
+      });
+      setDeleteTarget(null);
+      setRemovedTitle(title);
+      onDeleted(id);
+      window.requestAnimationFrame(() => addButton.current?.focus({ preventScroll: true }));
+    } catch (error) {
+      const code = communityIssue(error).error;
+      if (code === "sign_in_required") {
+        if (addButton.current) onExpired();
+      } else {
+        setDeleteIssue(code === "try_later" ? "try_later" : "deleteFailed");
+      }
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -257,35 +321,57 @@ function MyContributions({ language, session, onAdd, onEdit, onListen, onSignOut
       <div className="community-user">
         <span className="community-avatar" aria-hidden="true">{session.username[0]?.toUpperCase()}</span>
         <strong>@{session.username}</strong>
-        <button className="secondary-action" type="button" onClick={signOut} disabled={signingOut}>
+        <button className="secondary-action" type="button" onClick={signOut} disabled={signingOut || confirmingDelete}>
           {signingOut ? t.signingOut : t.signOut}
         </button>
       </div>
       {signOutIssue && <p className="community-error" role="alert">{t.errors.community_unavailable}</p>}
       <div className="community-library-list">
+        {removedTitle && <p className="community-delete-status" role="status">{t.deleted(removedTitle)}</p>}
         {!page && !issue && <p role="status">{t.loading}</p>}
         {page?.songs.length === 0 && <p>{t.empty}</p>}
         {!!page?.songs.length && <ul>
           {page.songs.map(song => (
             <li key={song.id}>
               <div><strong>{song.title}</strong>{song.artist && <small>{song.artist}</small>}</div>
-              <div className="community-row-actions">
-                <button type="button" className="secondary-action" aria-label={`${t.listen} · ${song.title}`} onClick={() => onListen(song)}>{t.listen}</button>
-                <button type="button" className="secondary-action" aria-label={`${t.edit} · ${song.title}`} onClick={() => onEdit(song)}>{t.edit}</button>
+              <div className="community-row-actions" hidden={deleteTarget?.id === song.id}>
+                <button type="button" className="secondary-action" aria-label={`${t.listen} · ${song.title}`}
+                  disabled={confirmingDelete} onClick={() => onListen(song)}>{t.listen}</button>
+                <button type="button" className="secondary-action" aria-label={`${t.edit} · ${song.title}`}
+                  disabled={confirmingDelete} onClick={() => onEdit(song)}>{t.edit}</button>
+                <button type="button" className="secondary-action community-delete-action" aria-label={`${t.delete} · ${song.title}`}
+                  disabled={confirmingDelete || busy || signingOut} onClick={event => askToDelete(song, event.currentTarget)}>{t.delete}</button>
               </div>
+              {deleteTarget?.id === song.id && (
+                <div className="community-delete-confirm" role="group" aria-labelledby="community-delete-title"
+                  aria-describedby="community-delete-help">
+                  <p id="community-delete-title"><strong>{t.deleteTitle(song.title)}</strong></p>
+                  <p id="community-delete-help">{t.deleteHelp}</p>
+                  {deleteIssue && <p className="community-error" role="alert">
+                    {deleteIssue === "try_later" ? t.errors.try_later : t.deleteFailed}
+                  </p>}
+                  <div className="community-row-actions">
+                    <button className="secondary-action" type="button" ref={cancelDeleteButton} disabled={deleting}
+                      onClick={cancelDelete}>{t.cancelDelete}</button>
+                    <button className="community-primary community-delete-submit" type="button" disabled={deleting}
+                      onClick={() => void deleteSong()}>{deleting ? t.deleting : t.confirmDelete}</button>
+                  </div>
+                </div>
+              )}
             </li>
           ))}
         </ul>}
         {issue && <p className="community-error" role="alert">{t.errors.community_unavailable}</p>}
         {!page && issue && <button className="secondary-action" type="button" onClick={() => { setIssue(false); setRequest(value => value + 1); }}>{t.retry}</button>}
-        {page?.nextOffset != null && <button className="secondary-action" type="button" disabled={busy} onClick={loadMore}>{busy ? t.loading : t.more}</button>}
+        {page?.nextOffset != null && <button className="secondary-action" type="button" disabled={busy || confirmingDelete}
+          onClick={loadMore}>{busy ? t.loading : t.more}</button>}
       </div>
-      <button className="community-primary" type="button" onClick={onAdd}>{t.add}</button>
+      <button className="community-primary" type="button" ref={addButton} disabled={confirmingDelete} onClick={onAdd}>{t.add}</button>
     </div>
   );
 }
 
-export function CommunityWorkspace({ language, account, panel, source, editorRevision, onClose, onAdd, onEdit, onSaved, onListen }: {
+export function CommunityWorkspace({ language, account, panel, source, editorRevision, onClose, onAdd, onEdit, onSaved, onListen, onDeleted }: {
   language: Language;
   account: ReturnType<typeof useCommunityAccount>;
   panel: CommunityPanel;
@@ -296,6 +382,7 @@ export function CommunityWorkspace({ language, account, panel, source, editorRev
   onEdit: (song: CommunitySong) => void;
   onSaved: () => void;
   onListen: (song: CommunitySong) => void;
+  onDeleted: (songId: string) => void;
 }) {
   const t = copy[language];
   const { session, draftOwner, updateSession, expireSession } = account;
@@ -343,7 +430,7 @@ export function CommunityWorkspace({ language, account, panel, source, editorRev
           if (panel === "rating") onClose();
         }} />}
       {pane === "account" && session && <MyContributions language={language} session={session} onAdd={onAdd} onEdit={onEdit}
-        onListen={listen} onSignOut={() => { updateSession(null); onClose(); }} onExpired={expireSession} />}
+        onListen={listen} onDeleted={onDeleted} onSignOut={() => { updateSession(null); onClose(); }} onExpired={expireSession} />}
       {draftOwner && source !== undefined && <SongEditor key={`${draftOwner}:${editorRevision}`} language={language}
         visible={pane === "editor"} source={source} author={draftOwner} session={session ?? null}
         onExpired={expireSession} onSaved={onSaved} onListen={listen} />}

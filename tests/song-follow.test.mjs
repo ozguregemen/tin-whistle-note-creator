@@ -19,44 +19,78 @@ test("a score exercise compares the sounding octave of the arranged D whistle pa
   assert.deepEqual(buildFollowSteps(buildPlaybackPlan([[{ pitch: "C", octave: 4 }]], undefined)), []);
 });
 
-test("a wrong note keeps the same target, and a correct note fills it", () => {
-  const follower = createSongFollower(steps);
-  assert.deepEqual(follower.hear(86), { matched: 0, feedback: { midi: 86, correct: false } });
-  assert.equal(follower.hear(86), null);
-  assert.deepEqual(follower.hear(74), { matched: 1, feedback: { midi: 74, correct: true } });
-  assert.deepEqual(follower.hear(76), { matched: 1, feedback: { midi: 76, correct: false } });
-  assert.deepEqual(follower.hear(74), { matched: 2, feedback: { midi: 74, correct: true } });
-  assert.deepEqual(follower.hear(76), { matched: 3, feedback: { midi: 76, correct: true } });
-  assert.equal(follower.hear(74), null);
+function sustainPitch(follower, midi, start) {
+  let feedback = null;
+  for (const offset of [0, 32, 64, 96, 128]) feedback = follower.hear(midi, start + offset) ?? feedback;
+  return feedback;
+}
+
+test("short transition pitches are ignored and feedback waits for stable notes", () => {
+  const follower = createSongFollower([{ midi: 74 }, { midi: 76 }]);
+  for (const now of [0, 32, 64, 96]) assert.equal(follower.hear(86, now), null);
+  assert.deepEqual(follower.hear(86, 128), { matched: 0, feedback: { midi: 86, correct: false } });
+  for (const now of [160, 192, 224]) assert.equal(follower.hear(74, now), null);
+  assert.deepEqual(follower.hear(74, 256), { matched: 1, feedback: { midi: 74, correct: true } });
+  assert.equal(follower.hear(77, 288), null);
+  assert.equal(follower.hear(77, 320), null);
+  assert.deepEqual(sustainPitch(follower, 76, 352), { matched: 2, feedback: { midi: 76, correct: true } });
 });
 
-test("holding a note does not fill a repeat and releasing allows a fresh attack", () => {
-  const follower = createSongFollower(steps);
-  assert.equal(follower.hear(74)?.matched, 1);
-  for (let frame = 0; frame < 15; frame += 1) assert.equal(follower.hear(74), null);
+test("held or wandering pitches cannot fill repeated notes without a fresh attack", () => {
+  const follower = createSongFollower([{ midi: 83 }, { midi: 83 }, { midi: 83 }]);
+  assert.equal(sustainPitch(follower, 83, 0)?.matched, 1);
+  assert.equal(sustainPitch(follower, 83, 160), null);
+  assert.deepEqual(sustainPitch(follower, 82, 320), { matched: 1, feedback: { midi: 82, correct: false } });
+  assert.equal(sustainPitch(follower, 83, 480), null);
   follower.release();
-  assert.equal(follower.hear(74)?.matched, 2);
+  assert.equal(sustainPitch(follower, 83, 640)?.matched, 2);
+  assert.equal(sustainPitch(follower, 83, 800), null);
+  follower.release();
+  assert.equal(sustainPitch(follower, 83, 960)?.matched, 3);
+});
+
+test("time without audio observations cannot confirm a pitch", () => {
+  const follower = createSongFollower(steps);
+  assert.equal(follower.hear(74, 0), null);
+  assert.equal(follower.hear(74, 400), null);
+  assert.equal(follower.hear(74, 432), null);
+  assert.equal(follower.hear(74, 464), null);
+  assert.equal(follower.hear(74, 496)?.matched, 1);
 });
 
 test("pause and resume preserve both matched notes and the next target", () => {
   const follower = createSongFollower(steps);
-  follower.hear(74);
-  follower.release();
-  const progress = follower.hear(74);
+  const progress = sustainPitch(follower, 74, 0);
   const resumed = createSongFollower(steps, progress);
-  assert.deepEqual(resumed.hear(74), { matched: 2, feedback: { midi: 74, correct: false } });
-  assert.equal(resumed.hear(76)?.matched, 3);
+  assert.equal(sustainPitch(resumed, 74, 0), null);
+  resumed.release();
+  assert.equal(sustainPitch(resumed, 74, 160)?.matched, 2);
+  assert.equal(sustainPitch(resumed, 76, 320)?.matched, 3);
 });
 
-test("breathing or tonguing can rearm a repeat while the older part of the sample is still voiced", () => {
+test("a brief dropout or a quiet sustained tone cannot rearm a repeat", () => {
   const rate = 48_000;
-  const released = createWhistleReleaseDetector(rate);
+  const observe = createWhistleReleaseDetector(rate);
   const samples = new Float32Array(PITCH_WINDOW_SIZE).fill(0.12);
-  assert.equal(released(samples), false);
+  assert.deepEqual(observe(samples, 0), { quiet: false, released: false });
   samples.fill(0.002, samples.length - 600);
-  assert.equal(released(samples), true);
-  samples.fill(0.025);
-  assert.equal(released(samples), false);
+  assert.deepEqual(observe(samples, 16), { quiet: true, released: false });
+  assert.deepEqual(observe(samples, 32), { quiet: true, released: false });
+  for (let index = samples.length - 600; index < samples.length; index += 1) {
+    samples[index] = 0.014 * Math.sin(index * 2 * Math.PI * 987.77 / rate);
+  }
+  for (const now of [48, 64, 80, 96]) assert.deepEqual(observe(samples, now), { quiet: false, released: false });
+});
+
+test("a sustained gap rearms once even with older pitched audio in the window", () => {
+  const observe = createWhistleReleaseDetector(48_000);
+  const samples = new Float32Array(PITCH_WINDOW_SIZE).fill(0.12);
+  observe(samples, 0);
+  samples.fill(0.002, samples.length - 600);
+  for (const now of [16, 32, 48, 64]) assert.deepEqual(observe(samples, now), { quiet: true, released: false });
+  assert.deepEqual(observe(samples, 80), { quiet: true, released: true });
+  assert.deepEqual(observe(samples, 96), { quiet: true, released: false });
+  assert.deepEqual(observe(samples, 600), { quiet: true, released: false });
 });
 
 test("the guide plays in the target octave and protects the mic window after the cue", () => {

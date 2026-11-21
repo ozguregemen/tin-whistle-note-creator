@@ -267,6 +267,13 @@ export async function handleCommunity(request, storage) {
       }
       if (method === "PUT") return Response.json(await saveRating(storage, request, ratingId));
     }
+    if (method === "DELETE" && SONG_ID.test(updateId)) {
+      const user = requireAccount(sql, request);
+      const [removed] = sql.exec("DELETE FROM community_songs WHERE id = ? AND author_id = ? RETURNING id",
+        updateId, user.id).toArray();
+      if (!removed) throw new CommunityError(404, "song_not_found");
+      return new Response(null, { status: 204 });
+    }
     const create = method === "POST" && path === "songs";
     const update = method === "PUT" && SONG_ID.test(updateId);
     if (create || update) {

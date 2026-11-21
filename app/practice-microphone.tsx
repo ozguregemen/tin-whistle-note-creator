@@ -373,40 +373,36 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
       const samples = new Float32Array(PITCH_WINDOW_SIZE);
       const detect = createPitchDetector(capture.context.sampleRate, follower ? FOLLOW_MIN_FREQUENCY : undefined);
       const detectRelease = createWhistleReleaseDetector(capture.context.sampleRate);
-      let track = createPitchTracker();
+      const track = createPitchTracker();
       let lastUpdate = -Infinity;
       let lastNote: Pitch | null = null;
-      let wasQuiet = false;
       function read(now: number) {
         if (captureRef.current !== capture) return;
         const cue = capture.cue;
         const audioTime = capture.context.currentTime;
-        if (follower && (!cue || audioTime >= cue.endsAt)) {
-          // A short energy window can detect a breath between repeated pitches
-          // even when the longer window still holds the previous note.
-          analyser.getFloatTimeDomainData(samples);
-          const quiet = detectRelease(samples);
-          if (quiet && !wasQuiet) {
-            follower.release();
-            track = createPitchTracker();
-          }
-          wasQuiet = quiet;
-        }
+        const timeMs = audioTime * 1000;
         if (cue) {
           if (audioTime < cue.listenAt) {
             capture.frame = requestAnimationFrame(read);
             return;
           }
           capture.cue = undefined;
-          track = createPitchTracker();
+          follower?.hear(null, timeMs);
           if (guideEnabledRef.current) setGuidePhase("ready");
+        }
+        let quiet = false;
+        if (follower) {
+          analyser.getFloatTimeDomainData(samples);
+          const releaseReading = detectRelease(samples, timeMs);
+          quiet = releaseReading.quiet;
+          if (releaseReading.released) follower.release();
         }
         if (now - lastUpdate >= 32) {
           lastUpdate = now;
           if (!follower) analyser.getFloatTimeDomainData(samples);
-          const next = !wasQuiet ? track(detect(samples)) : null;
+          const detected = quiet ? null : detect(samples);
           if (follower) {
-            const updated = next ? follower.hear(next.midi) : null;
+            const updated = follower.hear(detected?.midi ?? null, timeMs);
             if (updated) {
               setProgress(updated);
               if (updated.matched === steps.length) {
@@ -419,9 +415,12 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
                 if (guideEnabledRef.current && capture.step) cueStep(capture, capture.step);
               }
             }
-          } else if (next?.midi !== lastNote?.midi || Math.round(next?.frequency ?? 0) !== Math.round(lastNote?.frequency ?? 0)) {
-            lastNote = next;
-            setNote(next);
+          } else {
+            const next = track(detected);
+            if (next?.midi !== lastNote?.midi || Math.round(next?.frequency ?? 0) !== Math.round(lastNote?.frequency ?? 0)) {
+              lastNote = next;
+              setNote(next);
+            }
           }
         }
         capture.frame = requestAnimationFrame(read);

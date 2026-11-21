@@ -154,7 +154,25 @@
 .community-library-list li:first-child { padding-top: 0; }
 .community-library-list li > div:first-child { flex: 1 1 7rem; min-width: 0; overflow-wrap: anywhere; }
 .community-library-list small { display: block; margin-top: 0.2rem; }
-.community-row-actions { display: flex; gap: 0.35rem; }
+.community-row-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.community-delete-action { color: #8b3832; }
+.community-delete-action:hover:not(:disabled) { border-color: #d3aaa4; background: #fff1ef; }
+.community-delete-confirm {
+  display: grid;
+  flex: 1 0 100%;
+  min-width: 0;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border: 1px solid #e0c1bb;
+  border-radius: 0.55rem;
+  background: #fff6f3;
+}
+.community-delete-confirm p { margin: 0; overflow-wrap: anywhere; }
+.community-delete-confirm p[id="community-delete-help"] { color: var(--muted); font-size: 0.875rem; line-height: 1.45; }
+.community-delete-confirm .community-row-actions { justify-content: flex-end; }
+.community-delete-submit { border-color: #883b34; background: #883b34; }
+.community-delete-submit:hover:not(:disabled) { background: #74322d; }
+.community-library-list > .community-delete-status { margin-bottom: 0.7rem; color: var(--green-dark); }
 
 .editor-form { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
 .editor-body { padding-bottom: 1.2rem; }

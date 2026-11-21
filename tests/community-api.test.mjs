@@ -87,6 +87,30 @@ test("community requires an account, attributes each version, and restricts edit
   assert.equal((await request("session", { token: login.data.token })).status, 401);
 });
 
+test("only the author can delete a version and its ratings are removed with it", async context => {
+  const { request, database } = communityRequests(context);
+  const [alice, bob] = await Promise.all(["Alice", "Bob"].map(username =>
+    request("register", { method: "POST", body: { username, password: "Bee%5R7u" } })));
+  const aliceToken = alice.data.token;
+  const bobToken = bob.data.token;
+  const draft = { title: "Two contributions", bpm: 96, notes: "D4 E4" };
+  const aliceSong = await request("songs", { method: "POST", token: aliceToken, body: draft });
+  const bobSong = await request("songs", { method: "POST", token: bobToken, body: draft });
+  const path = `songs/${aliceSong.data.id}`;
+  const ratingPath = `${path}/rating`;
+  assert.equal((await request(ratingPath, { method: "PUT", token: bobToken, body: { score: 4.5 } })).status, 200);
+  assert.equal((await request(path, { method: "DELETE" })).status, 401);
+  assert.deepEqual(await request(path, { method: "DELETE", token: bobToken }), { status: 404, data: { error: "song_not_found" } });
+  assert.equal((await request(ratingPath)).data.count, 1);
+  assert.deepEqual(await request(path, { method: "DELETE", token: aliceToken }), { status: 204, data: null });
+  assert.equal((await request(path, { method: "DELETE", token: aliceToken })).status, 404);
+  assert.equal((await request(ratingPath)).status, 404);
+  assert.deepEqual((await request("mine", { token: aliceToken })).data.songs, []);
+  assert.deepEqual((await request("songs?q=two")).data.songs.map(song => song.id), [bobSong.data.id]);
+  assert.equal(database.prepare("SELECT COUNT(*) AS count FROM community_song_ratings WHERE song_id = ?")
+    .get(aliceSong.data.id).count, 0);
+});
+
 test("community ratings are per version, update one vote per member, and rank by average then count", async context => {
   const { request } = communityRequests(context);
   const [alice, bob] = await Promise.all(["Alice", "Bob"].map(username =>

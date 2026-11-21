@@ -50,7 +50,7 @@ export function storeCommunitySession(session: CommunitySession | null) {
   } catch { /* The in-memory session still works. */ }
 }
 
-type RequestOptions = { method?: "GET" | "POST" | "PUT"; body?: object; token?: string; signal?: AbortSignal };
+type RequestOptions = { method?: "GET" | "POST" | "PUT" | "DELETE"; body?: object; token?: string; signal?: AbortSignal };
 
 export async function communityRequest<T>(path: string, { method = "GET", body, token, signal }: RequestOptions = {}): Promise<T> {
   const config = window as Window & { __TWNC_COMMUNITY_API_URL__?: string };

@@ -608,12 +608,14 @@ export default function Home() {
   const [songEditor, setSongEditor] = useState<{ source: EditorSource | null; revision: number }>();
   const savedEditor = useRef<number | undefined>(undefined);
   const [communitySearch, setCommunitySearch] = useState<{ query: string; songs: CommunitySong[] } | null>(null);
+  const deletedCommunitySongIds = useRef(new Set<string>());
   const [area, setArea] = useState<WorkArea>("catalog");
   const areaRef = useRef<WorkArea>("catalog");
   const inputModeRef = useRef<InputMode>("search");
   const [query, setQuery] = useState("");
   const [manualNotes, setManualNotes] = useState("");
   const [song, setSong] = useState<Song | null>(null);
+  const activeSongId = useRef<string | undefined>(undefined);
   const [pickingPracticeSong, setPickingPracticeSong] = useState(false);
   const [sourceCandidates, setSourceCandidates] = useState<SourceCandidate[]>([]);
   const [status, setStatus] = useState<StatusKey>("catalogPrepared");
@@ -692,6 +694,10 @@ export default function Home() {
   // Playback scheduling intentionally reads the latest render state from refs.
   // eslint-disable-next-line react-hooks/refs
   isPlayingRef.current = isPlaying;
+
+  useEffect(() => {
+    activeSongId.current = song?.id;
+  }, [song?.id]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("twnc-language");
@@ -1322,8 +1328,9 @@ export default function Home() {
     setStatus("searching");
     const term = query.trim();
     const communityLookup = listCommunitySongs(term).then(({ songs }) => {
-      setCommunitySearch({ query: term, songs });
-      return songs.length > 0;
+      const available = songs.filter(version => !deletedCommunitySongIds.current.has(version.id));
+      setCommunitySearch({ query: term, songs: available });
+      return available.length > 0;
     }).catch(() => false);
     try {
       const api = sourceApiUrl();
@@ -1723,6 +1730,7 @@ export default function Home() {
   }
 
   function openCatalogSong(selected: Song, destination: "listen" | "practice" = "listen") {
+    if (deletedCommunitySongIds.current.has(selected.id)) return;
     setSourceError("");
     setSourceCandidates([]);
     setSong((current) => {
@@ -1770,6 +1778,18 @@ export default function Home() {
     setCommunityRevision(revision => revision + 1);
   }
 
+  function removeCommunitySong(songId: string) {
+    deletedCommunitySongIds.current.add(songId);
+    if (activeSongId.current === songId && areaRef.current === "listen") navigateWorkspace("catalog");
+    setSong(current => current?.id === songId ? null : current);
+    setSongEditor(current => current?.source?.id === songId ? { source: null, revision: current.revision + 1 } : current);
+    setCommunitySearch(current => current && {
+      ...current,
+      songs: current.songs.filter(version => version.id !== songId),
+    });
+    setCommunityRevision(revision => revision + 1);
+  }
+
   const viewingPlayback = area === "listen";
   const practiceMicrophone = (area === "practice" && (song || !pickingPracticeSong)) || (viewingPlayback && song)
     ? <PracticeMicrophone key={`${song?.id ?? ""}:${song?.notes ?? ""}`} language={language}
@@ -1798,7 +1818,7 @@ export default function Home() {
           onSaved={() => {
             savedEditor.current = songEditor?.revision;
             setCommunityRevision(revision => revision + 1);
-          }} onListen={openCatalogSong} />
+          }} onListen={openCatalogSong} onDeleted={removeCommunitySong} />
 
         <section id="input-workspace" hidden={area !== "convert"} aria-labelledby="convert-title">
           <div className="screen-heading">

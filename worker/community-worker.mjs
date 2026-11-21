@@ -26,12 +26,12 @@ export default {
     const headers = {
       "Access-Control-Allow-Origin": origin ?? "*",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
+      "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
       "Vary": "Origin",
       "Cache-Control": "no-store",
     };
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
-    if (request.method === "POST" || request.method === "PUT") {
+    if (request.method === "POST" || request.method === "PUT" || request.method === "DELETE") {
       const suffix = url.pathname.slice(COMMUNITY_PATH.length + 1);
       const action = suffix === "register" || suffix === "login" ? suffix : "write";
       const ip = request.headers.get("CF-Connecting-IP") ?? "local";
