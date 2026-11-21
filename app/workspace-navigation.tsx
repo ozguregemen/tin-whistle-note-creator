@@ -12,8 +12,10 @@ export const workspaceCopy = {
     practiseSong: "Practise this song",
     convert: "Convert to notes",
     practice: "Practice",
-    addEditSongs: "Add or edit songs",
+    addSong: "Add song",
     editSong: "Edit song",
+    account: "Account",
+    contributions: "My contributions",
     communityResults: "Community arrangements",
     communityTempo: "User-set tempo",
     addedBy: (username: string) => `Added by @${username}`,
@@ -37,8 +39,10 @@ export const workspaceCopy = {
     practiseSong: "Bu şarkıyı prova et",
     convert: "Notaya çevir",
     practice: "Prova",
-    addEditSongs: "Şarkı ekle veya düzenle",
+    addSong: "Şarkı ekle",
     editSong: "Şarkıyı düzenle",
+    account: "Hesap",
+    contributions: "Katkılarım",
     communityResults: "Topluluk düzenlemeleri",
     communityTempo: "Kullanıcının belirlediği tempo",
     addedBy: (username: string) => `@${username} ekledi`,
@@ -55,13 +59,15 @@ export const workspaceCopy = {
   },
 };
 
-export function WorkspaceNavigation({ language, area, languageLabel, languageAction, onLanguage, onNavigate }: {
+export function WorkspaceNavigation({ language, area, languageLabel, languageAction, signedIn, onLanguage, onNavigate, onAccount }: {
   language: keyof typeof workspaceCopy;
   area: WorkArea;
   languageLabel: string;
   languageAction: string;
+  signedIn: boolean;
   onLanguage: () => void;
   onNavigate: (area: WorkArea) => void;
+  onAccount: () => void;
 }) {
   const t = workspaceCopy[language];
   const activeArea = area === "listen" ? "catalog" : area;
@@ -79,7 +85,12 @@ export function WorkspaceNavigation({ language, area, languageLabel, languageAct
             </button>
           ))}
         </nav>
-        <button className="app-language" type="button" onClick={onLanguage} aria-label={languageLabel}>{languageAction}</button>
+        <div className="app-header-actions">
+          <button className="app-account" type="button" aria-haspopup="dialog" onClick={onAccount}>
+            {signedIn ? t.contributions : t.account}
+          </button>
+          <button className="app-language" type="button" onClick={onLanguage} aria-label={languageLabel}>{languageAction}</button>
+        </div>
       </div>
     </header>
   );

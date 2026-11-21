@@ -5,7 +5,8 @@ import { parseAbcScore } from "./abc.mjs";
 import { AudioClipPicker, type AudioClipRange } from "./audio-clip-picker";
 import { CatalogBrowser, CommunitySearchResults } from "./catalog-browser";
 import { listCommunitySongs, type CommunitySong } from "./community-client";
-import { SongEditor, type EditorSource } from "./song-editor";
+import { CommunityWorkspace, useCommunityAccount, type CommunityPanel } from "./community-workspace";
+import type { EditorSource } from "./song-editor";
 import { NOTE_NAMES, normalizeNote, WHISTLE_NOTES } from "./note-notation.mjs";
 import { withBundledCatalogSongs } from "./catalog-browse.mjs";
 import whistleTunes from "../catalog/whistle-tunes.json";
@@ -205,7 +206,7 @@ const COPY = {
     half: "Half",
     open: "Open",
     print: "Print / PDF",
-    correctNotes: "Correct notes",
+    correctNotes: "Correct my copy",
     finishCorrection: "Done editing",
     correctionHint: "Select any displayed note to correct its pitch. Rhythm and note order stay unchanged.",
     correctionLabel: "Correct note",
@@ -385,7 +386,7 @@ const COPY = {
     half: "Yarım",
     open: "Açık",
     print: "Yazdır / PDF",
-    correctNotes: "Notaları düzelt",
+    correctNotes: "Kendi notalarımı düzelt",
     finishCorrection: "Düzenlemeyi bitir",
     correctionHint: "Perdesini düzeltmek istediğin notayı seç. Ritim ve nota sırası değişmez.",
     correctionLabel: "Notayı düzelt",
@@ -599,7 +600,10 @@ export default function Home() {
   const [mode, setMode] = useState<InputMode>("search");
   const [catalog, setCatalog] = useState<Song[]>(FALLBACK_SONGS);
   const [communityRevision, setCommunityRevision] = useState(0);
-  const [songEditor, setSongEditor] = useState<{ source: EditorSource | null; visible: boolean } | null>(null);
+  const communityAccount = useCommunityAccount();
+  const [communityPanel, setCommunityPanel] = useState<CommunityPanel>(null);
+  const [songEditor, setSongEditor] = useState<{ source: EditorSource | null; revision: number }>();
+  const savedEditor = useRef<number | undefined>(undefined);
   const [communitySearch, setCommunitySearch] = useState<{ query: string; songs: CommunitySong[] } | null>(null);
   const [area, setArea] = useState<WorkArea>("catalog");
   const areaRef = useRef<WorkArea>("catalog");
@@ -1729,18 +1733,28 @@ export default function Home() {
     setPickingPracticeSong(true);
   }
 
-  function openSongEditor(selected?: Song) {
-    if (selected && areaRef.current === "listen") {
+  function pauseForCommunity() {
+    if (areaRef.current === "listen") {
       if (isPlaying) void togglePlayback();
       else if (soundStatus === "loading") stopPlayback();
     }
-    const source = selected ? {
+  }
+
+  function openSongEditor(selected?: Song) {
+    pauseForCommunity();
+    const source = selected && selected === song ? {
       ...selected,
       notes: phrases.map(phrase => phrase.map(note => `${note.pitch}${note.octave}`).join(" ")).join(" | "),
-    } : null;
-    setSongEditor(previous => previous && previous.source?.id === source?.id
-      ? { ...previous, visible: true }
-      : { source, visible: true });
+    } : selected ?? null;
+    setSongEditor(previous => previous && previous.source?.id === source?.id && previous.revision !== savedEditor.current
+      ? previous
+      : { source, revision: (previous?.revision ?? 0) + 1 });
+    setCommunityPanel("editor");
+  }
+
+  function openCommunityAccount() {
+    pauseForCommunity();
+    setCommunityPanel("account");
   }
 
   const viewingPlayback = area === "listen";
@@ -1754,7 +1768,8 @@ export default function Home() {
   return (
     <div lang={language}>
       <WorkspaceNavigation language={language} area={area} languageLabel={t.languageLabel} languageAction={t.languageAction}
-        onLanguage={toggleLanguage} onNavigate={navigateWorkspace} />
+        onLanguage={toggleLanguage} onNavigate={navigateWorkspace}
+        signedIn={Boolean(communityAccount.session)} onAccount={openCommunityAccount} />
       <main className="app-content shell">
         <div id="catalog-workspace" hidden={area !== "catalog"}>
           <CatalogBrowser songs={catalog} language={language} activeId={song?.id}
@@ -1763,10 +1778,13 @@ export default function Home() {
             onAddSong={() => openSongEditor()} />
         </div>
 
-        {songEditor && <SongEditor key={songEditor.source?.id ?? "new-arrangement"} language={language}
-          visible={songEditor.visible} source={songEditor.source}
-          onClose={() => setSongEditor(previous => previous && { ...previous, visible: false })}
-          onSaved={() => setCommunityRevision(revision => revision + 1)} onListen={openCatalogSong} />}
+        <CommunityWorkspace language={language} account={communityAccount} panel={communityPanel}
+          source={songEditor?.source} editorRevision={songEditor?.revision ?? 0}
+          onClose={() => setCommunityPanel(null)} onAdd={() => openSongEditor()} onEdit={openSongEditor}
+          onSaved={() => {
+            savedEditor.current = songEditor?.revision;
+            setCommunityRevision(revision => revision + 1);
+          }} onListen={openCatalogSong} />
 
         <section id="input-workspace" hidden={area !== "convert"} aria-labelledby="convert-title">
           <div className="screen-heading">

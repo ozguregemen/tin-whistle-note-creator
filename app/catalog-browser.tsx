@@ -202,8 +202,8 @@ export function CatalogBrowser<Song extends CatalogSong>({
           {onSearchOnline && <button className="secondary-action" type="button" onClick={() => onSearchOnline(query)}>
             {workspaceCopy[language].online}
           </button>}
-          {onAddSong && <button className="secondary-action catalog-add-song" type="button" aria-haspopup="dialog" onClick={onAddSong}>
-            {workspaceCopy[language].addEditSongs}
+          {onAddSong && <button className="community-primary" type="button" aria-haspopup="dialog" onClick={onAddSong}>
+            <span aria-hidden="true">+</span> {workspaceCopy[language].addSong}
           </button>}
         </div>
       </div>}

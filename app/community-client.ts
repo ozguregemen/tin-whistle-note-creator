@@ -23,6 +23,14 @@ export class CommunityRequestError extends Error {
   constructor(public code: string, public detail?: string) { super(code); }
 }
 
+export type CommunityIssue = { error: string; note?: string };
+
+export function communityIssue(error: unknown): CommunityIssue {
+  return error instanceof CommunityRequestError
+    ? { error: error.code, note: error.detail }
+    : { error: "community_unavailable" };
+}
+
 export function readCommunitySession(): CommunitySession | null {
   try {
     const session = JSON.parse(window.sessionStorage.getItem(SESSION_STORAGE_KEY) ?? "null") as CommunitySession | null;
