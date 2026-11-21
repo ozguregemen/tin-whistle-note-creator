@@ -7,10 +7,6 @@ export function isApprovedCatalogSong(song) {
     && song.rhythm?.source !== "transcribed";
 }
 
-export function isApprovedCatalogEntry(entry) {
-  return entry.kind === "recording" || isApprovedCatalogSong(entry);
-}
-
 /** @template {{ id: string }} T @param {T[]} songs @param {T[]} bundled */
 export function withBundledCatalogSongs(songs, bundled) {
   const ids = new Set(songs.map(song => song.id));
@@ -41,7 +37,7 @@ export function groupCatalogSongs(songs) {
   }
   return [...groups.values()].map(versions => {
     const [song, ...alternatives] = versions.sort((left, right) =>
-      Number(isApprovedCatalogEntry(right)) - Number(isApprovedCatalogEntry(left))
+      Number(isApprovedCatalogSong(right)) - Number(isApprovedCatalogSong(left))
       || readinessRank(right) - readinessRank(left));
     return { title: song.catalogTitle ?? song.title, song, alternatives };
   });
@@ -58,14 +54,14 @@ export function browseCatalogGroups(groups, query, approvedOnly, language) {
   const compare = new Intl.Collator(language, { numeric: true, sensitivity: "base" }).compare;
 
   return groups.filter(({ title, song, alternatives }) => {
-    if (approvedOnly && !isApprovedCatalogEntry(song)) return false;
+    if (approvedOnly && !isApprovedCatalogSong(song)) return false;
     if (tokens.length === 0) return true;
     return [song, ...alternatives].some(version => {
       const searchable = normalizeSearchText([title, version.title, version.artist, ...version.aliases].filter(Boolean).join(" "));
       return tokens.every(token => searchable.includes(token));
     });
   }).sort((left, right) =>
-    Number(isApprovedCatalogEntry(right.song)) - Number(isApprovedCatalogEntry(left.song))
+    Number(isApprovedCatalogSong(right.song)) - Number(isApprovedCatalogSong(left.song))
     || compare(left.title, right.title)
     || compare(left.song.artist ?? "", right.song.artist ?? ""));
 }

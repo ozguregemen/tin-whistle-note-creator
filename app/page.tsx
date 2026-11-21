@@ -4,7 +4,6 @@ import { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect,
 import { parseAbcScore } from "./abc.mjs";
 import { AudioClipPicker, type AudioClipRange } from "./audio-clip-picker";
 import { CatalogBrowser } from "./catalog-browser";
-import { CATALOG_RECORDINGS, CatalogRecordingPlayer, type CatalogRecording } from "./catalog-recording";
 import { withBundledCatalogSongs } from "./catalog-browse.mjs";
 import whistleTunes from "../catalog/whistle-tunes.json";
 import { PracticeMicrophone } from "./practice-microphone";
@@ -51,6 +50,7 @@ type Song = {
   id: string;
   title: string;
   catalogTitle?: string;
+  excerpt?: boolean;
   artist?: string;
   youtubeSong?: { title: string; artist: string };
   youtubeTempo?: { bpm: number; sourceUrl?: string };
@@ -631,7 +631,6 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [manualNotes, setManualNotes] = useState("");
   const [song, setSong] = useState<Song | null>(null);
-  const [catalogRecording, setCatalogRecording] = useState<CatalogRecording | null>(null);
   const [pickingPracticeSong, setPickingPracticeSong] = useState(false);
   const [sourceCandidates, setSourceCandidates] = useState<SourceCandidate[]>([]);
   const [status, setStatus] = useState<StatusKey>("catalogPrepared");
@@ -1732,7 +1731,6 @@ export default function Home() {
   function openCatalogSong(selected: Song, destination: "listen" | "practice" = "listen") {
     setSourceError("");
     setSourceCandidates([]);
-    setCatalogRecording(null);
     setSong((current) => current?.id === selected.id ? current : restoreStoredCorrection(selected));
     setStatus("catalogFound");
     navigateWorkspace(destination);
@@ -1743,7 +1741,7 @@ export default function Home() {
   }
 
   const viewingPlayback = area === "listen";
-  const practiceMicrophone = (area === "practice" && (song || !pickingPracticeSong)) || (viewingPlayback && song && !catalogRecording)
+  const practiceMicrophone = (area === "practice" && (song || !pickingPracticeSong)) || (viewingPlayback && song)
     ? <PracticeMicrophone key={`${song?.id ?? ""}:${song?.notes ?? ""}`} language={language}
       visible={area === "practice"} onUseChange={setMicrophoneActive} steps={followSteps}
       onChooseSong={song ? choosePracticeSong : undefined} />
@@ -1756,9 +1754,8 @@ export default function Home() {
         onLanguage={toggleLanguage} onNavigate={navigateWorkspace} />
       <main className="app-content shell">
         <div id="catalog-workspace" hidden={area !== "catalog"}>
-          <CatalogBrowser songs={catalog} recordings={CATALOG_RECORDINGS} language={language} activeId={catalogRecording?.id ?? song?.id}
-            busy={(sourceIsBusy || status === "searching") || audioBusy} onOpen={openCatalogSong} onSearchOnline={openWebSearch}
-            onOpenRecording={selected => { setCatalogRecording(selected); navigateWorkspace("listen"); }} />
+          <CatalogBrowser songs={catalog} language={language} activeId={song?.id}
+            busy={(sourceIsBusy || status === "searching") || audioBusy} onOpen={openCatalogSong} onSearchOnline={openWebSearch} />
         </div>
 
         <section id="input-workspace" hidden={area !== "convert"} aria-labelledby="convert-title">
@@ -1868,20 +1865,13 @@ export default function Home() {
 
         <section id="practice-workspace" hidden={area !== "practice" && !viewingPlayback} aria-labelledby="preview-title">
           {viewingPlayback && <button type="button" className="secondary-action catalog-return" onClick={() => navigateWorkspace("catalog")}>{ui.backToCatalog}</button>}
-          {viewingPlayback && catalogRecording ? (
-            <CatalogRecordingPlayer key={catalogRecording.id} track={catalogRecording} language={language} importLabel={ui.importScore}
-              onImport={() => { switchInputMode("score"); navigateWorkspace("convert"); }} />
-          ) : song ? <section className={`workspace${!viewingPlayback && microphoneActive ? " practice-listening" : ""}`} aria-labelledby="preview-title">
+          {song ? <section className={`workspace${!viewingPlayback && microphoneActive ? " practice-listening" : ""}`} aria-labelledby="preview-title">
             <div className="workspace-heading">
               <div><h1 id="preview-title" tabIndex={-1}>{song.artist ? `${song.artist} — ` : ""}{song.title}</h1><div className="workspace-subtitle"><p>{song.sourceConfidence === "estimated" ? t.textEstimated : song.subtitle[language]} · {song.difficulty[language]} · D tin whistle{song.userEdited ? ` · ${t.userCorrected}` : ""}</p>{songQuality && <span className={`readiness-badge readiness-${songQuality.readiness}`}>{readinessLabel}</span>}</div></div>
               <div className="workspace-actions">
-                <button type="button" className="secondary-action" onClick={() => {
-                  if (viewingPlayback) navigateWorkspace("practice");
-                  else {
-                    setCatalogRecording(null);
-                    navigateWorkspace("listen");
-                  }
-                }}>{viewingPlayback ? ui.practiseSong : ui.listen}</button>
+                <button type="button" className="secondary-action" onClick={() => navigateWorkspace(viewingPlayback ? "practice" : "listen")}>
+                  {viewingPlayback ? ui.practiseSong : ui.listen}
+                </button>
                 <div className="legend"><span className="hole closed" /> {t.closed} <span className="hole half" /> {t.half} <span className="hole open" /> {t.open}</div>
                 <button type="button" className={`correct-notes-button${editingNotes ? " active" : ""}`} aria-pressed={editingNotes} aria-controls="fingering-sheet" onClick={() => setEditingNotes((current) => !current)}>{editingNotes ? t.finishCorrection : t.correctNotes}</button>
                 <button type="button" className="print-button" onClick={() => window.print()}>{t.print}</button>

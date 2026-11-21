@@ -22,7 +22,6 @@ export const workspaceCopy = {
     audioSource: "Audio recording",
     pasteSource: "Paste notes",
     scoreSource: "MIDI / MusicXML",
-    importScore: "Import MIDI / MusicXML",
   },
   tr: {
     navigation: "Çalışma alanları",
@@ -43,7 +42,6 @@ export const workspaceCopy = {
     audioSource: "Ses kaydı",
     pasteSource: "Nota yapıştır",
     scoreSource: "MIDI / MusicXML",
-    importScore: "MIDI / MusicXML içe aktar",
   },
 };
 

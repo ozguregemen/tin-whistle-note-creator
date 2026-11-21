@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-21T09:20:54.435Z",
+  "generatedAt": "2026-11-21T10:16:42.165Z",
   "songs": [
     {
       "id": "duman-bu-aksam",
@@ -19106,6 +19106,235 @@
         {
           "name": "Happy Whistling · D whistle notes",
           "url": "https://www.youtube.com/watch?v=xmlV3uBrhIc&t=50s",
+          "role": "cross-check"
+        }
+      ]
+    },
+    {
+      "id": "whistle-binks-sake",
+      "title": "Binks’ Sake",
+      "artist": "Kohei Tanaka",
+      "aliases": [
+        "Binks Sake",
+        "Bink's Brew",
+        "Binkusu no Sake",
+        "One Piece"
+      ],
+      "excerpt": true,
+      "subtitle": {
+        "en": "Opening refrain · short D whistle arrangement",
+        "tr": "Açılış nakaratı · kısa Re tin whistle düzeni"
+      },
+      "difficulty": {
+        "en": "Intermediate",
+        "tr": "Orta"
+      },
+      "notes": "B4 D5 D5 D5 E5 D5 B4 D5 | B4 D5 D5 D5 E5 D5 B4 G4",
+      "rhythm": {
+        "bpm": 115,
+        "source": "score",
+        "tempoSource": "score",
+        "durations": [
+          [
+            0.667,
+            0.667,
+            0.666,
+            4,
+            1.333,
+            0.667,
+            2,
+            4
+          ],
+          [
+            0.667,
+            0.667,
+            0.666,
+            4,
+            1.333,
+            0.667,
+            2,
+            4
+          ]
+        ],
+        "gaps": [
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      },
+      "sourceStatus": "cross-checked",
+      "sources": [
+        {
+          "name": "Irish Folk Songs · D whistle tab",
+          "url": "https://www.irish-folk-songs.com/blog/binks-brew-sheet-music-and-tin-whistle-notes",
+          "role": "note-source"
+        },
+        {
+          "name": "Harptabs · harmonica melody",
+          "url": "https://harptabs.com/tab/22678/one-piece-bink-s-sake",
+          "role": "cross-check"
+        }
+      ]
+    },
+    {
+      "id": "whistle-zeldas-lullaby",
+      "title": "Zelda’s Lullaby",
+      "artist": "Koji Kondo",
+      "aliases": [
+        "Zeldas Lullaby",
+        "Zelda's Theme",
+        "The Legend of Zelda",
+        "Ocarina of Time"
+      ],
+      "excerpt": true,
+      "subtitle": {
+        "en": "Opening phrase · short D whistle arrangement",
+        "tr": "Açılış cümlesi · kısa Re tin whistle düzeni"
+      },
+      "difficulty": {
+        "en": "Beginner",
+        "tr": "Başlangıç"
+      },
+      "notes": "F#4 A4 E4 D4 E4 | F#4 A4 E4",
+      "rhythm": {
+        "bpm": 84,
+        "source": "score",
+        "tempoSource": "default",
+        "durations": [
+          [
+            2,
+            1,
+            2,
+            0.5,
+            0.5
+          ],
+          [
+            2,
+            1,
+            3
+          ]
+        ]
+      },
+      "sourceStatus": "cross-checked",
+      "sources": [
+        {
+          "name": "Professional Composers · D whistle tab",
+          "url": "https://professionalcomposers.com/how-to-play-zeldas-lullaby-tin-whistle-tabs/",
+          "role": "note-source"
+        },
+        {
+          "name": "BLUESCD · piano melody",
+          "url": "https://musescore.org/sites/musescore.org/files/2020-06/Zeldas%20Lullaby_0.pdf",
+          "role": "cross-check"
+        }
+      ]
+    },
+    {
+      "id": "whistle-frieren-journey-of-a-lifetime",
+      "title": "Journey of a Lifetime",
+      "artist": "Evan Call",
+      "aliases": [
+        "Frieren",
+        "Frieren Main Theme",
+        "Frieren Beyond Journey's End",
+        "Sousou no Frieren"
+      ],
+      "excerpt": true,
+      "subtitle": {
+        "en": "Frieren main theme · short D whistle arrangement",
+        "tr": "Frieren ana teması · kısa Re tin whistle düzeni"
+      },
+      "difficulty": {
+        "en": "Intermediate",
+        "tr": "Orta"
+      },
+      "notes": "D4 E4 F#4 F#4 F#4 G4 F#4 E4 F#4 D4 F#4 G4 A4 | B4 A4 A4 B4 A4 G4 A4 A4",
+      "rhythm": {
+        "bpm": 115,
+        "source": "score",
+        "tempoSource": "score",
+        "durations": [
+          [
+            0.75,
+            0.25,
+            2,
+            1.5,
+            0.25,
+            0.25,
+            0.25,
+            0.25,
+            1,
+            1.5,
+            0.5,
+            0.25,
+            0.25
+          ],
+          [
+            2,
+            1.5,
+            0.25,
+            0.25,
+            0.25,
+            0.25,
+            2,
+            1
+          ]
+        ],
+        "gaps": [
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0.5
+          ]
+        ]
+      },
+      "sourceStatus": "cross-checked",
+      "sources": [
+        {
+          "name": "Oliver Khan · opening melody score",
+          "url": "https://ok-music.co.uk/wp-content/uploads/2024/01/journey-of-a-lifetimemain-theme.pdf",
+          "role": "note-source"
+        },
+        {
+          "name": "EasyMusicLesson · recorder melody",
+          "url": "https://www.youtube.com/watch?v=g95krRVQhL4",
           "role": "cross-check"
         }
       ]

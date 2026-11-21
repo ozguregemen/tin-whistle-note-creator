@@ -43,10 +43,6 @@
 .catalog-versions li + li { border-top:1px solid var(--line); }
 .catalog-versions .catalog-song { min-height:62px; padding-block:9px; }
 .catalog-return { margin-bottom:14px; }
-.catalog-recording-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
-.catalog-recording-actions .recording-play { border-color:var(--green-dark); background:var(--green-dark); color:#fff; }
-.catalog-recording-actions .recording-play:hover { background:#173c2e; }
-.catalog-recording-player { display:block; width:min(100%,48rem); aspect-ratio:16 / 9; min-height:200px; margin-top:16px; border:0; border-radius:10px; background:#142e26; }
 .catalog-pagination { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px; padding:8px 0; border-top:1px solid var(--line); }
 .catalog-pagination button,.catalog-empty button { min-height:44px; padding:6px 10px; border:0; border-radius:7px; background:transparent; color:var(--green-dark); font-size:14px; font-weight:750; }
 .catalog-pagination button:disabled { color:var(--muted); opacity:.6; }

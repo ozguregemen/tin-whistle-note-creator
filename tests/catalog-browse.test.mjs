@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { browseCatalogGroups, groupCatalogSongs, isApprovedCatalogEntry, isApprovedCatalogSong, withBundledCatalogSongs } from "../app/catalog-browse.mjs";
+import { browseCatalogGroups, groupCatalogSongs, isApprovedCatalogSong, withBundledCatalogSongs } from "../app/catalog-browse.mjs";
 import { assessSongQuality } from "../app/catalog-quality.mjs";
 import { fingeringFor } from "../app/fingerings.mjs";
 
@@ -70,18 +70,6 @@ test("a cached remote catalog keeps new bundled songs without duplicating IDs", 
   assert.deepEqual(withBundledCatalogSongs([remote], [old, bundled]), [remote, bundled]);
 });
 
-test("official recordings are searchable in Approved without being treated as verified scores", () => {
-  const recording = {
-    kind: "recording",
-    title: "Journey of a Lifetime",
-    artist: "Evan Call",
-    aliases: ["Frieren Main Theme", "anime"],
-  };
-  assert.equal(isApprovedCatalogEntry(recording), true);
-  assert.equal(isApprovedCatalogSong(recording), false);
-  assert.deepEqual(browse([recording, approved, live], "frieren", true, "en"), [recording]);
-});
-
 test("the bundled whistle tunes are approved, playable and included in the published catalog", async () => {
   const [bundled, catalog] = await Promise.all(["whistle-tunes.json", "catalog.json"].map(async name =>
     JSON.parse(await readFile(new URL(`../catalog/${name}`, import.meta.url), "utf8"))));
@@ -94,5 +82,21 @@ test("the bundled whistle tunes are approved, playable and included in the publi
     for (const note of song.notes.split(/[\s|]+/)) {
       assert.ok(fingeringFor(note.slice(0, -1), Number(note.at(-1))), `${song.title} can play ${note}`);
     }
+  }
+});
+
+test("the screen and game themes appear in Approved with timed whistle excerpts", async () => {
+  const { songs } = JSON.parse(await readFile(new URL("../catalog/catalog.json", import.meta.url), "utf8"));
+  const excerpts = [
+    ["one piece", "whistle-binks-sake"],
+    ["zelda", "whistle-zeldas-lullaby"],
+    ["frieren", "whistle-frieren-journey-of-a-lifetime"],
+  ];
+  for (const [query, id] of excerpts) {
+    const song = browse(songs, query, true, "en").find(result => result.id === id);
+    assert.ok(song?.excerpt, `${query} has an approved excerpt`);
+    const phraseLengths = song.notes.split("|").map(phrase => phrase.trim().split(/\s+/).length);
+    assert.deepEqual(song.rhythm.durations.map(phrase => phrase.length), phraseLengths);
+    assert.ok(song.rhythm.durations.flat().every(duration => duration > 0));
   }
 });

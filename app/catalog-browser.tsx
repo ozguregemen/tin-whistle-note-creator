@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { browseCatalogGroups, groupCatalogSongs, isApprovedCatalogEntry } from "./catalog-browse.mjs";
+import { browseCatalogGroups, groupCatalogSongs, isApprovedCatalogSong } from "./catalog-browse.mjs";
 import { assessSongQuality } from "./catalog-quality.mjs";
-import type { CatalogRecording } from "./catalog-recording";
 import { workspaceCopy } from "./workspace-navigation";
 
 const labels = {
@@ -17,7 +16,7 @@ const labels = {
     open: "Practise",
     openSong: "Open fingerings for",
     openPlayer: "Open player for",
-    official: "Official recording and score",
+    excerpt: "Short excerpt",
     moreVersions: (count: number) => `${count} other ${count === 1 ? "version" : "versions"}`,
     previous: "Previous",
     next: "Next",
@@ -41,7 +40,7 @@ const labels = {
     open: "Provaya geç",
     openSong: "Parmak dizilimini aç",
     openPlayer: "Dinleme ekranını aç",
-    official: "Resmî kayıt ve nota kaynağı",
+    excerpt: "Kısa bölüm",
     moreVersions: (count: number) => `${count} diğer sürüm`,
     previous: "Önceki",
     next: "Sonraki",
@@ -58,31 +57,25 @@ const labels = {
 };
 
 const PAGE_SIZE = 6;
-const NO_RECORDINGS: CatalogRecording[] = [];
 
 type CatalogSong = {
   id: string;
   title: string;
   catalogTitle?: string;
+  excerpt?: boolean;
   artist?: string;
   aliases: string[];
   sources: { name: string; role: string }[];
 };
 
-function isRecording(entry: CatalogSong | CatalogRecording): entry is CatalogRecording {
-  return "kind" in entry && entry.kind === "recording";
-}
-
 export function CatalogBrowser<Song extends CatalogSong>({
-  songs, recordings = NO_RECORDINGS, language, activeId, busy, onOpen, onOpenRecording, onSearchOnline, compact = false,
+  songs, language, activeId, busy, onOpen, onSearchOnline, compact = false,
 }: {
   songs: Song[];
-  recordings?: CatalogRecording[];
   language: keyof typeof labels;
   activeId?: string;
   busy: boolean;
   onOpen: (song: Song) => void;
-  onOpenRecording?: (recording: CatalogRecording) => void;
   onSearchOnline?: (query: string) => void;
   compact?: boolean;
 }) {
@@ -91,8 +84,8 @@ export function CatalogBrowser<Song extends CatalogSong>({
   const [page, setPage] = useState(0);
   const t = labels[language];
   const idPrefix = compact ? "practice-catalog" : "catalog";
-  const groups = useMemo(() => groupCatalogSongs<Song | CatalogRecording>([...songs, ...recordings]), [songs, recordings]);
-  const approvedCount = groups.filter(({ song }) => isApprovedCatalogEntry(song)).length;
+  const groups = useMemo(() => groupCatalogSongs(songs), [songs]);
+  const approvedCount = groups.filter(({ song }) => isApprovedCatalogSong(song)).length;
   const results = useMemo(
     () => browseCatalogGroups(groups, query, approvedOnly, language),
     [groups, query, approvedOnly, language],
@@ -112,25 +105,25 @@ export function CatalogBrowser<Song extends CatalogSong>({
     setPage(0);
   }
 
-  function renderSong(song: Song | CatalogRecording, title: string, alternative = false) {
-    const recording = isRecording(song);
-    const approved = isApprovedCatalogEntry(song);
-    const quality = recording ? null : assessSongQuality(song);
-    const source = recording ? song.series : song.sources?.find(entry => entry.role === "note-source")?.name;
-    const status = recording ? t.official : approved ? t.verified : quality?.readiness === "review-required" ? t.review : quality?.readiness === "rhythmic-draft" ? t.rhythmicDraft : t.melodyOnly;
+  function renderSong(song: Song, title: string, alternative = false) {
+    const approved = isApprovedCatalogSong(song);
+    const { rhythm, readiness } = assessSongQuality(song);
+    const source = song.sources?.find(entry => entry.role === "note-source")?.name;
+    const status = approved ? t.verified : readiness === "review-required" ? t.review : readiness === "rhythmic-draft" ? t.rhythmicDraft : t.melodyOnly;
     const statusId = `${idPrefix}-status-${song.id}`;
     const descriptiveTitle = [song.artist ? `${song.artist} — ${title}` : title, alternative && source].filter(Boolean).join(" · ");
     return (
       <button className="catalog-song" type="button" disabled={busy} aria-current={activeId === song.id ? "true" : undefined}
         aria-label={`${compact ? t.openSong : t.openPlayer} · ${descriptiveTitle}`} aria-describedby={statusId}
-        onClick={() => recording ? onOpenRecording?.(song) : onOpen(song)}>
+        onClick={() => onOpen(song)}>
         <span className="catalog-song-name">
           <strong>{title}</strong>
           {(song.artist || source) && <span className="catalog-song-artist">{[song.artist, source].filter(Boolean).join(" · ")}</span>}
         </span>
         <span id={statusId} className="catalog-song-status">
           <span className={approved ? "approved" : undefined}>{status}</span>
-          {approved && quality?.rhythm === "equal-beats" && <small>{t.equalBeats}</small>}
+          {song.excerpt && <small>{t.excerpt}</small>}
+          {approved && rhythm === "equal-beats" && <small>{t.equalBeats}</small>}
         </span>
         <span className="catalog-song-open" aria-hidden="true">{compact ? t.open : workspaceCopy[language].listen}</span>
       </button>
@@ -161,7 +154,7 @@ export function CatalogBrowser<Song extends CatalogSong>({
       {results.length ? (
         <ul className="catalog-songs" aria-labelledby={compact ? undefined : "catalog-title"} aria-label={compact ? t.title : undefined}>
           {results.slice(start, end).map(({ title, song, alternatives }) => {
-            const versions = approvedOnly ? alternatives.filter(isApprovedCatalogEntry) : alternatives;
+            const versions = approvedOnly ? alternatives.filter(isApprovedCatalogSong) : alternatives;
             return (
               <li key={song.id}>
                 {renderSong(song, title)}
