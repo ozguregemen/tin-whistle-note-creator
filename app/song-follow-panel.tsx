@@ -22,12 +22,14 @@ export const songFollowCopy = {
     open: "Open",
     repeated: "Tongue this note again or take a short breath.",
     complete: "Song complete",
+    lessonComplete: "Lesson complete",
     correct: "Correct",
     wrong: "Try this step again",
     waiting: "Ready for a note",
     progress: "Notes matched",
     sequence: "Note sequence",
     score: "Song notes",
+    lessonScore: "Lesson notes",
     attempts: "Your playing",
     pending: "Waiting",
     current: "Current step",
@@ -55,12 +57,14 @@ export const songFollowCopy = {
     open: "Açık",
     repeated: "Aynı notayı kısa bir aradan sonra yeniden üfle.",
     complete: "Şarkıyı tamamladın",
+    lessonComplete: "Dersi tamamladın",
     correct: "Doğru",
     wrong: "Bu adımı tekrar dene",
     waiting: "Nota bekleniyor",
     progress: "Eşleşen notalar",
     sequence: "Nota sırası",
     score: "Şarkının notaları",
+    lessonScore: "Dersin notaları",
     attempts: "Çaldıkların",
     pending: "Bekliyor",
     current: "Sıradaki adım",
@@ -78,7 +82,7 @@ export type GuidePhase = "idle" | "playing" | "ready" | "unavailable";
 
 const EMPTY_FINGERING = ["open", "open", "open", "open", "open", "open"] as const;
 
-function FollowFingering({ holes, copy }: {
+export function FollowFingering({ holes, copy }: {
   holes: ReturnType<typeof describeLiveNote>["holes"];
   copy: (typeof songFollowCopy)["en" | "tr"];
 }) {
@@ -92,7 +96,7 @@ function FollowFingering({ holes, copy }: {
 }
 
 export function SongFollowPanel({
-  language, steps, progress, guideEnabled, guidePhase, onGuideChange, onHearNote, replayDisabled, onReset,
+  language, steps, progress, guideEnabled, guidePhase, onGuideChange, onHearNote, replayDisabled, onReset, lesson = false,
 }: {
   language: "en" | "tr";
   steps: FollowStep[];
@@ -103,6 +107,7 @@ export function SongFollowPanel({
   onHearNote: () => void;
   replayDisabled: boolean;
   onReset: () => void;
+  lesson?: boolean;
 }) {
   const copy = songFollowCopy[language];
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -142,7 +147,7 @@ export function SongFollowPanel({
         <div className="song-follow-result">
           <div className={`song-follow-feedback ${response}`} role="status" aria-atomic="true">
             {heard && <span className="song-follow-feedback-note">{heard.name} <small>{heard.sounding}</small></span>}
-            <span className="song-follow-feedback-status">{finished ? copy.complete : response === "ready" ? copy.waiting : copy[response]}</span>
+            <span className="song-follow-feedback-status">{finished ? (lesson ? copy.lessonComplete : copy.complete) : response === "ready" ? copy.waiting : copy[response]}</span>
           </div>
           {repeated && <p>{copy.repeated}</p>}
         </div>
@@ -170,7 +175,7 @@ export function SongFollowPanel({
 
       <div className="song-follow-score" role="region" aria-label={copy.sequence} tabIndex={0} ref={scrollRef}>
         <div className="song-follow-lane-headings" ref={headersRef}>
-          <h3 id="song-follow-notes-title">{copy.score}</h3>
+          <h3 id="song-follow-notes-title">{lesson ? copy.lessonScore : copy.score}</h3>
           <h3 id="song-follow-attempts-title">{copy.attempts}</h3>
         </div>
         <div className="song-follow-lanes">

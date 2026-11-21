@@ -83,7 +83,7 @@
   .app-nav button:not([aria-current]):hover,.app-header-actions button:hover { background:#345745; }
   .secondary-action:hover,.catalog-song:not(:disabled):hover,.catalog-pagination button:not(:disabled):hover,.catalog-empty button:hover { background:#eef6f0; }
 }
-@media (max-width:850px) {
+@media (max-width:940px) {
   .app-bar { grid-template-columns:minmax(0,1fr) auto; gap:8px; padding-block:10px; }
   .app-nav { grid-column:1/-1; grid-row:2; }
   .app-nav button { flex:1; min-width:0; padding-inline:5px; line-height:1.2; }

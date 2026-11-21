@@ -1,0 +1,182 @@
+.tutorial { --tutorial-line: #cbd9ce; --tutorial-dark: #1d4033; --tutorial-mint: #c5efcf; }
+.tutorial-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(270px, 0.55fr);
+  align-items: center;
+  gap: clamp(20px, 4vw, 50px);
+  padding: clamp(20px, 4vw, 42px);
+  border: 1px solid var(--tutorial-line);
+  border-radius: 18px;
+  background: linear-gradient(115deg, #f8faf5, #e7f1e7);
+}
+.tutorial-intro h1 { margin-bottom: 14px; }
+.tutorial-intro > p:last-child { max-width: 42ch; margin: 0; color: var(--muted); line-height: 1.55; }
+.tutorial-instrument,
+.tutorial-unit-position,
+.tutorial-lesson-position {
+  margin: 0 0 8px;
+  color: var(--green-dark);
+  font-size: 0.8125rem;
+  font-weight: 750;
+}
+.tutorial-progress {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding: 18px;
+  border-radius: 14px;
+  background: var(--tutorial-dark);
+  color: #f6faf5;
+}
+.tutorial-progress-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 720; }
+.tutorial-progress-heading strong { font-size: 1.55rem; font-variant-numeric: tabular-nums; }
+.tutorial-progress p { margin: 0; color: #d6eadc; font-size: 0.875rem; }
+.tutorial-progress progress {
+  display: block;
+  appearance: none;
+  width: 100%;
+  height: 9px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 99px;
+  background: #426859;
+  color: var(--tutorial-mint);
+  accent-color: var(--tutorial-mint);
+}
+.tutorial-progress progress::-webkit-progress-bar { background: #426859; border-radius: 99px; }
+.tutorial-progress progress::-webkit-progress-value { background: var(--tutorial-mint); border-radius: 99px; }
+.tutorial-progress progress::-moz-progress-bar { background: var(--tutorial-mint); border-radius: 99px; }
+.tutorial-primary {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 9px 14px;
+  border: 1px solid var(--tutorial-dark);
+  border-radius: 8px;
+  background: var(--tutorial-dark);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 750;
+}
+.tutorial-progress .tutorial-primary { margin-top: 4px; border-color: var(--tutorial-mint); background: var(--tutorial-mint); color: #173a2b; }
+.tutorial-progress :focus-visible { outline: 2px solid var(--tutorial-mint); outline-offset: 3px; }
+.tutorial-units,
+.tutorial-lessons,
+.tutorial-note-list { margin: 0; padding: 0; }
+.tutorial-units > li::marker,
+.tutorial-lessons > li::marker,
+.tutorial-note-list > li::marker { color: transparent; }
+.tutorial-units { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; margin-top: 18px; }
+.tutorial-unit {
+  overflow: hidden;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+}
+.tutorial-unit-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; padding: 2px 4px 13px; }
+.tutorial-unit-heading h2,
+.tutorial-note-reference h2 { margin: 0; font: 750 1.125rem/1.25 system-ui, sans-serif; }
+.tutorial-unit-heading p:last-child,
+.tutorial-note-reference p { margin: 5px 0 0; color: var(--muted); font-size: 0.875rem; line-height: 1.45; }
+.tutorial-unit-progress,
+.tutorial-lesson-progress {
+  flex: none;
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: #e8f1e9;
+  color: var(--green-dark);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+.tutorial-lessons { display: grid; gap: 5px; }
+.tutorial-lesson-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-top-color: var(--line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  text-align: start;
+}
+.tutorial-lesson-link[data-next="true"] { border-color: #a9c5b1; background: #eaf3eb; }
+.tutorial-lesson-link strong, .tutorial-lesson-link small { display: block; }
+.tutorial-lesson-link small { color: var(--muted); font-size: 0.75rem; line-height: 1.25; }
+.tutorial-lesson-link strong { margin-top: 3px; font-size: 0.9375rem; }
+.tutorial-next { color: var(--green-dark); font-size: 0.75rem; font-weight: 750; }
+.tutorial-chevron { flex: none; color: var(--muted); font-size: 1.3rem; }
+.tutorial-done { color: #236744; font-size: 1.15rem; font-weight: 750; }
+.tutorial-back { gap: 7px; margin-bottom: 15px; }
+.tutorial-lesson-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 18px;
+  margin-bottom: 15px;
+}
+.tutorial-lesson-progress strong { margin-inline-start: 4px; }
+.tutorial-lesson-prep {
+  display: grid;
+  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.tutorial-instruction,
+.tutorial-note-reference {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+.tutorial-instruction { display: flex; align-items: center; margin: 0; color: var(--ink); line-height: 1.55; }
+.tutorial-note-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 92px), 1fr)); gap: 7px; margin-top: 10px; }
+.tutorial-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 6px;
+  border: 1px solid #d8e3da;
+  border-radius: 9px;
+  background: #f2f7f2;
+}
+.tutorial-note .song-follow-note-holes { flex: none; margin: 0; }
+.tutorial-note strong, .tutorial-note small { display: block; }
+.tutorial-note strong { font-size: 0.875rem; line-height: 1.2; }
+.tutorial-note small { margin-top: 4px; color: var(--muted); font-size: 0.75rem; }
+.tutorial-completion {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 15px;
+  border: 1px solid #bfd9c6;
+  border-radius: 12px;
+  background: #e5f3e8;
+  color: #1f533b;
+}
+.tutorial-completion p { margin: 4px 0 0; font-size: 0.875rem; }
+.tutorial .practice-microphone [disabled] { opacity: 0.6; }
+@media (hover: hover) {
+  .tutorial-lesson-link:hover { border-color: #b7ccbd; background: #eff6ef; }
+  .tutorial-primary:hover { background: #2d5343; }
+  .tutorial-progress .tutorial-primary:hover { background: #def4e3; }
+}
+@media (max-width: 760px) {
+  .tutorial-overview, .tutorial-lesson-prep { grid-template-columns: minmax(0, 1fr); }
+  .tutorial-units { grid-template-columns: minmax(0, 1fr); }
+}
+@media print { #tutorial-workspace { display: none !important; } }

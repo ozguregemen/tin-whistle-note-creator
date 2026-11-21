@@ -16,6 +16,7 @@ import { PracticeSongPicker } from "./practice-song-picker";
 import { buildFollowSteps } from "./song-follow.mjs";
 import { songFollowCopy } from "./song-follow-panel";
 import { WorkspaceNavigation, workspaceCopy, type WorkArea } from "./workspace-navigation";
+import { TutorialWorkspace } from "./tutorial-workspace";
 import { formatClipTime } from "./audio-clip.mjs";
 import { audioInputError, mediaErrorMessage, prepareAudioInput, transcribeAudioInput } from "./media-import.mjs";
 import { detectAudioCapabilities, MUSCRIPTOR_LARGE } from "./muscriptor.mjs";
@@ -1697,6 +1698,7 @@ export default function Home() {
       listen: "preview-title",
       convert: inputModeRef.current === "search" ? "song-search" : "convert-title",
       practice: "preview-title",
+      tutorial: "tutorial-title",
     }[next];
     window.requestAnimationFrame(() => {
       if (areaRef.current !== next) return;
@@ -1782,6 +1784,7 @@ export default function Home() {
         onLanguage={toggleLanguage} onNavigate={navigateWorkspace}
         signedIn={Boolean(communityAccount.session)} onAccount={() => openCommunityAccount("account")} />
       <main className="app-content shell">
+        {area === "tutorial" && <TutorialWorkspace language={language} onUseChange={setMicrophoneActive} />}
         <div id="catalog-workspace" hidden={area !== "catalog"}>
           <CatalogBrowser songs={catalog} language={language} activeId={song?.id}
             loadCommunity={listCommunitySongs} communityRevision={communityRevision}

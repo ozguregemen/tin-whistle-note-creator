@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { describeLiveNote } from "./live-note-display.mjs";
 import { createPitchDetector, createPitchTracker, PITCH_WINDOW_SIZE } from "./live-pitch.mjs";
-import { connectFollowInput, playReferenceNote } from "./practice-reference.mjs";
+import { connectFollowInput, playReferenceNote, playReferenceSequence } from "./practice-reference.mjs";
 import { createSongFollower, createWhistleReleaseDetector, emptyFollowProgress, FOLLOW_MIN_FREQUENCY, type FollowStep } from "./song-follow.mjs";
 import { SongFollowPanel, songFollowCopy, type GuidePhase } from "./song-follow-panel";
 
@@ -32,6 +32,11 @@ const COPY = {
     missing: "Connect a microphone and try again.",
     failed: "The microphone could not start. Check the device and try again.",
     ended: "Microphone disconnected. Reconnect it to keep listening.",
+    lessonTitle: "Play the lesson",
+    lessonStart: "Start microphone",
+    listenExample: "Listen to example",
+    stopExample: "Stop example",
+    exampleError: "Example audio could not start. Try again.",
   },
   tr: {
     title: "Canlı nota tanıma",
@@ -57,6 +62,11 @@ const COPY = {
     missing: "Bir mikrofon bağlayıp tekrar dene.",
     failed: "Mikrofon başlatılamadı. Cihazını kontrol edip tekrar dene.",
     ended: "Mikrofon bağlantısı kesildi. Dinlemeye devam etmek için tekrar bağla.",
+    lessonTitle: "Dersi çal",
+    lessonStart: "Mikrofonu başlat",
+    listenExample: "Örneği dinle",
+    stopExample: "Örneği durdur",
+    exampleError: "Örnek ses başlatılamadı. Tekrar dene.",
   },
 };
 
@@ -127,12 +137,13 @@ export function LiveNoteReadout({ note, language }: { note: Pitch | null; langua
   );
 }
 
-export function PracticeMicrophone({ language, visible, onUseChange, steps, onChooseSong }: {
+export function PracticeMicrophone({ language, visible, onUseChange, steps, onChooseSong, lesson }: {
   language: "en" | "tr";
   visible: boolean;
   onUseChange: (active: boolean) => void;
   steps: FollowStep[];
   onChooseSong?: () => void;
+  lesson?: { onComplete: () => void };
 }) {
   const copy = COPY[language];
   const follow = songFollowCopy[language];
@@ -145,6 +156,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
   const [progress, setProgress] = useState(emptyFollowProgress);
   const [guideEnabled, setGuideEnabled] = useState(false);
   const [guidePhase, setGuidePhase] = useState<GuidePhase>("idle");
+  const [example, setExample] = useState<"idle" | "playing" | "unavailable">("idle");
   const active = state === "requesting" || state === "listening";
   const following = mode === "song" && steps.length > 0;
   const finished = following && progress.matched === steps.length;
@@ -163,6 +175,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
       setState("idle");
       setNote(null);
       setGuidePhase("idle");
+      setExample("idle");
       return;
     }
     function releaseCapture() {
@@ -178,6 +191,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
       setState("idle");
       setNote(null);
       setGuidePhase("idle");
+      setExample("idle");
     }
     window.addEventListener("pagehide", pageHidden);
     return () => {
@@ -188,6 +202,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
 
   function stop(nextState: State = "idle") {
     stopPreview();
+    setExample("idle");
     const capture = captureRef.current;
     if (capture) {
       captureRef.current = null;
@@ -232,6 +247,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
     }
     if (!nextStep) return;
     stopPreview();
+    setExample("idle");
     let context: AudioContext | undefined;
     try {
       context = new AudioContext();
@@ -251,6 +267,34 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
     }
   }
 
+  async function toggleExample() {
+    if (active || !steps.length) return;
+    stopPreview();
+    if (example === "playing") {
+      setExample("idle");
+      return;
+    }
+    setGuidePhase("idle");
+    let context: AudioContext | undefined;
+    try {
+      context = new AudioContext();
+      const preview = context;
+      previewRef.current = preview;
+      setExample("playing");
+      await preview.resume();
+      if (previewRef.current !== preview) return;
+      playReferenceSequence(preview, steps, () => {
+        if (previewRef.current !== preview) return;
+        stopPreview();
+        setExample("idle");
+      });
+    } catch {
+      if (context && previewRef.current !== context) return;
+      stopPreview();
+      setExample("unavailable");
+    }
+  }
+
   function changeGuide(enabled: boolean) {
     guideEnabledRef.current = enabled;
     setGuideEnabled(enabled);
@@ -258,6 +302,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
       void hearNextNote();
     } else {
       stopPreview();
+      setExample("idle");
       captureRef.current?.cue?.stop();
       setGuidePhase("idle");
     }
@@ -271,6 +316,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
     }
     stopPreview();
     setGuidePhase("idle");
+    setExample("idle");
     let capture: Capture;
     try {
       capture = { context: new AudioContext() };
@@ -347,6 +393,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
               setProgress(updated);
               if (updated.matched === steps.length) {
                 stop();
+                lesson?.onComplete();
                 return;
               }
               if (updated.feedback?.correct) {
@@ -372,7 +419,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
   if (!visible) return null;
 
   const action = state === "requesting" ? copy.cancel
-    : following ? state === "listening" ? follow.pause : finished ? follow.again : progress.matched ? follow.resume : follow.start
+    : following ? state === "listening" ? follow.pause : finished ? follow.again : progress.matched ? follow.resume : lesson ? copy.lessonStart : follow.start
       : active ? copy.stop : copy.start;
   const description = state === "idle" && following ? follow.hint : copy[state];
 
@@ -380,13 +427,17 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
     <section className="practice-microphone" aria-labelledby="practice-microphone-title">
       <div className="practice-microphone-header">
         <div className="practice-microphone-copy">
-          <h2 id="practice-microphone-title">{following ? follow.title : copy.title}</h2>
+          <h2 id="practice-microphone-title">{lesson ? copy.lessonTitle : following ? follow.title : copy.title}</h2>
           <p className={state === "listening" ? "microphone-live" : undefined} role="status">{description}</p>
+          {lesson && example === "unavailable" && <p role="status">{copy.exampleError}</p>}
           {onChooseSong && !steps.length && <p>{follow.unavailable}</p>}
         </div>
         <div className="practice-microphone-actions">
           {onChooseSong && <button type="button" className="secondary-action" onClick={() => { stop(); onChooseSong(); }}>{follow.choose}</button>}
-          {!!steps.length && <button type="button" className="secondary-action" onClick={() => {
+          {lesson && <button type="button" className="secondary-action" disabled={active || !steps.length} onClick={() => void toggleExample()}>
+            {example === "playing" ? copy.stopExample : copy.listenExample}
+          </button>}
+          {!lesson && !!steps.length && <button type="button" className="secondary-action" onClick={() => {
             stop();
             setMode(following ? "free" : "song");
           }}>{following ? follow.free : follow.title}</button>}
@@ -396,7 +447,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
         </div>
       </div>
       {following
-        ? <SongFollowPanel language={language} steps={steps} progress={progress}
+        ? <SongFollowPanel language={language} steps={steps} progress={progress} lesson={Boolean(lesson)}
           guideEnabled={guideEnabled} guidePhase={guidePhase} onGuideChange={changeGuide}
           onHearNote={() => void hearNextNote()} replayDisabled={state === "requesting"} onReset={resetPractice} />
         : state === "listening" && <LiveNoteReadout note={note} language={language} />}

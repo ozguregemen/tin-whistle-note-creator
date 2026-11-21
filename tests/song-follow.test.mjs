@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { PITCH_WINDOW_SIZE } from "../app/live-pitch.mjs";
 import { buildPlaybackPlan, frequencyForWhistleNote } from "../app/practice.mjs";
-import { playReferenceNote } from "../app/practice-reference.mjs";
+import { playReferenceNote, playReferenceSequence } from "../app/practice-reference.mjs";
 import { buildFollowSteps, createSongFollower, createWhistleReleaseDetector } from "../app/song-follow.mjs";
 
 const steps = [{ midi: 74 }, { midi: 74 }, { midi: 76 }];
@@ -98,4 +98,35 @@ test("the guide plays in the target octave and protects the mic window after the
   assert.equal(stops.at(-1), cue.endsAt);
   assert.ok(cue.endsAt < 2.4);
   assert.ok(cue.listenAt > cue.endsAt + window);
+});
+
+test("a lesson example keeps the rhythm and ends after the last note", () => {
+  const tones = [];
+  const context = {
+    currentTime: 2, sampleRate: 48_000, state: "running", destination: {},
+    createOscillator() {
+      const tone = {
+        frequency: { value: 0 }, connect() {}, disconnect() {},
+        start(time) { this.startTime = time; },
+        stop(time) { this.stopTime = time; },
+      };
+      tones.push(tone);
+      return tone;
+    },
+    createGain: () => ({ gain: { setValueAtTime() {}, linearRampToValueAtTime() {} }, connect() {}, disconnect() {} }),
+  };
+  let finished = 0;
+  playReferenceSequence(context, [
+    { pitch: "B", octave: 5, midi: 83, durationMs: 1000 },
+    { pitch: "A", octave: 5, midi: 81, durationMs: 500 },
+    { pitch: "G", octave: 5, midi: 79, durationMs: 1500 },
+  ], () => { finished += 1; });
+
+  assert.deepEqual(tones.map(tone => Math.round(tone.startTime * 1000)), [2040, 3040, 3540]);
+  assert.deepEqual(tones.map(tone => Math.round(tone.stopTime * 1000)), [2900, 3470, 4830]);
+  assert.equal(tones[0].frequency.value, frequencyForWhistleNote("B", 4));
+  tones[0].onended();
+  assert.equal(finished, 0);
+  tones.at(-1).onended();
+  assert.equal(finished, 1);
 });

@@ -20,12 +20,13 @@ export function connectFollowInput(context, source, analyser) {
  * @param {AudioContext} context
  * @param {import("./song-follow.mjs").FollowStep} step
  * @param {() => void} [onEnded]
+ * @param {{ start: number, duration: number }} [timing]
  */
-export function playReferenceNote(context, step, onEnded) {
+export function playReferenceNote(context, step, onEnded, timing) {
   const tone = context.createOscillator();
   const volume = context.createGain();
-  const start = context.currentTime;
-  const duration = Math.min(0.5, Math.max(0.26, step.durationMs / 1000));
+  const start = timing?.start ?? context.currentTime;
+  const duration = timing?.duration ?? Math.min(0.5, Math.max(0.26, step.durationMs / 1000));
   const end = start + duration;
   // Let speaker pickup decay and clear one full pitch window before scoring.
   const inputTail = 0.18 + PITCH_WINDOW_SIZE / context.sampleRate;
@@ -62,4 +63,20 @@ export function playReferenceNote(context, step, onEnded) {
     },
   };
   return cue;
+}
+
+/**
+ * @param {AudioContext} context
+ * @param {import("./song-follow.mjs").FollowStep[]} steps
+ * @param {() => void} onEnded
+ */
+export function playReferenceSequence(context, steps, onEnded) {
+  let start = context.currentTime + 0.04;
+  steps.forEach((step, index) => {
+    const spacing = step.durationMs / 1000;
+    playReferenceNote(context, step, index === steps.length - 1 ? onEnded : undefined, {
+      start, duration: spacing * 0.86,
+    });
+    start += spacing;
+  });
 }

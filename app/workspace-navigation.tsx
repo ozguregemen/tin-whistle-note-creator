@@ -1,6 +1,6 @@
 "use client";
 
-export type WorkArea = "catalog" | "listen" | "convert" | "practice";
+export type WorkArea = "catalog" | "listen" | "convert" | "practice" | "tutorial";
 
 export const workspaceCopy = {
   en: {
@@ -12,6 +12,7 @@ export const workspaceCopy = {
     practiseSong: "Practise this song",
     convert: "Convert to notes",
     practice: "Practice",
+    tutorial: "Tutorial",
     addSong: "Add song",
     editSong: "Edit song",
     account: "Account",
@@ -39,6 +40,7 @@ export const workspaceCopy = {
     practiseSong: "Bu şarkıyı prova et",
     convert: "Notaya çevir",
     practice: "Prova",
+    tutorial: "Eğitim",
     addSong: "Şarkı ekle",
     editSong: "Şarkıyı düzenle",
     account: "Hesap",
@@ -79,7 +81,7 @@ export function WorkspaceNavigation({ language, area, languageLabel, languageAct
           <span>Tin Whistle Note Creator</span>
         </a>
         <nav className="app-nav" aria-label={t.navigation}>
-          {(["catalog", "convert", "practice"] as const).map((view) => (
+          {(["catalog", "convert", "practice", "tutorial"] as const).map((view) => (
             <button key={view} type="button" aria-current={activeArea === view ? "page" : undefined} onClick={() => onNavigate(view)}>
               {t[view]}
             </button>
