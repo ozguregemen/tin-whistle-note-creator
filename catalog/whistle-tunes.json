@@ -242,61 +242,39 @@
       "aliases": ["Binks Sake", "Bink's Brew", "Binkusu no Sake", "One Piece"],
       "excerpt": true,
       "subtitle": {
-        "en": "Opening refrain and verse · approximate rhythm",
-        "tr": "Açılış nakaratı ve kıta · yaklaşık ritim"
+        "en": "Swing section · measures 9–16",
+        "tr": "Swing bölümü · 9–16. ölçüler"
       },
       "difficulty": {
         "en": "Intermediate",
         "tr": "Orta"
       },
-      "notes": "B4 D5 D5 D5 E5 D5 B4 D5 | B4 D5 D5 D5 E5 D5 B4 G4 | B4 D5 D5 D5 E5 D5 B4 D5 | B4 D5 D5 D5 E5 D5 B4 G4 | D5 B4 A4 G4 E4 F#4 G4 | D5 B4 A4 G4 E4 G4 D4 | E4 G4 D4 | E4 F#4 G4 | C5 B4 B4 A4 G4 A4 | D5 B4 A4 G4 E4 F#4 G4 | D5 B4 A4 G4 E4 G4 D4 | E4 G4 D4 | E4 F#4 G4 | C5 B4 G4 A4 A4 G4",
+      "notes": "D5 B4 A4 G4 E4 F#4 G4 | D5 B4 A4 G4 E4 G4 D4 | E4 G4 D4 E4 F#4 G4 C5 | B4 B4 A4 G4 A4 | D5 B4 A4 G4 E4 F#4 G4 | D5 B4 A4 G4 E4 G4 D4 | E4 G4 D4 E4 F#4 G4 C5 | B4 G4 A4 A4 G4",
       "rhythm": {
         "bpm": 168,
-        "source": "text",
+        "source": "score",
         "tempoSource": "user",
         "durations": [
-          [0.667, 0.667, 0.666, 2, 1.333, 0.667, 2, 2],
-          [0.667, 0.667, 0.666, 2, 1.333, 0.667, 2, 2],
-          [0.667, 0.667, 0.666, 2, 1.333, 0.667, 2, 2],
-          [0.667, 0.667, 0.666, 2, 1.333, 0.667, 2, 2],
-          [1.333, 0.667, 1.333, 0.667, 1.333, 0.667, 2],
-          [1.333, 0.667, 1.333, 0.667, 1.333, 0.667, 2],
-          [1.333, 0.667, 2],
-          [1.333, 0.667, 2],
-          [0.667, 0.667, 0.666, 0.667, 0.667, 0.666],
-          [1.333, 0.667, 1.333, 0.667, 1.333, 0.667, 2],
-          [1.333, 0.667, 1.333, 0.667, 1.333, 0.667, 2],
-          [1.333, 0.667, 2],
-          [1.333, 0.667, 2],
-          [0.667, 0.667, 0.666, 0.667, 0.667, 0.666]
-        ],
-        "gaps": [
-          [0, 0, 0, 0, 0, 0, 0, 0],
-          [2, 0, 0, 0, 0, 0, 0, 0],
-          [2, 0, 0, 0, 0, 0, 0, 0],
-          [2, 0, 0, 0, 0, 0, 0, 0],
-          [2, 0, 0, 0, 0, 0, 0],
-          [0, 0, 0, 0, 0, 0, 0],
-          [0, 0, 0],
-          [0, 0, 0],
-          [0, 0, 0, 0, 0, 0],
-          [0, 0, 0, 0, 0, 0, 0],
-          [0, 0, 0, 0, 0, 0, 0],
-          [0, 0, 0],
-          [0, 0, 0],
-          [0, 0, 0, 0, 0, 0]
+          [0.666667, 0.333333, 0.666667, 0.333333, 0.666667, 0.333333, 1],
+          [0.666667, 0.333333, 0.666667, 0.333333, 0.666667, 0.333333, 1],
+          [0.666667, 0.333333, 1, 0.666667, 0.333333, 0.666667, 0.333333],
+          [0.666667, 0.333333, 0.666667, 0.333333, 2],
+          [0.666667, 0.333333, 0.666667, 0.333333, 0.666667, 0.333333, 1],
+          [0.666667, 0.333333, 0.666667, 0.333333, 0.666667, 0.333333, 1],
+          [0.666667, 0.333333, 1, 0.666667, 0.333333, 0.666667, 0.333333],
+          [0.666667, 0.333333, 0.666667, 0.333333, 2]
         ]
       },
       "sourceStatus": "cross-checked",
       "sources": [
         {
-          "name": "D whistle fingering chart",
-          "url": "https://www.reddit.com/r/OnePiece/comments/106qlt5/",
+          "name": "MuseScore · wakeup2early",
+          "url": "https://musescore.com/user/37150766/scores/6563760",
           "role": "note-source"
         },
         {
-          "name": "Harptabs · harmonica melody",
-          "url": "https://harptabs.com/tab/22678/one-piece-bink-s-sake",
+          "name": "D whistle fingering chart",
+          "url": "https://www.reddit.com/r/OnePiece/comments/106qlt5/",
           "role": "cross-check"
         }
       ]

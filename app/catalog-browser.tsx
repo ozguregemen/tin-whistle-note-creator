@@ -101,7 +101,7 @@ export function CommunitySearchResults<Song extends CatalogSong>({ songs, langua
 }
 
 export function CatalogBrowser<Song extends CatalogSong>({
-  songs, language, activeId, busy, onOpen, onSearchOnline, compact = false, loadCommunity, communityRevision = 0,
+  songs, language, activeId, busy, onOpen, onSearchOnline, onAddSong, compact = false, loadCommunity, communityRevision = 0,
 }: {
   songs: Song[];
   language: keyof typeof labels;
@@ -109,6 +109,7 @@ export function CatalogBrowser<Song extends CatalogSong>({
   busy: boolean;
   onOpen: (song: Song) => void;
   onSearchOnline?: (query: string) => void;
+  onAddSong?: () => void;
   compact?: boolean;
   loadCommunity?: (query: string, offset: number, signal?: AbortSignal) => Promise<CommunityResults<Song>>;
   communityRevision?: number;
@@ -197,9 +198,14 @@ export function CatalogBrowser<Song extends CatalogSong>({
     <section id={compact ? undefined : "song-catalog"} aria-labelledby={compact ? undefined : "catalog-title"} aria-label={compact ? t.title : undefined}>
       {!compact && <div className="screen-heading">
         <div><h1 id="catalog-title" tabIndex={-1}>{t.title}</h1><p>{t.intro}</p></div>
-        {onSearchOnline && <button className="secondary-action" type="button" onClick={() => onSearchOnline(query)}>
-          {workspaceCopy[language].online}
-        </button>}
+        <div className="catalog-heading-actions">
+          {onSearchOnline && <button className="secondary-action" type="button" onClick={() => onSearchOnline(query)}>
+            {workspaceCopy[language].online}
+          </button>}
+          {onAddSong && <button className="secondary-action catalog-add-song" type="button" aria-haspopup="dialog" onClick={onAddSong}>
+            {workspaceCopy[language].addEditSongs}
+          </button>}
+        </div>
       </div>}
       <div className="catalog-browser">
         <div className="catalog-tools">

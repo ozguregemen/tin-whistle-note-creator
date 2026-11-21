@@ -11,14 +11,18 @@ import {
 
 const copy = {
   en: {
-    title: "Song editor", intro: "Build a tin whistle arrangement and share it in the catalog.",
+    add: "Add a song", arrange: "Edit song", close: "Close",
+    intro: "Build a tin whistle arrangement and share it in the catalog.",
+    changesOwn: "Save changes to your published arrangement.",
+    newVersion: "Publish your own version alongside the versions in the catalog.",
+    useNotes: "Use current notes",
     song: "Song title", artist: "Artist (optional)", tempo: "Tempo (BPM)",
     method: "Note entry method", text: "Note names", fingers: "Fingerings", notes: "Notes",
     textHint: "Use letters or solfège. Separate phrases with a new line or |. Use D5 or Re+ for high D.",
-    fingerHint: "Tap each hole to cover it. Choose the register for notes with the same fingering.",
-    half: "Half-cover tool", addNote: "Add note", addPhrase: "Add phrase", openHoles: "Use all open",
-    note: "Note", hole: "Hole", remove: "Remove note", register: "Register", first: "Lower",
-    second: "Upper", third: "Third", newPhrase: "New phrase", unfinished: "Pick holes", noMatch: "Check fingering",
+    fingerHint: "Tap the holes to fill a note card. Filled cards play in order.",
+    half: "Half cover", addNote: "Add note", addPhrase: "Add phrase", openHoles: "All holes open",
+    note: "Note", hole: "Hole", remove: "Remove card", register: "Register", first: "Lower",
+    second: "Upper", third: "Third", newPhrase: "New phrase", noMatch: "Check fingering",
     publish: "Publish to catalog", update: "Save changes", cancelEdit: "New arrangement", saving: "Saving…",
     published: "Published to the catalog.", updated: "Arrangement updated.", listen: "Listen",
     account: "Your account", accountHint: "Sign in to publish under your username.",
@@ -46,14 +50,18 @@ const copy = {
     },
   },
   tr: {
-    title: "Şarkı editörü", intro: "Tin whistle düzenlemeni oluştur ve katalogda paylaş.",
+    add: "Şarkı ekle", arrange: "Şarkıyı düzenle", close: "Kapat",
+    intro: "Tin whistle düzenlemeni oluştur ve katalogda paylaş.",
+    changesOwn: "Yayımladığın düzenlemenin değişikliklerini kaydet.",
+    newVersion: "Kendi düzenlemeni katalogdaki diğer sürümlerin yanında yayımla.",
+    useNotes: "Mevcut notaları getir",
     song: "Şarkı adı", artist: "Sanatçı (isteğe bağlı)", tempo: "Tempo (BPM)",
     method: "Nota girme yöntemi", text: "Nota adları", fingers: "Parmak dizilimi", notes: "Notalar",
     textHint: "Do, Re veya C, D yazabilirsin. Ezgi bölümlerini yeni satırla veya | ile ayır. İnce Re için Re+ veya D5 yaz.",
-    fingerHint: "Kapatmak istediğin deliklere dokun. Aynı dizilimi paylaşan notalar için ses bölgesini seç.",
-    half: "Yarım kapatma aracı", addNote: "Nota ekle", addPhrase: "Bölüm ekle", openHoles: "Tümü açık",
-    note: "Nota", hole: "Delik", remove: "Notayı kaldır", register: "Ses bölgesi", first: "Alt",
-    second: "Üst", third: "Üçüncü", newPhrase: "Yeni bölüm", unfinished: "Delikleri seç", noMatch: "Dizilimi kontrol et",
+    fingerHint: "Nota kartındaki deliklere dokunarak doldur. Doldurduğun kartlar sırayla çalınır.",
+    half: "Yarım kapat", addNote: "Nota ekle", addPhrase: "Bölüm ekle", openHoles: "Tümü açık",
+    note: "Nota", hole: "Delik", remove: "Kartı kaldır", register: "Ses bölgesi", first: "Alt",
+    second: "Üst", third: "Üçüncü", newPhrase: "Yeni bölüm", noMatch: "Dizilimi kontrol et",
     publish: "Katalogda yayımla", update: "Değişiklikleri kaydet", cancelEdit: "Yeni düzenleme", saving: "Kaydediliyor…",
     published: "Düzenleme katalogda yayımlandı.", updated: "Düzenleme güncellendi.", listen: "Dinle",
     account: "Hesabın", accountHint: "Düzenlemeni kullanıcı adınla paylaşmak için giriş yap.",
@@ -87,8 +95,30 @@ type Register = 1 | 2 | 3;
 type Cell = { id: number; holes: string; register: Register; entered: boolean; startsPhrase: boolean };
 type Issue = { error: string; note?: string };
 
+export type EditorSource = {
+  id: string;
+  title: string;
+  artist?: string;
+  contributor?: string;
+  notes: string;
+  rhythm?: { bpm: number };
+};
+
 function emptyCell(id: number, startsPhrase = false): Cell {
   return { id, holes: "000000", register: 1, entered: false, startsPhrase };
+}
+
+function templateCells(notation?: string): Cell[] {
+  const phrases = notation?.split("|").map(phrase => phrase.trim()).filter(Boolean) ?? [];
+  if (!phrases.length) return Array.from({ length: 8 }, (_, index) => emptyCell(index));
+  const template: Cell[] = [];
+  for (const phrase of phrases) {
+    const length = Math.min(phrase.split(/\s+/).length, MAX_COMMUNITY_NOTES - template.length);
+    for (let index = 0; index < length; index += 1) {
+      template.push(emptyCell(template.length, template.length > 0 && index === 0));
+    }
+  }
+  return template;
 }
 
 function cellNote(cell: Cell) {
@@ -96,12 +126,15 @@ function cellNote(cell: Cell) {
 }
 
 function diagramToText(cells: Cell[]): string | Issue {
-  if (cells.length === 1 && !cells[0].entered) return "";
   const tokens: string[] = [];
+  let pendingPhrase = false;
   for (const [index, cell] of cells.entries()) {
+    if (cell.startsPhrase && tokens.length > 0) pendingPhrase = true;
+    if (!cell.entered) continue;
     const note = cellNote(cell);
     if (!note) return { error: "invalid_fingering", note: String(index + 1) };
-    if (cell.startsPhrase && index > 0) tokens.push("|");
+    if (pendingPhrase) tokens.push("|");
+    pendingPhrase = false;
     tokens.push(`${note.pitch}${note.octave}`);
   }
   return tokens.join(" ");
@@ -118,13 +151,18 @@ function issueText(t: typeof copy[Language], issue: Issue) {
   return issue.note ? `${text} (${issue.note})` : text;
 }
 
-export function SongEditor({ language, visible, onSaved, onListen }: {
+export function SongEditor({ language, visible, source, onClose, onSaved, onListen }: {
   language: Language;
   visible: boolean;
+  source: EditorSource | null;
+  onClose: () => void;
   onSaved: () => void;
   onListen: (song: CommunitySong) => void;
 }) {
   const t = copy[language];
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const gridRef = useRef<HTMLOListElement>(null);
   const [session, setSession] = useState<CommunitySession | null>(null);
   const sessionChecked = useRef(false);
   const [accountMode, setAccountMode] = useState<"login" | "register">("login");
@@ -136,18 +174,35 @@ export function SongEditor({ language, visible, onSaved, onListen }: {
   const [mineNext, setMineNext] = useState<number | null>(null);
   const [loadingMine, setLoadingMine] = useState(false);
   const [mineIssue, setMineIssue] = useState<Issue | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [title, setTitle] = useState("");
-  const [artist, setArtist] = useState("");
-  const [bpm, setBpm] = useState("90");
-  const [method, setMethod] = useState<"text" | "fingers">("text");
+  const [draftSource, setDraftSource] = useState(source);
+  const editingId = draftSource && session && draftSource.contributor === session.username ? draftSource.id : null;
+  const [title, setTitle] = useState(source?.title ?? "");
+  const [artist, setArtist] = useState(source?.artist ?? "");
+  const [bpm, setBpm] = useState(String(source?.rhythm?.bpm ?? 90));
+  const [method, setMethod] = useState<"text" | "fingers">("fingers");
   const [notation, setNotation] = useState("");
-  const nextCell = useRef(1);
-  const [cells, setCells] = useState<Cell[]>(() => [emptyCell(0)]);
+  const nextCell = useRef(MAX_COMMUNITY_NOTES);
+  const [cells, setCells] = useState<Cell[]>(() => templateCells(source?.notes));
+  const [selectedCell, setSelectedCell] = useState(0);
   const [half, setHalf] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formIssue, setFormIssue] = useState<Issue | null>(null);
   const [saved, setSaved] = useState<{ song: CommunitySong; updated: boolean } | null>(null);
+  const selectedIndex = Math.max(0, cells.findIndex(cell => cell.id === selectedCell));
+  const activeCell = cells[selectedIndex];
+  const activeLabel = `${t.note} ${selectedIndex + 1}`;
+  const canImport = Boolean(draftSource?.notes && (method === "text" ? !notation.trim() : !cells.some(cell => cell.entered)));
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (visible && !dialog.open) {
+      dialog.showModal();
+      headingRef.current?.focus({ preventScroll: true });
+    } else if (!visible && dialog.open) {
+      dialog.close();
+    }
+  }, [visible]);
 
   useEffect(() => {
     if (!visible || sessionChecked.current) return;
@@ -185,7 +240,6 @@ export function SongEditor({ language, visible, onSaved, onListen }: {
       setMine([]);
       setMineNext(null);
       setMineIssue(null);
-      if (editingId) setEditingId(null);
     }
   }
 
@@ -235,17 +289,27 @@ export function SongEditor({ language, visible, onSaved, onListen }: {
     }
   }
 
+  function fillDiagramFromNotes(notes: string) {
+    const parsed = parseCommunityNotation(notes);
+    if ("error" in parsed) { setFormIssue(parsed); return false; }
+    let position = 0;
+    setCells(parsed.phrases.flatMap((phrase, phraseIndex) => phrase.map((note, index) => ({
+      id: position++, holes: fingeringFor(note.pitch, note.octave)!, register: registerForNote(note) as Register,
+      entered: true, startsPhrase: phraseIndex > 0 && index === 0,
+    }))));
+    setSelectedCell(0);
+    return true;
+  }
+
   function switchMethod(next: typeof method) {
     if (next === method) return;
-    if (next === "fingers" && notation.trim()) {
-      const parsed = parseCommunityNotation(notation);
-      if ("error" in parsed) { setFormIssue(parsed); return; }
-      setCells(parsed.phrases.flatMap((phrase, phraseIndex) => phrase.map((note, index) => ({
-        id: nextCell.current++, holes: fingeringFor(note.pitch, note.octave)!, register: registerForNote(note) as Register,
-        entered: true, startsPhrase: phraseIndex > 0 && index === 0,
-      }))));
-    } else if (next === "fingers") {
-      setCells([emptyCell(nextCell.current++)]);
+    if (next === "fingers") {
+      if (notation.trim()) {
+        if (!fillDiagramFromNotes(notation)) return;
+      } else {
+        setCells(templateCells(draftSource?.notes));
+        setSelectedCell(0);
+      }
     } else {
       const text = diagramToText(cells);
       if (typeof text !== "string") { setFormIssue(text); return; }
@@ -259,22 +323,40 @@ export function SongEditor({ language, visible, onSaved, onListen }: {
     setCells(previous => previous.map(cell => cell.id === id ? { ...cell, ...update } : cell));
   }
 
-  function removeCell(index: number) {
-    if (cells.length === 1) {
-      setCells([emptyCell(nextCell.current++)]);
-      return;
-    }
-    setCells(previous => previous.filter((_, i) => i !== index).map((cell, i) =>
-      i === index && previous[index].startsPhrase ? { ...cell, startsPhrase: i > 0 } : cell));
+  function appendCell(startsPhrase = false) {
+    const cell = emptyCell(nextCell.current++, startsPhrase);
+    setCells(previous => [...previous, cell]);
+    setSelectedCell(cell.id);
+    window.requestAnimationFrame(() => gridRef.current?.querySelector<HTMLButtonElement>(`[data-note-position="${cell.id}"]`)?.focus());
   }
 
-  function loadArrangement(song?: CommunitySong) {
-    setEditingId(song?.id ?? null);
+  function removeSelectedCell() {
+    if (cells.length === 1) {
+      setCells([emptyCell(0)]);
+      setSelectedCell(0);
+    } else {
+      setCells(previous => previous.filter((_, i) => i !== selectedIndex).map((cell, i) =>
+        i === selectedIndex && previous[selectedIndex].startsPhrase ? { ...cell, startsPhrase: i > 0 } : cell));
+      setSelectedCell((cells[selectedIndex + 1] ?? cells[selectedIndex - 1]).id);
+    }
+  }
+
+  function importSourceNotes() {
+    if (!draftSource?.notes || !canImport) return;
+    if (method === "fingers" && !fillDiagramFromNotes(draftSource.notes)) return;
+    if (method === "text") setNotation(draftSource.notes);
+    setFormIssue(null);
+  }
+
+  function loadArrangement(song: EditorSource | null = null) {
+    setDraftSource(song);
     setTitle(song?.title ?? "");
     setArtist(song?.artist ?? "");
-    setBpm(String(song?.rhythm.bpm ?? 90));
-    setNotation(song?.notes ?? "");
-    setMethod("text");
+    setBpm(String(song?.rhythm?.bpm ?? 90));
+    setNotation("");
+    setCells(templateCells(song?.notes));
+    setSelectedCell(0);
+    setMethod("fingers");
     setFormIssue(null);
     setSaved(null);
     document.getElementById("editor-song-title")?.focus();
@@ -300,7 +382,7 @@ export function SongEditor({ language, visible, onSaved, onListen }: {
         method: editingId ? "PUT" : "POST", token: session.token, body: draft,
       });
       setSaved({ song, updated: Boolean(editingId) });
-      setEditingId(song.id);
+      setDraftSource(song);
       setMine(previous => [song, ...previous.filter(item => item.id !== song.id)]);
       onSaved();
     } catch (error) {
@@ -313,10 +395,16 @@ export function SongEditor({ language, visible, onSaved, onListen }: {
   }
 
   return (
-    <section id="editor-workspace" aria-labelledby="editor-title" hidden={!visible}>
-      <div className="screen-heading">
-        <div><h1 id="editor-title" tabIndex={-1}>{t.title}</h1><p>{t.intro}</p></div>
-      </div>
+    <dialog className="editor-dialog" ref={dialogRef} aria-labelledby="editor-title" onClose={event => {
+      if (!event.currentTarget.open) onClose();
+    }}>
+      <header className="editor-dialog-heading">
+        <div>
+          <h1 id="editor-title" ref={headingRef} tabIndex={-1}>{draftSource ? t.arrange : t.add}</h1>
+          <p>{editingId ? t.changesOwn : draftSource ? t.newVersion : t.intro}</p>
+        </div>
+        <button className="secondary-action" type="button" onClick={() => dialogRef.current?.close()}>{t.close}</button>
+      </header>
       <div className="editor-layout">
         <form className="editor-panel" onSubmit={saveArrangement}>
           <fieldset className="editor-fields" disabled={saving}>
@@ -325,9 +413,12 @@ export function SongEditor({ language, visible, onSaved, onListen }: {
               <label>{t.artist}<input value={artist} maxLength={100} onChange={event => setArtist(event.target.value)} /></label>
               <label>{t.tempo}<input value={bpm} inputMode="numeric" type="number" min={40} max={220} required onChange={event => setBpm(event.target.value)} /></label>
             </div>
-            <div className="editor-choice" role="group" aria-label={t.method}>
-              <button type="button" aria-pressed={method === "text"} onClick={() => switchMethod("text")}>{t.text}</button>
-              <button type="button" aria-pressed={method === "fingers"} onClick={() => switchMethod("fingers")}>{t.fingers}</button>
+            <div className="editor-entry-controls">
+              <div className="editor-choice" role="group" aria-label={t.method}>
+                <button type="button" aria-pressed={method === "fingers"} onClick={() => switchMethod("fingers")}>{t.fingers}</button>
+                <button type="button" aria-pressed={method === "text"} onClick={() => switchMethod("text")}>{t.text}</button>
+              </div>
+              {canImport && <button type="button" className="secondary-action" onClick={importSourceNotes}>{t.useNotes}</button>}
             </div>
             {method === "text" ? (
               <div className="editor-notation">
@@ -339,57 +430,67 @@ export function SongEditor({ language, visible, onSaved, onListen }: {
               </div>
             ) : (
               <div className="editor-notation">
-                <div className="editor-finger-tools">
-                  <p>{t.fingerHint}</p>
+                <p id="editor-note-hint">{t.fingerHint}</p>
+                <div className="editor-finger-tools" role="group" aria-label={activeLabel}>
+                  <label>{t.register}
+                    <select value={activeCell.register} aria-label={`${activeLabel} · ${t.register}`}
+                      onChange={event => patchCell(activeCell.id, { register: Number(event.target.value) as Register })}>
+                      <option value={1}>{t.first}</option><option value={2}>{t.second}</option><option value={3}>{t.third}</option>
+                    </select>
+                  </label>
                   <button type="button" className="secondary-action" aria-pressed={half} onClick={() => setHalf(value => !value)}>{t.half}</button>
+                  <button type="button" className="secondary-action" onClick={() => patchCell(activeCell.id, { holes: "000000", entered: true })}>{t.openHoles}</button>
+                  <button type="button" className="secondary-action" onClick={removeSelectedCell}>{t.remove}</button>
                 </div>
-                <ol className="editor-note-grid">
+                <ol className="song-follow-grid song-follow-attempts editor-note-grid" ref={gridRef} aria-describedby="editor-note-hint">
                   {cells.map((cell, index) => {
                     const note = cellNote(cell);
                     const number = index + 1;
                     const described = `${t.note} ${number}`;
+                    const current = cell.id === activeCell.id;
                     return (
-                      <li className={`editor-note${cell.startsPhrase ? " editor-phrase-start" : ""}${cell.entered && !note ? " editor-note-invalid" : ""}`} key={cell.id}>
-                        <div className="editor-note-header">
-                          <span title={cell.startsPhrase ? t.newPhrase : undefined}>{number}</span>
-                          <button type="button" className="editor-remove-note" aria-label={`${t.remove} ${number}`} onClick={() => removeCell(index)}>×</button>
-                        </div>
-                        <div className="editor-holes" role="group" aria-label={described}>
+                      <li className={`song-follow-tile song-follow-attempt editor-note${current ? " current" : ""}${cell.startsPhrase ? " editor-phrase-start" : ""}${cell.entered && !note ? " editor-note-invalid" : ""}`} key={cell.id}>
+                        <button type="button" className="song-follow-position editor-note-position" data-note-position={cell.id}
+                          aria-pressed={current} aria-label={cell.startsPhrase ? `${described} · ${t.newPhrase}` : described}
+                          onClick={() => setSelectedCell(cell.id)}>{number}</button>
+                        <div className="song-follow-note-holes editor-holes" role="group" aria-label={described}>
                           {Array.from(cell.holes, (state, holeIndex) => (
-                            <button type="button" className={`editor-hole editor-hole-${state}`} key={holeIndex}
-                              aria-label={`${described} · ${t.hole} ${holeIndex + 1}`}
+                            <button type="button" className="editor-hole" key={holeIndex}
+                              aria-label={`${described} · ${t.hole} ${holeIndex + 1}`} onFocus={() => setSelectedCell(cell.id)}
                               aria-pressed={state === "h" ? "mixed" : state === "1"} onClick={() => {
                                 const mark = half ? "h" : "1";
                                 const next = state === mark ? "0" : mark;
+                                setSelectedCell(cell.id);
                                 patchCell(cell.id, { holes: cell.holes.slice(0, holeIndex) + next + cell.holes.slice(holeIndex + 1), entered: true });
-                              }} />
+                              }}>
+                              <span aria-hidden="true" className={`hole ${state === "h" ? "half" : state === "1" ? "closed" : "open"}`} />
+                            </button>
                           ))}
                         </div>
-                        <output aria-live="polite">{note
+                        <output aria-live={current ? "polite" : "off"}>{note
                           ? language === "tr" ? `${NOTE_NAMES[note.pitch]} · ${note.pitch}${note.octave}` : `${note.pitch}${note.octave}`
-                          : cell.entered ? t.noMatch : t.unfinished}</output>
-                        <select value={cell.register} aria-label={`${described} · ${t.register}`} onChange={event => patchCell(cell.id, { register: Number(event.target.value) as Register })}>
-                          <option value={1}>{t.first}</option><option value={2}>{t.second}</option><option value={3}>{t.third}</option>
-                        </select>
-                        {!cell.entered && <button type="button" className="editor-open-holes" onClick={() => patchCell(cell.id, { entered: true })}>{t.openHoles}</button>}
+                          : cell.entered ? t.noMatch : ""}</output>
                       </li>
                     );
                   })}
                 </ol>
                 <div className="editor-actions">
-                  <button type="button" className="secondary-action" disabled={cells.length >= MAX_COMMUNITY_NOTES} onClick={() => setCells([...cells, emptyCell(nextCell.current++)])}>{t.addNote}</button>
-                  <button type="button" className="secondary-action" disabled={cells.length >= MAX_COMMUNITY_NOTES} onClick={() => setCells([...cells, emptyCell(nextCell.current++, true)])}>{t.addPhrase}</button>
+                  <button type="button" className="secondary-action" disabled={cells.length >= MAX_COMMUNITY_NOTES} onClick={() => appendCell()}>{t.addNote}</button>
+                  <button type="button" className="secondary-action" disabled={cells.length >= MAX_COMMUNITY_NOTES} onClick={() => appendCell(true)}>{t.addPhrase}</button>
                 </div>
               </div>
             )}
             {formIssue && <p className="editor-error" role="alert">{issueText(t, formIssue)}</p>}
             <div className="editor-actions editor-publish">
               <button className="primary-button" type="submit">{saving ? t.saving : editingId ? t.update : t.publish}</button>
-              {editingId && <button className="secondary-action" type="button" onClick={() => loadArrangement()}>{t.cancelEdit}</button>}
+              {draftSource && <button className="secondary-action" type="button" onClick={() => loadArrangement()}>{t.cancelEdit}</button>}
             </div>
             {saved && <div className="editor-success">
               <p role="status">{saved.updated ? t.updated : t.published}</p>
-              <button className="secondary-action" type="button" onClick={() => onListen(saved.song)}>{t.listen}</button>
+              <button className="secondary-action" type="button" onClick={() => {
+                dialogRef.current?.close();
+                onListen(saved.song);
+              }}>{t.listen}</button>
             </div>}
           </fieldset>
         </form>
@@ -434,6 +535,6 @@ export function SongEditor({ language, visible, onSaved, onListen }: {
           {accountIssue && <p className="editor-error" role="alert">{issueText(t, accountIssue)}</p>}
         </aside>
       </div>
-    </section>
+    </dialog>
   );
 }

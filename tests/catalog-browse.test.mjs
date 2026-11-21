@@ -108,8 +108,10 @@ test("the screen and game themes appear in Approved with timed whistle excerpts"
     assert.ok(song.rhythm.durations.flat().every(duration => duration > 0));
     if (id === "whistle-binks-sake") {
       assert.equal(song.rhythm.bpm, 168);
-      assert.equal(phraseLengths.reduce((sum, count) => sum + count, 0), 84);
-      assert.equal(song.notes.split(" | ")[4], "D5 B4 A4 G4 E4 F#4 G4");
+      assert.deepEqual(phraseLengths, [7, 7, 7, 5, 7, 7, 7, 5]);
+      assert.equal(song.notes.split(" | ")[0], "D5 B4 A4 G4 E4 F#4 G4");
+      assert.equal(song.notes.split(" | ").at(-1), "B4 G4 A4 A4 G4");
+      assert.ok(song.rhythm.durations.every(measure => Math.abs(measure.reduce((sum, beat) => sum + beat, 0) - 4) < 1e-6));
     }
   }
 });

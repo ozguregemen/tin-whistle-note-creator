@@ -5,7 +5,7 @@ import { parseAbcScore } from "./abc.mjs";
 import { AudioClipPicker, type AudioClipRange } from "./audio-clip-picker";
 import { CatalogBrowser, CommunitySearchResults } from "./catalog-browser";
 import { listCommunitySongs, type CommunitySong } from "./community-client";
-import { SongEditor } from "./song-editor";
+import { SongEditor, type EditorSource } from "./song-editor";
 import { NOTE_NAMES, normalizeNote, WHISTLE_NOTES } from "./note-notation.mjs";
 import { withBundledCatalogSongs } from "./catalog-browse.mjs";
 import whistleTunes from "../catalog/whistle-tunes.json";
@@ -599,6 +599,7 @@ export default function Home() {
   const [mode, setMode] = useState<InputMode>("search");
   const [catalog, setCatalog] = useState<Song[]>(FALLBACK_SONGS);
   const [communityRevision, setCommunityRevision] = useState(0);
+  const [songEditor, setSongEditor] = useState<{ source: EditorSource | null; visible: boolean } | null>(null);
   const [communitySearch, setCommunitySearch] = useState<{ query: string; songs: CommunitySong[] } | null>(null);
   const [area, setArea] = useState<WorkArea>("catalog");
   const areaRef = useRef<WorkArea>("catalog");
@@ -798,6 +799,8 @@ export default function Home() {
     return () => window.cancelAnimationFrame(frame);
   }, [activeNoteIndex, followEnabled, isPlaying]);
 
+  const communityNotes = song?.contributor ? song.notes : undefined;
+  const communityBpm = song?.contributor ? song.rhythm?.bpm : undefined;
   useEffect(() => {
     playbackRequestRef.current += 1;
     if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
@@ -811,7 +814,7 @@ export default function Home() {
     metronomePhaseRef.current = null;
     loopEnabledRef.current = false;
     selectedPhraseRef.current = 0;
-    // Resetting transport state when a different score is selected is intentional.
+    // Selecting a different score or revising a published arrangement resets the transport.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveNoteIndex(-1);
     setIsPlaying(false);
@@ -825,7 +828,7 @@ export default function Home() {
     setBpmInput(String(initialBpm));
     // Tempo discovery updates the current song in place and must not restart transport.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song?.id]);
+  }, [song?.id, communityNotes, communityBpm]);
 
   useEffect(() => {
     const youtubeSong = song?.youtubeSong;
@@ -1688,7 +1691,6 @@ export default function Home() {
       listen: "preview-title",
       convert: inputModeRef.current === "search" ? "song-search" : "convert-title",
       practice: "preview-title",
-      editor: "editor-title",
     }[next];
     window.requestAnimationFrame(() => {
       if (areaRef.current !== next) return;
@@ -1727,6 +1729,20 @@ export default function Home() {
     setPickingPracticeSong(true);
   }
 
+  function openSongEditor(selected?: Song) {
+    if (selected && areaRef.current === "listen") {
+      if (isPlaying) void togglePlayback();
+      else if (soundStatus === "loading") stopPlayback();
+    }
+    const source = selected ? {
+      ...selected,
+      notes: phrases.map(phrase => phrase.map(note => `${note.pitch}${note.octave}`).join(" ")).join(" | "),
+    } : null;
+    setSongEditor(previous => previous && previous.source?.id === source?.id
+      ? { ...previous, visible: true }
+      : { source, visible: true });
+  }
+
   const viewingPlayback = area === "listen";
   const practiceMicrophone = (area === "practice" && (song || !pickingPracticeSong)) || (viewingPlayback && song)
     ? <PracticeMicrophone key={`${song?.id ?? ""}:${song?.notes ?? ""}`} language={language}
@@ -1743,10 +1759,14 @@ export default function Home() {
         <div id="catalog-workspace" hidden={area !== "catalog"}>
           <CatalogBrowser songs={catalog} language={language} activeId={song?.id}
             loadCommunity={listCommunitySongs} communityRevision={communityRevision}
-            busy={(sourceIsBusy || status === "searching") || audioBusy} onOpen={openCatalogSong} onSearchOnline={openWebSearch} />
+            busy={(sourceIsBusy || status === "searching") || audioBusy} onOpen={openCatalogSong} onSearchOnline={openWebSearch}
+            onAddSong={() => openSongEditor()} />
         </div>
 
-        <SongEditor language={language} visible={area === "editor"} onSaved={() => setCommunityRevision(revision => revision + 1)} onListen={openCatalogSong} />
+        {songEditor && <SongEditor key={songEditor.source?.id ?? "new-arrangement"} language={language}
+          visible={songEditor.visible} source={songEditor.source}
+          onClose={() => setSongEditor(previous => previous && { ...previous, visible: false })}
+          onSaved={() => setCommunityRevision(revision => revision + 1)} onListen={openCatalogSong} />}
 
         <section id="input-workspace" hidden={area !== "convert"} aria-labelledby="convert-title">
           <div className="screen-heading">
@@ -1935,6 +1955,8 @@ export default function Home() {
                           : song.rhythm?.source === "transcribed" ? t.audioReferenceTempo : t.defaultTempo}
                   </span>
                 </div>
+                <button type="button" className="secondary-action practice-edit-song" aria-haspopup="dialog"
+                  onClick={() => openSongEditor(song)}>{ui.editSong}</button>
               </div>
             </section>}
             {unsupported.length > 0 && <div className="warning" role="alert"><strong>{unsupported.length} {t.warningStart}</strong> {t.warningEnd}</div>}
