@@ -4,7 +4,8 @@ import { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect,
 import { parseAbcScore } from "./abc.mjs";
 import { AudioClipPicker, type AudioClipRange } from "./audio-clip-picker";
 import { CatalogBrowser, CommunitySearchResults } from "./catalog-browser";
-import { listCommunitySongs, type CommunitySong } from "./community-client";
+import { listCommunitySongs, type CommunityRating, type CommunitySong } from "./community-client";
+import { SongRating } from "./community-rating";
 import { CommunityWorkspace, useCommunityAccount, type CommunityPanel } from "./community-workspace";
 import type { EditorSource } from "./song-editor";
 import { NOTE_NAMES, normalizeNote, WHISTLE_NOTES } from "./note-notation.mjs";
@@ -57,6 +58,7 @@ type Song = {
   excerpt?: boolean;
   artist?: string;
   contributor?: string;
+  rating?: CommunityRating;
   youtubeSong?: { title: string; artist: string };
   youtubeTempo?: { bpm: number; sourceUrl?: string };
   aliases: string[];
@@ -1752,9 +1754,18 @@ export default function Home() {
     setCommunityPanel("editor");
   }
 
-  function openCommunityAccount() {
+  function openCommunityAccount(panel: "account" | "rating") {
     pauseForCommunity();
-    setCommunityPanel("account");
+    setCommunityPanel(panel);
+  }
+
+  function updateCatalogRating(songId: string, rating: CommunityRating) {
+    setSong(current => current?.id === songId ? { ...current, rating } : current);
+    setCommunitySearch(current => current && {
+      ...current,
+      songs: current.songs.map(version => version.id === songId ? { ...version, rating } : version),
+    });
+    setCommunityRevision(revision => revision + 1);
   }
 
   const viewingPlayback = area === "listen";
@@ -1769,7 +1780,7 @@ export default function Home() {
     <div lang={language}>
       <WorkspaceNavigation language={language} area={area} languageLabel={t.languageLabel} languageAction={t.languageAction}
         onLanguage={toggleLanguage} onNavigate={navigateWorkspace}
-        signedIn={Boolean(communityAccount.session)} onAccount={openCommunityAccount} />
+        signedIn={Boolean(communityAccount.session)} onAccount={() => openCommunityAccount("account")} />
       <main className="app-content shell">
         <div id="catalog-workspace" hidden={area !== "catalog"}>
           <CatalogBrowser songs={catalog} language={language} activeId={song?.id}
@@ -1907,6 +1918,9 @@ export default function Home() {
               </div>
             </div>
             {practiceMicrophone}
+            {viewingPlayback && song.contributor && <SongRating key={`${song.id}:${communityAccount.session?.username ?? ""}`}
+              language={language} songId={song.id} rating={song.rating} session={communityAccount.session}
+              onSignIn={() => openCommunityAccount("rating")} onSessionExpired={communityAccount.expireSession} onSaved={updateCatalogRating} />}
             {viewingPlayback && <section className={`practice-panel${isPlaying ? " playing" : ""}`} aria-label={ui.playback}>
               <div className="practice-main">
                 <div className="practice-title"><span className="section-kicker">{ui.playback}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</strong></div>

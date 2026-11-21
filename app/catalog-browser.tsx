@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { browseCatalogGroups, groupCatalogSongs, isApprovedCatalogSong, withBundledCatalogSongs } from "./catalog-browse.mjs";
+import { browseCatalogGroups, compareCatalogRatings, groupCatalogSongs, isApprovedCatalogSong, withBundledCatalogSongs } from "./catalog-browse.mjs";
 import { assessSongQuality } from "./catalog-quality.mjs";
+import type { CommunityRating } from "./community-client";
+import { CommunityRatingSummary } from "./community-rating";
 import { workspaceCopy } from "./workspace-navigation";
 
 const labels = {
@@ -18,6 +20,7 @@ const labels = {
     openPlayer: "Open player for",
     excerpt: "Short excerpt",
     moreVersions: (count: number) => `${count} other ${count === 1 ? "version" : "versions"}`,
+    topRating: "Highest community rating",
     previous: "Previous",
     next: "Next",
     pages: "Catalog pages",
@@ -44,6 +47,7 @@ const labels = {
     openPlayer: "Dinleme ekranını aç",
     excerpt: "Kısa bölüm",
     moreVersions: (count: number) => `${count} diğer sürüm`,
+    topRating: "En yüksek topluluk puanı",
     previous: "Önceki",
     next: "Sonraki",
     pages: "Katalog sayfaları",
@@ -69,6 +73,7 @@ type CatalogSong = {
   excerpt?: boolean;
   artist?: string;
   contributor?: string;
+  rating?: CommunityRating;
   aliases: string[];
   sources: { name: string; role: string }[];
 };
@@ -85,13 +90,14 @@ export function CommunitySearchResults<Song extends CatalogSong>({ songs, langua
   return (
     <section className="community-search-results" aria-label={t.communityResults}>
       <h2>{t.communityResults}</h2>
-      <ul>{songs.map(song => (
+      <ul>{[...songs].sort(compareCatalogRatings).map(song => (
         <li key={song.id}>
           <button className="catalog-song" type="button" onClick={() => onOpen(song)}>
             <span className="catalog-song-name">
               <strong>{song.title}</strong>
               <span className="catalog-song-artist">{[song.artist, song.contributor && t.addedBy(song.contributor)].filter(Boolean).join(" · ")}</span>
             </span>
+            {song.contributor && <span className="catalog-song-status"><CommunityRatingSummary rating={song.rating} language={language} /></span>}
             <span className="catalog-song-open">{t.listen}</span>
           </button>
         </li>
@@ -186,6 +192,7 @@ export function CatalogBrowser<Song extends CatalogSong>({
         </span>
         <span id={statusId} className="catalog-song-status">
           <span className={approved ? "approved" : undefined}>{status}</span>
+          {song.contributor && <CommunityRatingSummary rating={song.rating} language={language} />}
           {song.excerpt && <small>{t.excerpt}</small>}
           {approved && rhythm === "equal-beats" && <small>{t.equalBeats}</small>}
         </span>
@@ -222,15 +229,19 @@ export function CatalogBrowser<Song extends CatalogSong>({
         </div>
       {results.length ? (
         <ul className="catalog-songs" aria-labelledby={compact ? undefined : "catalog-title"} aria-label={compact ? t.title : undefined}>
-          {results.slice(start, end).map(({ title, song, alternatives }) => {
+          {results.slice(start, end).map(({ key, title, song, alternatives }) => {
             const versions = approvedOnly ? alternatives.filter(isApprovedCatalogSong) : alternatives;
+            const topRating = !song.rating?.count ? versions.find(version => version.contributor && version.rating?.count)?.rating : undefined;
             return (
-              <li key={song.id}>
+              <li key={key}>
                 {renderSong(song, title)}
                 {versions.length > 0 && (
                   <details className="catalog-versions" open={versions.some(version => version.id === activeId
                     || Boolean(query.trim() && version.contributor)) || undefined}>
-                    <summary>{t.moreVersions(versions.length)}<span className="sr-only"> · {title}</span></summary>
+                    <summary>
+                      {t.moreVersions(versions.length)}<span className="sr-only"> · {title}</span>
+                      {topRating && <><span className="sr-only"> · {t.topRating} </span><CommunityRatingSummary rating={topRating} language={language} /></>}
+                    </summary>
                     <ul>
                       {versions.map(version => <li key={version.id}>{renderSong(version, version.title, true)}</li>)}
                     </ul>

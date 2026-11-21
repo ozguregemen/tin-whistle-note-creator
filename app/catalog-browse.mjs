@@ -13,13 +13,21 @@ export function withBundledCatalogSongs(songs, bundled) {
   return [...songs, ...bundled.filter(song => !ids.has(song.id))];
 }
 
-/** @typedef {{ title: string, catalogTitle?: string, artist?: string, aliases: string[], contributor?: string }} CatalogSong */
+/** @typedef {{ title: string, catalogTitle?: string, artist?: string, aliases: string[], contributor?: string, rating?: { average: number | null, count: number } }} CatalogSong */
 /** @template {CatalogSong} T
- * @typedef {{ title: string, song: T, alternatives: T[] }} CatalogGroup
+ * @typedef {{ key: string, title: string, song: T, alternatives: T[] }} CatalogGroup
  */
 
 function identity(value) {
   return normalizeSearchText(value) || value.normalize("NFKC").toLowerCase().trim();
+}
+
+/** @param {CatalogSong} left @param {CatalogSong} right */
+export function compareCatalogRatings(left, right) {
+  const leftRating = left.contributor ? left.rating : undefined;
+  const rightRating = right.contributor ? right.rating : undefined;
+  return (rightRating?.average ?? 0) - (leftRating?.average ?? 0)
+    || (rightRating?.count ?? 0) - (leftRating?.count ?? 0);
 }
 
 /** @template {CatalogSong} T
@@ -35,11 +43,12 @@ export function groupCatalogSongs(songs) {
     if (versions) versions.push(song);
     else groups.set(key, [song]);
   }
-  return [...groups.values()].map(versions => {
+  return [...groups].map(([key, versions]) => {
     const [song, ...alternatives] = versions.sort((left, right) =>
       Number(isApprovedCatalogSong(right)) - Number(isApprovedCatalogSong(left))
+      || compareCatalogRatings(left, right)
       || readinessRank(right) - readinessRank(left));
-    return { title: song.catalogTitle ?? song.title, song, alternatives };
+    return { key, title: song.catalogTitle ?? song.title, song, alternatives };
   });
 }
 

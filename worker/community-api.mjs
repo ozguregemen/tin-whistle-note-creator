@@ -9,7 +9,10 @@ const PASSWORD_COST = { N: 32768, r: 8, p: 3, maxmem: 64 * 1024 * 1024 };
 const SESSION_DURATION = 24 * 60 * 60 * 1000;
 const MAX_BODY_BYTES = 16 * 1024;
 const SONG_ID = /^community-[a-f0-9-]{36}$/;
-const SELECT_SONG = `SELECT s.id, s.title, s.artist, s.notes, s.bpm, u.username
+const RATING_FIELDS = `
+  (SELECT ROUND(AVG(score), 1) FROM community_song_ratings WHERE song_id = s.id) AS rating_average,
+  (SELECT COUNT(*) FROM community_song_ratings WHERE song_id = s.id) AS rating_count`;
+const SELECT_SONG = `SELECT s.id, s.title, s.artist, s.notes, s.bpm, u.username, ${RATING_FIELDS}
   FROM community_songs s JOIN community_users u ON u.id = s.author_id`;
 
 export function initializeCommunityStorage(storage) {
@@ -30,6 +33,12 @@ export function initializeCommunityStorage(storage) {
     );
     CREATE INDEX IF NOT EXISTS community_songs_by_update ON community_songs(updated_at DESC, id);
     CREATE INDEX IF NOT EXISTS community_songs_by_author ON community_songs(author_id, updated_at DESC, id);
+    CREATE TABLE IF NOT EXISTS community_song_ratings (
+      song_id TEXT NOT NULL REFERENCES community_songs(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES community_users(id) ON DELETE CASCADE,
+      score INTEGER NOT NULL CHECK (score IN (1, 2, 3, 4, 5)),
+      PRIMARY KEY (song_id, user_id)
+    );
   `));
 }
 
@@ -129,6 +138,10 @@ async function signIn(request, storage, register) {
   return storage.transactionSync(() => createSession(sql, user));
 }
 
+function ratingSummary(row) {
+  return { average: row.rating_average, count: row.rating_count };
+}
+
 function songResponse(row) {
   return {
     id: row.id,
@@ -140,6 +153,7 @@ function songResponse(row) {
     difficulty: { en: "", tr: "" },
     notes: row.notes,
     rhythm: { bpm: row.bpm, source: "estimated", tempoSource: "user", durations: [] },
+    rating: ratingSummary(row),
     sourceStatus: "live",
     sources: [],
   };
@@ -153,7 +167,8 @@ function listSongs(sql, url, authorId) {
   const filters = tokens.map(() => "instr(s.search_text, ?) > 0");
   if (authorId) filters.push("s.author_id = ?");
   const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
-  const results = sql.exec(`${SELECT_SONG} ${where} ORDER BY s.updated_at DESC, s.id LIMIT ? OFFSET ?`,
+  const order = authorId ? "s.updated_at DESC, s.id" : "rating_average DESC, rating_count DESC, s.updated_at DESC, s.id";
+  const results = sql.exec(`${SELECT_SONG} ${where} ORDER BY ${order} LIMIT ? OFFSET ?`,
     ...tokens, ...(authorId ? [authorId] : []), COMMUNITY_PAGE_SIZE + 1, offset).toArray();
   return {
     songs: results.slice(0, COMMUNITY_PAGE_SIZE).map(songResponse),
@@ -177,7 +192,30 @@ async function writeSong(storage, request, existingId) {
     sql.exec(`INSERT INTO community_songs (title, artist, notes, bpm, search_text, updated_at, id, author_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, ...values, id, user.id);
   }
-  return songResponse({ ...song, id, username: user.username });
+  const [saved] = sql.exec(`${SELECT_SONG} WHERE s.id = ?`, id).toArray();
+  return songResponse(saved);
+}
+
+function songRating(sql, songId, userId = null) {
+  const [row] = sql.exec(`SELECT ${RATING_FIELDS},
+    (SELECT score FROM community_song_ratings WHERE song_id = s.id AND user_id = ?) AS own_score
+    FROM community_songs s WHERE s.id = ?`, userId, songId).toArray();
+  if (!row) throw new CommunityError(404, "song_not_found");
+  return { ...ratingSummary(row), score: row.own_score };
+}
+
+async function saveRating(storage, request, songId) {
+  const { sql } = storage;
+  const { score } = (await requestBody(request)) ?? {};
+  const user = requireAccount(sql, request);
+  if (!Number.isInteger(score) || score < 1 || score > 5) throw new CommunityError(400, "invalid_rating");
+  return storage.transactionSync(() => {
+    const [saved] = sql.exec(`INSERT INTO community_song_ratings (song_id, user_id, score)
+      SELECT id, ?, ? FROM community_songs WHERE id = ?
+      ON CONFLICT(song_id, user_id) DO UPDATE SET score = excluded.score RETURNING score`, user.id, score, songId).toArray();
+    if (!saved) throw new CommunityError(404, "song_not_found");
+    return songRating(sql, songId, user.id);
+  });
 }
 
 export async function handleCommunity(request, storage) {
@@ -205,6 +243,14 @@ export async function handleCommunity(request, storage) {
       return new Response(null, { status: 204 });
     }
     const updateId = path.startsWith("songs/") ? path.slice(6) : "";
+    const ratingId = updateId.endsWith("/rating") ? updateId.slice(0, -"/rating".length) : "";
+    if (SONG_ID.test(ratingId)) {
+      if (method === "GET") {
+        const user = request.headers.has("Authorization") ? requireAccount(sql, request) : null;
+        return Response.json(songRating(sql, ratingId, user?.id));
+      }
+      if (method === "PUT") return Response.json(await saveRating(storage, request, ratingId));
+    }
     const create = method === "POST" && path === "songs";
     const update = method === "PUT" && SONG_ID.test(updateId);
     if (create || update) {

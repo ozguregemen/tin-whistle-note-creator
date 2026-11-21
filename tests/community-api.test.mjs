@@ -18,69 +18,107 @@ test("editor notation checks every note and the hole chart distinguishes registe
   assert.equal(noteForPattern("010101", 1), null);
 });
 
-test("community requires an account, attributes each version, and restricts edits to its author", async () => {
+function communityRequests(context) {
   const database = new DatabaseSync(":memory:");
-  try {
-    const storage = {
-      sql: {
-        exec(query, ...bindings) {
-          if (/^\s*CREATE TABLE/.test(query)) {
-            database.exec(query);
-            return { toArray: () => [] };
-          }
-          const rows = database.prepare(query).all(...bindings);
-          return { toArray: () => rows };
-        },
-      },
-      transactionSync(operation) {
-        database.exec("BEGIN");
-        try {
-          const result = operation();
-          database.exec("COMMIT");
-          return result;
-        } catch (error) {
-          database.exec("ROLLBACK");
-          throw error;
+  context.after(() => database.close());
+  const storage = {
+    sql: {
+      exec(query, ...bindings) {
+        if (/^\s*CREATE TABLE/.test(query)) {
+          database.exec(query);
+          return { toArray: () => [] };
         }
+        const rows = database.prepare(query).all(...bindings);
+        return { toArray: () => rows };
       },
-    };
-    initializeCommunityStorage(storage);
-    async function request(path, { method = "GET", body, token } = {}) {
-      const response = await handleCommunity(new Request(`https://community.test/api/community/${path}`, {
-        method,
-        headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: body ? JSON.stringify(body) : undefined,
-      }), storage);
-      return { status: response.status, data: response.status === 204 ? null : await response.json() };
-    }
-    const draft = { title: "Practice tune", artist: "Traditional", bpm: 168, notes: "Re Mi Fa# | Sol" };
-    assert.equal((await request("songs", { method: "POST", body: draft })).status, 401);
-    const password = "Bee%5R7u";
-    const tooShort = await request("register", { method: "POST", body: { username: "Alice", password: password.slice(1) } });
-    assert.equal(tooShort.status, 400);
-    assert.equal(tooShort.data.error, "invalid_password");
-    const alice = await request("register", { method: "POST", body: { username: "Alice", password } });
-    assert.equal(alice.status, 201);
-    assert.equal((await request("register", { method: "POST", body: { username: "alice", password } })).status, 409);
-    const bob = await request("register", { method: "POST", body: { username: "Bob", password: "a dedicated fixture password" } });
-    assert.equal(bob.status, 201);
-    assert.equal((await request("login", { method: "POST", body: { username: "Alice", password: password + " wrong" } })).status, 401);
-    const login = await request("login", { method: "POST", body: { username: "ALICE", password } });
-    assert.equal(login.status, 200);
+    },
+    transactionSync(operation) {
+      database.exec("BEGIN");
+      try {
+        const result = operation();
+        database.exec("COMMIT");
+        return result;
+      } catch (error) {
+        database.exec("ROLLBACK");
+        throw error;
+      }
+    },
+  };
+  initializeCommunityStorage(storage);
+  return async (path, { method = "GET", body, token } = {}) => {
+    const response = await handleCommunity(new Request(`https://community.test/api/community/${path}`, {
+      method,
+      headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    }), storage);
+    return { status: response.status, data: response.status === 204 ? null : await response.json() };
+  };
+}
 
-    const saved = await request("songs", { method: "POST", token: login.data.token, body: { ...draft, contributor: "Bob" } });
-    assert.equal(saved.status, 201);
-    assert.equal(saved.data.contributor, "Alice");
-    assert.equal(saved.data.notes, "D4 E4 F#4 | G4");
-    const updatedTitle = { ...draft, title: "Practice tune revised" };
-    assert.equal((await request(`songs/${saved.data.id}`, { method: "PUT", body: updatedTitle, token: bob.data.token })).status, 404);
-    assert.equal((await request(`songs/${saved.data.id}`, { method: "PUT", body: updatedTitle, token: login.data.token })).status, 200);
-    const found = await request("songs?q=alice%20revised");
-    assert.deepEqual(found.data.songs.map(song => [song.title, song.contributor]), [[updatedTitle.title, "Alice"]]);
-    assert.deepEqual((await request("mine", { token: bob.data.token })).data.songs, []);
-    assert.equal((await request("logout", { method: "POST", token: login.data.token })).status, 204);
-    assert.equal((await request("session", { token: login.data.token })).status, 401);
-  } finally {
-    database.close();
+test("community requires an account, attributes each version, and restricts edits to its author", async context => {
+  const request = communityRequests(context);
+  const draft = { title: "Practice tune", artist: "Traditional", bpm: 168, notes: "Re Mi Fa# | Sol" };
+  assert.equal((await request("songs", { method: "POST", body: draft })).status, 401);
+  const password = "Bee%5R7u";
+  const tooShort = await request("register", { method: "POST", body: { username: "Alice", password: password.slice(1) } });
+  assert.equal(tooShort.status, 400);
+  assert.equal(tooShort.data.error, "invalid_password");
+  const alice = await request("register", { method: "POST", body: { username: "Alice", password } });
+  assert.equal(alice.status, 201);
+  assert.equal((await request("register", { method: "POST", body: { username: "alice", password } })).status, 409);
+  const bob = await request("register", { method: "POST", body: { username: "Bob", password: "a dedicated fixture password" } });
+  assert.equal(bob.status, 201);
+  assert.equal((await request("login", { method: "POST", body: { username: "Alice", password: password + " wrong" } })).status, 401);
+  const login = await request("login", { method: "POST", body: { username: "ALICE", password } });
+  assert.equal(login.status, 200);
+
+  const saved = await request("songs", { method: "POST", token: login.data.token, body: { ...draft, contributor: "Bob" } });
+  assert.equal(saved.status, 201);
+  assert.equal(saved.data.contributor, "Alice");
+  assert.equal(saved.data.notes, "D4 E4 F#4 | G4");
+  const updatedTitle = { ...draft, title: "Practice tune revised" };
+  assert.equal((await request(`songs/${saved.data.id}`, { method: "PUT", body: updatedTitle, token: bob.data.token })).status, 404);
+  assert.equal((await request(`songs/${saved.data.id}`, { method: "PUT", body: updatedTitle, token: login.data.token })).status, 200);
+  const found = await request("songs?q=alice%20revised");
+  assert.deepEqual(found.data.songs.map(song => [song.title, song.contributor]), [[updatedTitle.title, "Alice"]]);
+  assert.deepEqual((await request("mine", { token: bob.data.token })).data.songs, []);
+  assert.equal((await request("logout", { method: "POST", token: login.data.token })).status, 204);
+  assert.equal((await request("session", { token: login.data.token })).status, 401);
+});
+
+test("community ratings are per version, update one vote per member, and rank by average then count", async context => {
+  const request = communityRequests(context);
+  const [alice, bob] = await Promise.all(["Alice", "Bob"].map(username =>
+    request("register", { method: "POST", body: { username, password: "Bee%5R7u" } })));
+  const draft = { title: "Two versions", artist: "Traditional", bpm: 96, notes: "D4 E4" };
+  const aliceToken = alice.data.token;
+  const bobToken = bob.data.token;
+  const first = await request("songs", { method: "POST", token: aliceToken, body: draft });
+  const second = await request("songs", { method: "POST", token: bobToken, body: draft });
+  const firstRating = `songs/${first.data.id}/rating`;
+  const secondRating = `songs/${second.data.id}/rating`;
+  const vote = (path, score, token) => request(path, { method: "PUT", token, body: { score } });
+
+  assert.deepEqual(first.data.rating, { average: null, count: 0 });
+  assert.deepEqual((await request(firstRating)).data, { average: null, count: 0, score: null });
+  assert.equal((await vote(firstRating, 4)).status, 401);
+  for (const invalid of [0, 6, 2.5, "4"]) {
+    assert.deepEqual(await vote(firstRating, invalid, aliceToken), { status: 400, data: { error: "invalid_rating" } });
   }
+  assert.deepEqual((await vote(firstRating, 4, aliceToken)).data, { average: 4, count: 1, score: 4 });
+  assert.deepEqual((await vote(firstRating, 5, bobToken)).data, { average: 4.5, count: 2, score: 5 });
+  assert.deepEqual((await request(firstRating, { token: aliceToken })).data, { average: 4.5, count: 2, score: 4 });
+  assert.deepEqual((await request(firstRating)).data, { average: 4.5, count: 2, score: null });
+  assert.deepEqual((await vote(secondRating, 5, aliceToken)).data, { average: 5, count: 1, score: 5 });
+  const ranked = await request("songs?q=versions");
+  assert.deepEqual(ranked.data.songs.map(song => [song.id, song.rating]), [
+    [second.data.id, { average: 5, count: 1 }], [first.data.id, { average: 4.5, count: 2 }],
+  ]);
+
+  assert.deepEqual((await vote(firstRating, 5, aliceToken)).data, { average: 5, count: 2, score: 5 });
+  assert.deepEqual((await vote(firstRating, 5, aliceToken)).data, { average: 5, count: 2, score: 5 });
+  const edited = await request(`songs/${first.data.id}`, { method: "PUT", token: aliceToken, body: { ...draft, bpm: 110 } });
+  assert.deepEqual(edited.data.rating, { average: 5, count: 2 });
+  assert.deepEqual((await request("songs?q=versions")).data.songs.map(song => song.id), [first.data.id, second.data.id]);
+  assert.equal((await vote(`songs/community-${crypto.randomUUID()}/rating`, 4, aliceToken)).status, 404);
 });

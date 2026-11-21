@@ -20,6 +20,7 @@ const copy = {
     signInHelp: "Sign in to manage your contributions.",
     addHelp: "An account lets you add songs to the catalog under your username.",
     editHelp: (title: string) => `Sign in or create an account to work on ${title}.`,
+    ratingHelp: "Sign in or create an account to rate this version.",
     expired: "Your session ended. Sign in to keep working on this arrangement.",
     signingIn: "Signing in…", registering: "Creating account…", signingOut: "Signing out…", signOut: "Sign out",
     contributions: "My contributions", add: "Add song", listen: "Listen", edit: "Edit", arrange: "Create your version", editSong: "Edit song",
@@ -42,6 +43,7 @@ const copy = {
     signInHelp: "Katkılarını yönetmek için giriş yap.",
     addHelp: "Kataloğa kendi kullanıcı adınla şarkı eklemek için hesap oluştur veya giriş yap.",
     editHelp: (title: string) => `${title} üzerinde çalışmak için giriş yap veya hesap oluştur.`,
+    ratingHelp: "Bu sürüme puan vermek için giriş yap veya hesap oluştur.",
     expired: "Oturumun sona erdi. Bu düzenlemeye devam etmek için giriş yap.",
     signingIn: "Giriş yapılıyor…", registering: "Hesap oluşturuluyor…", signingOut: "Çıkış yapılıyor…", signOut: "Çıkış yap",
     contributions: "Katkılarım", add: "Şarkı ekle", listen: "Dinle", edit: "Düzenle", arrange: "Kendi sürümünü oluştur", editSong: "Şarkıyı düzenle",
@@ -59,7 +61,7 @@ const copy = {
 
 type Language = keyof typeof copy;
 type AuthMode = "login" | "register";
-export type CommunityPanel = "account" | "editor" | null;
+export type CommunityPanel = "account" | "editor" | "rating" | null;
 
 export function useCommunityAccount() {
   const [account, setAccount] = useState<{ session: CommunitySession | null | undefined; draftOwner: string | null }>({
@@ -69,6 +71,7 @@ export function useCommunityAccount() {
     storeCommunitySession(session);
     setAccount(previous => ({ session, draftOwner: session?.username ?? (retainDraft ? previous.draftOwner : null) }));
   }, []);
+  const expireSession = useCallback(() => updateSession(null, true), [updateSession]);
 
   useEffect(() => {
     const stored = readCommunitySession();
@@ -86,11 +89,11 @@ export function useCommunityAccount() {
   const expiresAt = account.session?.expiresAt;
   useEffect(() => {
     if (expiresAt === undefined) return;
-    const timer = window.setTimeout(() => updateSession(null, true), Math.max(0, expiresAt - Date.now()));
+    const timer = window.setTimeout(expireSession, Math.max(0, expiresAt - Date.now()));
     return () => window.clearTimeout(timer);
-  }, [expiresAt, updateSession]);
+  }, [expiresAt, expireSession]);
 
-  return { ...account, updateSession };
+  return { ...account, updateSession, expireSession };
 }
 
 function AccountForm({ language, mode, context, onMode, onAuthenticated }: {
@@ -295,14 +298,13 @@ export function CommunityWorkspace({ language, account, panel, source, editorRev
   onListen: (song: CommunitySong) => void;
 }) {
   const t = copy[language];
-  const { session, draftOwner, updateSession } = account;
+  const { session, draftOwner, updateSession, expireSession } = account;
   const dialogRef = useRef<HTMLDialogElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [authChoice, setAuthChoice] = useState<{ panel: CommunityPanel; mode: AuthMode } | null>(null);
-  const pane = panel && (session === undefined ? "checking" : session === null ? "auth" : panel);
+  const pane = panel && (session === undefined ? "checking" : session === null ? "auth" : panel === "rating" ? null : panel);
   const defaultMode = panel === "editor" && !draftOwner ? "register" : "login";
   const authMode = authChoice?.panel === panel ? authChoice.mode : defaultMode;
-  const expireSession = useCallback(() => updateSession(null, true), [updateSession]);
   const editingOwn = !!source?.contributor && source.contributor === session?.username;
   const heading = pane === "auth" ? (authMode === "register" ? t.signUp : t.signIn)
     : pane === "editor" ? (editingOwn ? t.editSong : source ? t.arrange : t.add)
@@ -334,8 +336,12 @@ export function CommunityWorkspace({ language, account, panel, source, editorRev
         <button className="secondary-action" type="button" onClick={() => dialogRef.current?.close()}>{t.close}</button>
       </header>
       {pane === "auth" && <AccountForm language={language} mode={authMode}
-        context={panel === "editor" ? (draftOwner ? t.expired : source ? t.editHelp(source.title) : t.addHelp) : undefined}
-        onMode={mode => setAuthChoice({ panel, mode })} onAuthenticated={session => { setAuthChoice(null); updateSession(session); }} />}
+        context={panel === "rating" ? t.ratingHelp : panel === "editor" ? (draftOwner ? t.expired : source ? t.editHelp(source.title) : t.addHelp) : undefined}
+        onMode={mode => setAuthChoice({ panel, mode })} onAuthenticated={session => {
+          setAuthChoice(null);
+          updateSession(session);
+          if (panel === "rating") onClose();
+        }} />}
       {pane === "account" && session && <MyContributions language={language} session={session} onAdd={onAdd} onEdit={onEdit}
         onListen={listen} onSignOut={() => { updateSession(null); onClose(); }} onExpired={expireSession} />}
       {draftOwner && source !== undefined && <SongEditor key={`${draftOwner}:${editorRevision}`} language={language}

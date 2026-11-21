@@ -71,6 +71,21 @@ test("alternate scores share a catalog row, searchable aliases and a primary ver
   assert.deepEqual(browseCatalogGroups(groups, "", true, "tr"), [group]);
 });
 
+test("community versions of a song rank by average, then vote count, while keeping an approved edition visible", () => {
+  const entry = { title: approved.title, artist: approved.artist, aliases: [], sourceStatus: "live" };
+  const unrated = { ...entry, contributor: "new-player", rating: { average: null, count: 0 } };
+  const popular = { ...entry, contributor: "listener", rating: { average: 4.8, count: 32 } };
+  const tied = { ...entry, contributor: "another-player", rating: { average: 4.8, count: 8 } };
+  const highest = { ...entry, contributor: "lead-player", rating: { average: 5, count: 3 } };
+  const [community] = groupCatalogSongs([unrated, tied, popular, highest]);
+  assert.equal(community.song, highest);
+  assert.deepEqual(community.alternatives, [popular, tied, unrated]);
+  const [featured] = groupCatalogSongs([unrated, tied, popular, highest, approved]);
+  assert.equal(featured.key, community.key);
+  assert.equal(featured.song, approved);
+  assert.deepEqual(featured.alternatives, [highest, popular, tied, unrated]);
+});
+
 test("a cached remote catalog keeps new bundled songs without duplicating IDs", () => {
   const remote = { id: "shared", title: "Latest score" };
   const old = { id: "shared", title: "Bundled score" };

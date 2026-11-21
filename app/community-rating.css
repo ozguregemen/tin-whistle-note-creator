@@ -1,0 +1,57 @@
+.version-rating-summary {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 0.3rem;
+  color: var(--ink);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+.version-rating-symbol { color: #8b571f; }
+.version-rating-count { color: var(--muted); font-weight: 400; }
+.catalog-versions > summary .version-rating-summary { margin-inline-start: 0.55rem; }
+.version-rating {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin: 0 0 1.1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: #f4f8f3;
+}
+.version-rating-overview { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.25rem 0.7rem; }
+.version-rating h2 { margin: 0; font: 750 1rem/1.3 system-ui, sans-serif; }
+.version-rating-form { display: flex; align-items: center; flex-wrap: wrap; gap: 0.45rem 0.8rem; }
+.version-rating-stars {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: 0.15rem;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.version-rating-star { position: relative; display: grid; width: 44px; height: 44px; }
+.version-rating-star input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.version-rating-star span {
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 0.45rem;
+  color: #796b58;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+.version-rating-star[data-filled="true"] span { color: #8b571f; }
+.version-rating-star input:checked + span { border-color: #d3b691; background: #f9eedb; }
+.version-rating-star input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 1px; }
+.version-rating-star input:hover:not(:disabled) + span { border-color: #d3b691; }
+.version-rating-form button:disabled { opacity: 0.58; }
+.version-rating-feedback { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 0.875rem; }
+.version-rating-feedback[role="alert"] { color: #823926; }
+@media (max-width: 680px) {
+  .version-rating { grid-template-columns: minmax(0, 1fr); justify-items: start; padding: 0.75rem; }
+}
+@media print { .version-rating { display: none; } }

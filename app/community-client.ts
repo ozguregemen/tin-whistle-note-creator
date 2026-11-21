@@ -1,5 +1,8 @@
 import { COMMUNITY_PATH } from "../shared/community-song.mjs";
 
+export type CommunityRating = { average: number | null; count: number };
+export type CommunityRatingDetails = CommunityRating & { score: number | null };
+
 export type CommunitySong = {
   id: string;
   title: string;
@@ -10,6 +13,7 @@ export type CommunitySong = {
   difficulty: { en: string; tr: string };
   notes: string;
   rhythm: { bpm: number; source: "estimated"; tempoSource: "user"; durations: number[][] };
+  rating: CommunityRating;
   sourceStatus: "live";
   sources: [];
 };
