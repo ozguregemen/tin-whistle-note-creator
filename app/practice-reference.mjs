@@ -72,11 +72,11 @@ export function playReferenceNote(context, step, onEnded, timing) {
  */
 export function playReferenceSequence(context, steps, onEnded) {
   let start = context.currentTime + 0.04;
-  steps.forEach((step, index) => {
+  return steps.map((step, index) => {
     const spacing = step.durationMs / 1000;
-    playReferenceNote(context, step, index === steps.length - 1 ? onEnded : undefined, {
-      start, duration: spacing * 0.86,
-    });
+    const timing = { start, duration: spacing * 0.86 };
+    playReferenceNote(context, step, index === steps.length - 1 ? onEnded : undefined, timing);
     start += spacing;
+    return timing.start;
   });
 }

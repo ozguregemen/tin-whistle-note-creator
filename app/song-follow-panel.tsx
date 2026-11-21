@@ -97,6 +97,7 @@ export function FollowFingering({ holes, copy }: {
 
 export function SongFollowPanel({
   language, steps, progress, guideEnabled, guidePhase, onGuideChange, onHearNote, replayDisabled, onReset, lesson = false,
+  exampleIndex = null,
 }: {
   language: "en" | "tr";
   steps: FollowStep[];
@@ -108,12 +109,14 @@ export function SongFollowPanel({
   replayDisabled: boolean;
   onReset: () => void;
   lesson?: boolean;
+  exampleIndex?: number | null;
 }) {
   const copy = songFollowCopy[language];
   const scrollRef = useRef<HTMLDivElement>(null);
   const headersRef = useRef<HTMLDivElement>(null);
   const scoreRef = useRef<HTMLOListElement>(null);
   const labels = useMemo(() => steps.map(step => describeLiveNote(step, language)), [steps, language]);
+  const currentScoreIndex = exampleIndex ?? progress.matched;
   const finished = progress.matched === steps.length;
   const repeated = progress.matched > 0 && !finished && steps[progress.matched - 1].midi === steps[progress.matched].midi;
   const heard = progress.feedback ? describeLiveNote(pitchAndOctave(progress.feedback.midi), language) : null;
@@ -125,14 +128,14 @@ export function SongFollowPanel({
   useEffect(() => {
     const scroll = scrollRef.current;
     const headers = headersRef.current;
-    const note = scoreRef.current?.children[Math.min(progress.matched, steps.length - 1)];
+    const note = scoreRef.current?.children[Math.min(currentScoreIndex, steps.length - 1)];
     if (!scroll || !headers || !note) return;
     const noteBounds = note.getBoundingClientRect();
     const visibleTop = headers.getBoundingClientRect().bottom + 4;
     const visibleBottom = scroll.getBoundingClientRect().bottom - 4;
     if (noteBounds.top < visibleTop) scroll.scrollTop += noteBounds.top - visibleTop;
     else if (noteBounds.bottom > visibleBottom) scroll.scrollTop += noteBounds.bottom - visibleBottom;
-  }, [progress.matched, steps.length]);
+  }, [currentScoreIndex, steps.length]);
 
   return (
     <div className="song-follow">
@@ -181,7 +184,7 @@ export function SongFollowPanel({
         <div className="song-follow-lanes">
           <ol className="song-follow-grid song-follow-notes" role="list" aria-labelledby="song-follow-notes-title" ref={scoreRef}>
             {labels.map((label, index) => {
-              const current = index === progress.matched;
+              const current = index === currentScoreIndex;
               return (
                 <li key={index} className={`song-follow-tile song-follow-note${current ? " current" : ""}`} aria-current={current ? "step" : undefined}>
                   <span className="song-follow-position" aria-hidden="true">{index + 1}</span>
@@ -194,7 +197,7 @@ export function SongFollowPanel({
           </ol>
           <ol className="song-follow-grid song-follow-attempts" role="list" aria-labelledby="song-follow-attempts-title">
             {labels.map((label, index) => {
-              const current = index === progress.matched;
+              const current = exampleIndex === null && index === progress.matched;
               const state = index < progress.matched ? "correct" : current ? (response === "wrong" ? "wrong" : "current") : "pending";
               const holes = state === "correct" ? label.holes : state === "wrong" ? heard?.holes ?? null : null;
               return (

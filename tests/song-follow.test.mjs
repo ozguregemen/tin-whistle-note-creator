@@ -116,13 +116,14 @@ test("a lesson example keeps the rhythm and ends after the last note", () => {
     createGain: () => ({ gain: { setValueAtTime() {}, linearRampToValueAtTime() {} }, connect() {}, disconnect() {} }),
   };
   let finished = 0;
-  playReferenceSequence(context, [
+  const startTimes = playReferenceSequence(context, [
     { pitch: "B", octave: 5, midi: 83, durationMs: 1000 },
     { pitch: "A", octave: 5, midi: 81, durationMs: 500 },
     { pitch: "G", octave: 5, midi: 79, durationMs: 1500 },
   ], () => { finished += 1; });
 
-  assert.deepEqual(tones.map(tone => Math.round(tone.startTime * 1000)), [2040, 3040, 3540]);
+  assert.deepEqual(startTimes, tones.map(tone => tone.startTime));
+  assert.deepEqual(startTimes.map(time => Math.round(time * 1000)), [2040, 3040, 3540]);
   assert.deepEqual(tones.map(tone => Math.round(tone.stopTime * 1000)), [2900, 3470, 4830]);
   assert.equal(tones[0].frequency.value, frequencyForWhistleNote("B", 4));
   tones[0].onended();

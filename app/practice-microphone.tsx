@@ -82,6 +82,7 @@ type Capture = {
   step?: FollowStep;
   cue?: ReturnType<typeof playReferenceNote>;
 };
+type Preview = { context: AudioContext; frame?: number };
 
 function release(capture: Capture) {
   if (capture.frame !== undefined) cancelAnimationFrame(capture.frame);
@@ -148,7 +149,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
   const copy = COPY[language];
   const follow = songFollowCopy[language];
   const captureRef = useRef<Capture | null>(null);
-  const previewRef = useRef<AudioContext | null>(null);
+  const previewRef = useRef<Preview | null>(null);
   const guideEnabledRef = useRef(false);
   const [state, setState] = useState<State>("idle");
   const [note, setNote] = useState<Pitch | null>(null);
@@ -156,16 +157,19 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
   const [progress, setProgress] = useState(emptyFollowProgress);
   const [guideEnabled, setGuideEnabled] = useState(false);
   const [guidePhase, setGuidePhase] = useState<GuidePhase>("idle");
-  const [example, setExample] = useState<"idle" | "playing" | "unavailable">("idle");
+  const [example, setExample] = useState<"idle" | "unavailable" | number>("idle");
+  const exampleIndex = typeof example === "number" ? example : null;
   const active = state === "requesting" || state === "listening";
   const following = mode === "song" && steps.length > 0;
   const finished = following && progress.matched === steps.length;
   const nextStep = following ? steps[progress.matched] : undefined;
 
   const stopPreview = useCallback(() => {
-    const context = previewRef.current;
+    const preview = previewRef.current;
     previewRef.current = null;
-    if (context && context.state !== "closed") void context.close().catch(() => {});
+    if (!preview) return;
+    if (preview.frame !== undefined) cancelAnimationFrame(preview.frame);
+    if (preview.context.state !== "closed") void preview.context.close().catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -248,20 +252,21 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
     if (!nextStep) return;
     stopPreview();
     setExample("idle");
-    let context: AudioContext | undefined;
+    let preview: Preview | undefined;
     try {
-      context = new AudioContext();
-      previewRef.current = context;
+      const reference = { context: new AudioContext() };
+      preview = reference;
+      previewRef.current = reference;
       setGuidePhase("playing");
-      await context.resume();
-      if (previewRef.current !== context) return;
-      playReferenceNote(context, nextStep, () => {
-        if (previewRef.current !== context) return;
+      await reference.context.resume();
+      if (previewRef.current !== reference) return;
+      playReferenceNote(reference.context, nextStep, () => {
+        if (previewRef.current !== reference) return;
         stopPreview();
         setGuidePhase("idle");
       });
     } catch {
-      if (context && previewRef.current !== context) return;
+      if (preview && previewRef.current !== preview) return;
       stopPreview();
       setGuidePhase("unavailable");
     }
@@ -270,26 +275,39 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
   async function toggleExample() {
     if (active || !steps.length) return;
     stopPreview();
-    if (example === "playing") {
+    if (exampleIndex !== null) {
       setExample("idle");
       return;
     }
     setGuidePhase("idle");
-    let context: AudioContext | undefined;
+    let session: Preview | undefined;
     try {
-      context = new AudioContext();
-      const preview = context;
+      const preview: Preview = { context: new AudioContext() };
+      session = preview;
       previewRef.current = preview;
-      setExample("playing");
-      await preview.resume();
+      setExample(0);
+      await preview.context.resume();
       if (previewRef.current !== preview) return;
-      playReferenceSequence(preview, steps, () => {
+      const startTimes = playReferenceSequence(preview.context, steps, () => {
         if (previewRef.current !== preview) return;
         stopPreview();
         setExample("idle");
       });
+      let index = 0;
+      function followExample() {
+        if (previewRef.current !== preview) return;
+        const time = preview.context.currentTime;
+        let next = index;
+        while (next + 1 < startTimes.length && startTimes[next + 1] <= time) next += 1;
+        if (next !== index) {
+          index = next;
+          setExample(index);
+        }
+        if (index + 1 < startTimes.length) preview.frame = requestAnimationFrame(followExample);
+      }
+      if (startTimes.length > 1) preview.frame = requestAnimationFrame(followExample);
     } catch {
-      if (context && previewRef.current !== context) return;
+      if (session && previewRef.current !== session) return;
       stopPreview();
       setExample("unavailable");
     }
@@ -435,7 +453,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
         <div className="practice-microphone-actions">
           {onChooseSong && <button type="button" className="secondary-action" onClick={() => { stop(); onChooseSong(); }}>{follow.choose}</button>}
           {lesson && <button type="button" className="secondary-action" disabled={active || !steps.length} onClick={() => void toggleExample()}>
-            {example === "playing" ? copy.stopExample : copy.listenExample}
+            {exampleIndex !== null ? copy.stopExample : copy.listenExample}
           </button>}
           {!lesson && !!steps.length && <button type="button" className="secondary-action" onClick={() => {
             stop();
@@ -447,7 +465,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
         </div>
       </div>
       {following
-        ? <SongFollowPanel language={language} steps={steps} progress={progress} lesson={Boolean(lesson)}
+        ? <SongFollowPanel language={language} steps={steps} progress={progress} lesson={Boolean(lesson)} exampleIndex={exampleIndex}
           guideEnabled={guideEnabled} guidePhase={guidePhase} onGuideChange={changeGuide}
           onHearNote={() => void hearNextNote()} replayDisabled={state === "requesting"} onReset={resetPractice} />
         : state === "listening" && <LiveNoteReadout note={note} language={language} />}
