@@ -1,9 +1,10 @@
 "use client";
 
-import { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { parseAbcScore } from "./abc.mjs";
 import { AudioClipPicker, type AudioClipRange } from "./audio-clip-picker";
 import { CatalogBrowser } from "./catalog-browser";
+import { CATALOG_RECORDINGS, CatalogRecordingPlayer, type CatalogRecording } from "./catalog-recording";
 import { withBundledCatalogSongs } from "./catalog-browse.mjs";
 import whistleTunes from "../catalog/whistle-tunes.json";
 import { PracticeMicrophone } from "./practice-microphone";
@@ -630,6 +631,7 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [manualNotes, setManualNotes] = useState("");
   const [song, setSong] = useState<Song | null>(null);
+  const [catalogRecording, setCatalogRecording] = useState<CatalogRecording | null>(null);
   const [pickingPracticeSong, setPickingPracticeSong] = useState(false);
   const [sourceCandidates, setSourceCandidates] = useState<SourceCandidate[]>([]);
   const [status, setStatus] = useState<StatusKey>("catalogPrepared");
@@ -654,17 +656,13 @@ export default function Home() {
   const audioDisabled = audioBusy || sourceIsBusy || !audioCapabilities;
   const [isPlaying, setIsPlaying] = useState(false);
   const [microphoneActive, setMicrophoneActive] = useState(false);
-  const microphoneActiveRef = useRef(false);
-  const updateMicrophoneActive = useCallback((active: boolean) => {
-    microphoneActiveRef.current = active;
-    setMicrophoneActive(active);
-  }, []);
   const [soundStatus, setSoundStatus] = useState<SoundStatus>("idle");
   const [activeNoteIndex, setActiveNoteIndex] = useState(-1);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
   const [followEnabled, setFollowEnabled] = useState(true);
   const [loopEnabled, setLoopEnabled] = useState(false);
   const [selectedPhraseIndex, setSelectedPhraseIndex] = useState(0);
+  const playbackRequestRef = useRef(0);
   const playbackCursorRef = useRef(0);
   const playbackTimerRef = useRef<number | null>(null);
   const playbackPhaseRef = useRef<PlaybackPhase | null>(null);
@@ -827,6 +825,7 @@ export default function Home() {
   }, [activeNoteIndex, followEnabled, isPlaying]);
 
   useEffect(() => {
+    playbackRequestRef.current += 1;
     if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
     if (metronomeTimerRef.current !== null) window.clearTimeout(metronomeTimerRef.current);
     audioSourceRef.current?.stop();
@@ -1219,8 +1218,8 @@ export default function Home() {
     );
   }
 
-  async function togglePractice() {
-    if (microphoneActiveRef.current) return;
+  async function togglePlayback() {
+    if (areaRef.current !== "listen") return;
     if (isPlaying) {
       if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
       playbackTimerRef.current = null;
@@ -1238,8 +1237,9 @@ export default function Home() {
       setIsPlaying(false);
       return;
     }
+    const request = ++playbackRequestRef.current;
     await prepareWhistleSamples();
-    if (areaRef.current !== "practice" || microphoneActiveRef.current) return;
+    if (areaRef.current !== "listen" || playbackRequestRef.current !== request) return;
     setIsPlaying(true);
     startMetronome();
     const pausedPhase = playbackPhaseRef.current;
@@ -1251,9 +1251,8 @@ export default function Home() {
     }
   }
 
-  function stopPractice() {
-    if (playbackTimerRef.current !== null) window.clearTimeout(playbackTimerRef.current);
-    playbackTimerRef.current = null;
+  function stopPlayback() {
+    playbackRequestRef.current += 1;
     finishPlayback();
   }
 
@@ -1684,7 +1683,7 @@ export default function Home() {
   function correctArrangedNote(phraseIndex: number, noteIndex: number, value: string) {
     const replacement = normalizeNote(value);
     if (!replacement || !fingeringFor(replacement.pitch, replacement.octave)) return;
-    if (isPlaying || activeNoteIndex >= 0) stopPractice();
+    if (isPlaying || activeNoteIndex >= 0) stopPlayback();
     const corrected = replacePhraseNote(phrases, phraseIndex, noteIndex, replacement);
     const notes = serializeNotePhrases(corrected);
     setSong((current) => {
@@ -1697,15 +1696,14 @@ export default function Home() {
   function navigateWorkspace(next: WorkArea) {
     const current = areaRef.current;
     if (current === next) return;
-    if (current === "practice") {
-      stopPractice();
-      setPickingPracticeSong(false);
-    }
+    if (current === "listen") stopPlayback();
+    if (current === "practice") setPickingPracticeSong(false);
     if (current === "convert") document.querySelector<HTMLAudioElement>("#input-workspace audio")?.pause();
     areaRef.current = next;
     setArea(next);
     const target = {
       catalog: "catalog-title",
+      listen: "preview-title",
       convert: inputModeRef.current === "search" ? "song-search" : "convert-title",
       practice: "preview-title",
     }[next];
@@ -1731,23 +1729,24 @@ export default function Home() {
     navigateWorkspace("convert");
   }
 
-  function openCatalogSong(selected: Song) {
+  function openCatalogSong(selected: Song, destination: "listen" | "practice" = "listen") {
     setSourceError("");
     setSourceCandidates([]);
+    setCatalogRecording(null);
     setSong((current) => current?.id === selected.id ? current : restoreStoredCorrection(selected));
     setStatus("catalogFound");
-    navigateWorkspace("practice");
+    navigateWorkspace(destination);
   }
 
   function choosePracticeSong() {
-    stopPractice();
     setPickingPracticeSong(true);
   }
 
-  const practiceMicrophone = area === "practice" && (song || !pickingPracticeSong)
+  const viewingPlayback = area === "listen";
+  const practiceMicrophone = (area === "practice" && (song || !pickingPracticeSong)) || (viewingPlayback && song && !catalogRecording)
     ? <PracticeMicrophone key={`${song?.id ?? ""}:${song?.notes ?? ""}`} language={language}
-      onStart={stopPractice} onUseChange={updateMicrophoneActive} steps={followSteps}
-      onChooseSong={song ? choosePracticeSong : undefined} playbackIndex={activeNoteIndex} followPlayback={followEnabled} />
+      visible={area === "practice"} onUseChange={setMicrophoneActive} steps={followSteps}
+      onChooseSong={song ? choosePracticeSong : undefined} />
     : null;
   const pickerSongs = song && !catalog.some(item => item.id === song.id) ? [song, ...catalog] : catalog;
 
@@ -1757,8 +1756,9 @@ export default function Home() {
         onLanguage={toggleLanguage} onNavigate={navigateWorkspace} />
       <main className="app-content shell">
         <div id="catalog-workspace" hidden={area !== "catalog"}>
-          <CatalogBrowser songs={catalog} language={language} activeId={song?.id}
-            busy={(sourceIsBusy || status === "searching") || audioBusy} onOpen={openCatalogSong} onSearchOnline={openWebSearch} />
+          <CatalogBrowser songs={catalog} recordings={CATALOG_RECORDINGS} language={language} activeId={catalogRecording?.id ?? song?.id}
+            busy={(sourceIsBusy || status === "searching") || audioBusy} onOpen={openCatalogSong} onSearchOnline={openWebSearch}
+            onOpenRecording={selected => { setCatalogRecording(selected); navigateWorkspace("listen"); }} />
         </div>
 
         <section id="input-workspace" hidden={area !== "convert"} aria-labelledby="convert-title">
@@ -1852,7 +1852,7 @@ export default function Home() {
                   {preparedAudio?.youtube && <p className="audio-url-help"><a href={preparedAudio.url} download={preparedAudio.name}>{t.audioYoutubeDownload}</a></p>}
                 </form>
                 {youtubeScores && <YoutubeScoreOptions language={language} title={youtubeScores.song.title} matches={youtubeScores}
-                  busy={audioDisabled} audioAvailable={audioYoutubeEnabled} onCatalog={openCatalogSong} onSource={source => void processSource(source, "audio")}
+                  busy={audioDisabled} audioAvailable={audioYoutubeEnabled} onCatalog={selected => openCatalogSong(selected, "practice")} onSource={source => void processSource(source, "audio")}
                   onTune={tune => void openSessionTune(tune, "audio")} onAudio={() => void loadAudioInput(audioUrl.trim(), true)} />}
                 {preparedAudio && <AudioClipPicker key={preparedAudio.url} url={preparedAudio.url} name={preparedAudio.youtubeSong?.title ?? preparedAudio.name}
                   language={language} busy={audioDisabled} onTranscribe={transcribeSelection} />}
@@ -1866,23 +1866,34 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="practice-workspace" hidden={area !== "practice"} aria-labelledby="preview-title">
-          {song ? <section className={`workspace${microphoneActive ? " practice-listening" : ""}`} aria-labelledby="preview-title">
+        <section id="practice-workspace" hidden={area !== "practice" && !viewingPlayback} aria-labelledby="preview-title">
+          {viewingPlayback && <button type="button" className="secondary-action catalog-return" onClick={() => navigateWorkspace("catalog")}>{ui.backToCatalog}</button>}
+          {viewingPlayback && catalogRecording ? (
+            <CatalogRecordingPlayer key={catalogRecording.id} track={catalogRecording} language={language} importLabel={ui.importScore}
+              onImport={() => { switchInputMode("score"); navigateWorkspace("convert"); }} />
+          ) : song ? <section className={`workspace${!viewingPlayback && microphoneActive ? " practice-listening" : ""}`} aria-labelledby="preview-title">
             <div className="workspace-heading">
               <div><h1 id="preview-title" tabIndex={-1}>{song.artist ? `${song.artist} — ` : ""}{song.title}</h1><div className="workspace-subtitle"><p>{song.sourceConfidence === "estimated" ? t.textEstimated : song.subtitle[language]} · {song.difficulty[language]} · D tin whistle{song.userEdited ? ` · ${t.userCorrected}` : ""}</p>{songQuality && <span className={`readiness-badge readiness-${songQuality.readiness}`}>{readinessLabel}</span>}</div></div>
               <div className="workspace-actions">
+                <button type="button" className="secondary-action" onClick={() => {
+                  if (viewingPlayback) navigateWorkspace("practice");
+                  else {
+                    setCatalogRecording(null);
+                    navigateWorkspace("listen");
+                  }
+                }}>{viewingPlayback ? ui.practiseSong : ui.listen}</button>
                 <div className="legend"><span className="hole closed" /> {t.closed} <span className="hole half" /> {t.half} <span className="hole open" /> {t.open}</div>
                 <button type="button" className={`correct-notes-button${editingNotes ? " active" : ""}`} aria-pressed={editingNotes} aria-controls="fingering-sheet" onClick={() => setEditingNotes((current) => !current)}>{editingNotes ? t.finishCorrection : t.correctNotes}</button>
                 <button type="button" className="print-button" onClick={() => window.print()}>{t.print}</button>
               </div>
             </div>
             {practiceMicrophone}
-            <section className={`practice-panel${isPlaying ? " playing" : ""}`} aria-label={t.practice} hidden={microphoneActive}>
+            {viewingPlayback && <section className={`practice-panel${isPlaying ? " playing" : ""}`} aria-label={ui.playback}>
               <div className="practice-main">
-                <div className="practice-title"><span className="section-kicker">{t.practice}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</strong></div>
+                <div className="practice-title"><span className="section-kicker">{ui.playback}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</strong></div>
                 <div className="practice-transport">
-                  <button type="button" className="practice-play" onClick={togglePractice} disabled={microphoneActive || !playbackPlan.length || soundStatus === "loading"} aria-pressed={isPlaying}><span aria-hidden="true">{isPlaying ? "Ⅱ" : "▶"}</span> {soundStatus === "loading" ? "…" : isPlaying ? t.pause : t.play}</button>
-                  <button type="button" className="practice-stop" onClick={stopPractice} disabled={!isPlaying && activeNoteIndex < 0}><span aria-hidden="true">■</span> {t.stop}</button>
+                  <button type="button" className="practice-play" onClick={togglePlayback} disabled={!playbackPlan.length || soundStatus === "loading"} aria-pressed={isPlaying}><span aria-hidden="true">{isPlaying ? "Ⅱ" : "▶"}</span> {soundStatus === "loading" ? "…" : isPlaying ? t.pause : t.play}</button>
+                  <button type="button" className="practice-stop" onClick={stopPlayback} disabled={!isPlaying && activeNoteIndex < 0}><span aria-hidden="true">■</span> {t.stop}</button>
                 </div>
                 <div className="tempo-control" role="group" aria-labelledby="practice-tempo-label">
                   <span id="practice-tempo-label" className="tempo-label">{t.tempo}</span>
@@ -1942,10 +1953,10 @@ export default function Home() {
                   </span>
                 </div>
               </div>
-            </section>
+            </section>}
             {unsupported.length > 0 && <div className="warning" role="alert"><strong>{unsupported.length} {t.warningStart}</strong> {t.warningEnd}</div>}
             {editingNotes && <p className="correction-hint">{t.correctionHint}</p>}
-            <div id="fingering-sheet" ref={fingeringSheetRef} className={`phrases${followSteps.length && !editingNotes ? " print-only" : ""}`}>
+            <div id="fingering-sheet" ref={fingeringSheetRef} className={`phrases${!viewingPlayback && followSteps.length && !editingNotes ? " print-only" : ""}`}>
               {phrases.map((phrase, phraseIndex) => (
                 <article className={`phrase-card${loopEnabled && phraseIndex === selectedPhraseIndex ? " selected" : ""}`} key={phraseIndex}>
                   <div className="phrase-meta"><span>{t.phrase} {String(phraseIndex + 1).padStart(2, "0")}</span><span>{phrase.length} {phrase.length === 1 ? t.note : t.notes}</span></div>
@@ -1998,7 +2009,7 @@ export default function Home() {
             onClose={() => setPickingPracticeSong(false)}
             onPick={selected => {
               setPickingPracticeSong(false);
-              openCatalogSong(selected);
+              openCatalogSong(selected, "practice");
               window.requestAnimationFrame(() => document.getElementById("preview-title")?.focus({ preventScroll: true }));
             }}
             onImport={() => navigateWorkspace("convert")} />}

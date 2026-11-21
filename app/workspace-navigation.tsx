@@ -1,11 +1,15 @@
 "use client";
 
-export type WorkArea = "catalog" | "convert" | "practice";
+export type WorkArea = "catalog" | "listen" | "convert" | "practice";
 
 export const workspaceCopy = {
   en: {
     navigation: "Work areas",
     catalog: "Catalog",
+    listen: "Listen",
+    playback: "Playback",
+    backToCatalog: "Back to catalog",
+    practiseSong: "Practise this song",
     convert: "Convert to notes",
     practice: "Practice",
     convertHint: "Find a song online or turn your own melody into tin whistle fingerings.",
@@ -18,10 +22,15 @@ export const workspaceCopy = {
     audioSource: "Audio recording",
     pasteSource: "Paste notes",
     scoreSource: "MIDI / MusicXML",
+    importScore: "Import MIDI / MusicXML",
   },
   tr: {
     navigation: "Çalışma alanları",
     catalog: "Katalog",
+    listen: "Dinle",
+    playback: "Şarkıyı dinle",
+    backToCatalog: "Kataloğa dön",
+    practiseSong: "Bu şarkıyı prova et",
     convert: "Notaya çevir",
     practice: "Prova",
     convertHint: "İnternetten bir şarkı bul veya kendi melodini tin whistle parmak dizilimine çevir.",
@@ -34,6 +43,7 @@ export const workspaceCopy = {
     audioSource: "Ses kaydı",
     pasteSource: "Nota yapıştır",
     scoreSource: "MIDI / MusicXML",
+    importScore: "MIDI / MusicXML içe aktar",
   },
 };
 
@@ -46,6 +56,7 @@ export function WorkspaceNavigation({ language, area, languageLabel, languageAct
   onNavigate: (area: WorkArea) => void;
 }) {
   const t = workspaceCopy[language];
+  const activeArea = area === "listen" ? "catalog" : area;
   return (
     <header className="app-header" id="top">
       <div className="app-bar shell">
@@ -55,7 +66,7 @@ export function WorkspaceNavigation({ language, area, languageLabel, languageAct
         </a>
         <nav className="app-nav" aria-label={t.navigation}>
           {(["catalog", "convert", "practice"] as const).map((view) => (
-            <button key={view} type="button" aria-current={area === view ? "page" : undefined} onClick={() => onNavigate(view)}>
+            <button key={view} type="button" aria-current={activeArea === view ? "page" : undefined} onClick={() => onNavigate(view)}>
               {t[view]}
             </button>
           ))}

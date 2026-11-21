@@ -127,14 +127,12 @@ export function LiveNoteReadout({ note, language }: { note: Pitch | null; langua
   );
 }
 
-export function PracticeMicrophone({ language, onStart, onUseChange, steps, onChooseSong, playbackIndex, followPlayback }: {
+export function PracticeMicrophone({ language, visible, onUseChange, steps, onChooseSong }: {
   language: "en" | "tr";
-  onStart: () => void;
+  visible: boolean;
   onUseChange: (active: boolean) => void;
   steps: FollowStep[];
   onChooseSong?: () => void;
-  playbackIndex: number;
-  followPlayback: boolean;
 }) {
   const copy = COPY[language];
   const follow = songFollowCopy[language];
@@ -159,6 +157,14 @@ export function PracticeMicrophone({ language, onStart, onUseChange, steps, onCh
   }, []);
 
   useEffect(() => {
+    if (!visible) {
+      // Keep the score position while releasing the microphone in the listening view.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setState("idle");
+      setNote(null);
+      setGuidePhase("idle");
+      return;
+    }
     function releaseCapture() {
       stopPreview();
       const capture = captureRef.current;
@@ -178,7 +184,7 @@ export function PracticeMicrophone({ language, onStart, onUseChange, steps, onCh
       window.removeEventListener("pagehide", pageHidden);
       releaseCapture();
     };
-  }, [onUseChange, stopPreview]);
+  }, [onUseChange, stopPreview, visible]);
 
   function stop(nextState: State = "idle") {
     stopPreview();
@@ -226,7 +232,6 @@ export function PracticeMicrophone({ language, onStart, onUseChange, steps, onCh
     }
     if (!nextStep) return;
     stopPreview();
-    onStart();
     let context: AudioContext | undefined;
     try {
       context = new AudioContext();
@@ -278,7 +283,6 @@ export function PracticeMicrophone({ language, onStart, onUseChange, steps, onCh
     const follower = following ? createSongFollower(steps, initialProgress) : null;
     if (follower) capture.step = steps[initialProgress.matched];
     if (finished) setProgress(initialProgress);
-    onStart();
     onUseChange(true);
     setState("requesting");
     try {
@@ -365,6 +369,8 @@ export function PracticeMicrophone({ language, onStart, onUseChange, steps, onCh
     }
   }
 
+  if (!visible) return null;
+
   const action = state === "requesting" ? copy.cancel
     : following ? state === "listening" ? follow.pause : finished ? follow.again : progress.matched ? follow.resume : follow.start
       : active ? copy.stop : copy.start;
@@ -392,8 +398,7 @@ export function PracticeMicrophone({ language, onStart, onUseChange, steps, onCh
       {following
         ? <SongFollowPanel language={language} steps={steps} progress={progress}
           guideEnabled={guideEnabled} guidePhase={guidePhase} onGuideChange={changeGuide}
-          onHearNote={() => void hearNextNote()} replayDisabled={state === "requesting"} onReset={resetPractice}
-          playbackIndex={playbackIndex} followPlayback={followPlayback} />
+          onHearNote={() => void hearNextNote()} replayDisabled={state === "requesting"} onReset={resetPractice} />
         : state === "listening" && <LiveNoteReadout note={note} language={language} />}
     </section>
   );

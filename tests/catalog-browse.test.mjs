@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { browseCatalogGroups, groupCatalogSongs, isApprovedCatalogSong, withBundledCatalogSongs } from "../app/catalog-browse.mjs";
+import { browseCatalogGroups, groupCatalogSongs, isApprovedCatalogEntry, isApprovedCatalogSong, withBundledCatalogSongs } from "../app/catalog-browse.mjs";
 import { assessSongQuality } from "../app/catalog-quality.mjs";
 import { fingeringFor } from "../app/fingerings.mjs";
 
@@ -68,6 +68,18 @@ test("a cached remote catalog keeps new bundled songs without duplicating IDs", 
   const old = { id: "shared", title: "Bundled score" };
   const bundled = { id: "new", title: "New score" };
   assert.deepEqual(withBundledCatalogSongs([remote], [old, bundled]), [remote, bundled]);
+});
+
+test("official recordings are searchable in Approved without being treated as verified scores", () => {
+  const recording = {
+    kind: "recording",
+    title: "Journey of a Lifetime",
+    artist: "Evan Call",
+    aliases: ["Frieren Main Theme", "anime"],
+  };
+  assert.equal(isApprovedCatalogEntry(recording), true);
+  assert.equal(isApprovedCatalogSong(recording), false);
+  assert.deepEqual(browse([recording, approved, live], "frieren", true, "en"), [recording]);
 });
 
 test("the bundled whistle tunes are approved, playable and included in the published catalog", async () => {
