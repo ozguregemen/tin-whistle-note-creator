@@ -1,0 +1,40 @@
+.mascot {
+  display: block;
+  flex: 0 0 auto;
+  user-select: none;
+  animation: mascot-pop 260ms ease-out;
+}
+.mascot-celebrate {
+  animation: mascot-hop 520ms ease-out;
+}
+.mascot-oops {
+  animation: mascot-shake 360ms ease-out;
+}
+
+@keyframes mascot-pop {
+  from { transform: scale(0.9); }
+  60% { transform: scale(1.05); }
+  to { transform: scale(1); }
+}
+@keyframes mascot-hop {
+  0% { transform: translateY(0); }
+  35% { transform: translateY(-10px) rotate(-3deg); }
+  70% { transform: translateY(0) rotate(2deg); }
+  100% { transform: none; }
+}
+@keyframes mascot-shake {
+  0%, 100% { transform: none; }
+  25% { transform: rotate(-4deg); }
+  75% { transform: rotate(4deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot { animation: none; }
+}
+
+/* Placements */
+.practice-microphone-header .mascot { align-self: flex-start; }
+.practice-microphone-identity { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
+.tutorial-overview .mascot { justify-self: center; }
+.tutorial-completion .mascot { flex: 0 0 auto; }
+.practice-empty .mascot { margin: 0 auto 8px; }

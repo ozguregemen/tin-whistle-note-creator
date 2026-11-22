@@ -7,6 +7,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { MASCOT_MOODS, mascotMood } from "./mascot-moods.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const brand = resolve(root, "mobile/brand");
@@ -47,6 +48,12 @@ const cutouts = files["icon-foreground.svg"]
   .replaceAll('fill="KEEP"', 'fill="#000000"');
 for (const [name, content] of Object.entries(files)) await writeFile(resolve(brand, name), content);
 console.log(`Wrote ${Object.keys(files).join(", ")} to mobile/brand`);
+
+// In-app expressions, served from public/ so the web and the mobile bundle share them.
+const moodDir = resolve(root, "public/mascot");
+await mkdir(moodDir, { recursive: true });
+for (const mood of MASCOT_MOODS) await writeFile(resolve(moodDir, `${mood}.svg`), mascotMood(mascot, mood));
+console.log(`Wrote ${MASCOT_MOODS.length} expressions to public/mascot`);
 
 // Source PNGs for `npx capacitor-assets generate` (custom mode) and the web favicon.
 if (process.argv.includes("--png")) {

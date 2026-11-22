@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { durableStorage } from "./durable-storage.mjs";
+import { Mascot } from "./mascot";
 import { isUpperWhistleRegister } from "./fingerings.mjs";
 import { describeLiveNote } from "./live-note-display.mjs";
 import { PracticeMicrophone } from "./practice-microphone";
@@ -172,6 +173,7 @@ export function TutorialWorkspace({ language, onUseChange }: {
           onComplete={() => finishLesson(lesson.id)} />
         {done && (
           <div className="tutorial-completion">
+            <Mascot mood="celebrate" size={72} />
             <div>
               <strong><span aria-hidden="true">✓</span> {remaining ? t.completed : t.finished}</strong>
               <p>{formattedCount}</p>
@@ -190,6 +192,7 @@ export function TutorialWorkspace({ language, onUseChange }: {
     <section id="tutorial-workspace" className="tutorial" aria-labelledby="tutorial-title">
       <header className="tutorial-overview">
         <div className="tutorial-intro">
+          <Mascot mood="welcome" size={96} />
           <p className="tutorial-instrument">{t.instrument}</p>
           <h1 id="tutorial-title" tabIndex={-1} ref={titleRef}>{t.title}</h1>
           <p>{t.intro}</p>
