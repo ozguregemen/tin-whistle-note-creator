@@ -1,6 +1,7 @@
 import { fingeringFor } from "../app/fingerings.mjs";
 import { normalizeNote } from "../app/note-notation.mjs";
 import { BPM_MAX, BPM_MIN } from "../app/practice.mjs";
+import { containsBlockedWord } from "./community-moderation.mjs";
 
 export const MAX_COMMUNITY_NOTES = 512;
 export const MAX_COMMUNITY_NOTATION = 6000;
@@ -46,6 +47,7 @@ export function validateCommunitySong(input) {
   const bpm = Number(input?.bpm);
   if (title.length < 2 || title.length > 100 || /[\u0000-\u001f\u007f]/.test(title)) return { error: "invalid_title" };
   if (artist.length > 100 || /[\u0000-\u001f\u007f]/.test(artist)) return { error: "invalid_artist" };
+  if (containsBlockedWord(title) || containsBlockedWord(artist)) return { error: "content_not_allowed" };
   if (!/^\d{2,3}$/.test(String(input?.bpm ?? "")) || bpm < BPM_MIN || bpm > BPM_MAX) return { error: "invalid_bpm" };
   const parsed = parseCommunityNotation(input?.notes ?? "");
   if ("error" in parsed) return parsed;

@@ -6,7 +6,8 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import bundledCatalog from "../catalog/catalog.json";
 import Home from "../app/page";
-import { createNativeStore, setDurableStorage } from "../app/durable-storage.mjs";
+import { createNativeStore, durableStorage, setDurableStorage } from "../app/durable-storage.mjs";
+import { LicensesAndCredits } from "../app/licenses";
 import { configureRuntime } from "../app/runtime-config.mjs";
 import "../app/globals.css";
 import "./prototype.css";
@@ -40,8 +41,20 @@ function configureServices() {
   config.__TWNC_COMMUNITY_API_URL__ = SERVICE_URLS.community;
 }
 
+const LICENSES_HASH = "#licenses";
+
 function currentView() {
-  return window.location.hash === DEVICE_CHECK_HASH ? "check" : "app";
+  if (window.location.hash === DEVICE_CHECK_HASH) return "check";
+  if (window.location.hash === LICENSES_HASH) return "licenses";
+  return "app";
+}
+
+function savedLanguage(): "en" | "tr" {
+  try {
+    return durableStorage().getItem("twnc-language") === "tr" ? "tr" : "en";
+  } catch {
+    return "en";
+  }
 }
 
 function MobileApp() {
@@ -52,11 +65,11 @@ function MobileApp() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  if (view === "check") {
+  if (view !== "app") {
     return (
       <>
         <a className="mobile-back-link" href="#app">← Tin Whistle Note Creator</a>
-        <MobilePrototype />
+        {view === "check" ? <MobilePrototype /> : <main className="mobile-shell"><LicensesAndCredits language={savedLanguage()} /></main>}
       </>
     );
   }
@@ -65,6 +78,7 @@ function MobileApp() {
       <Home />
       <footer className="mobile-device-link">
         {STAGING && <p className="mobile-staging-note">Test sunucuları (staging) · Test servers</p>}
+        <a href={LICENSES_HASH}>Lisanslar · Licenses</a>
         <a href={DEVICE_CHECK_HASH}>Cihaz testi · Device check</a>
       </footer>
     </>
@@ -100,7 +114,7 @@ function listenToAppLifecycle() {
     if (!isActive) window.dispatchEvent(new Event("pagehide"));
   });
   void CapacitorApp.addListener("backButton", ({ canGoBack }) => {
-    if (window.location.hash === DEVICE_CHECK_HASH) window.location.hash = "app";
+    if (window.location.hash === DEVICE_CHECK_HASH || window.location.hash === LICENSES_HASH) window.location.hash = "app";
     else if (canGoBack) window.history.back();
     else void CapacitorApp.minimizeApp();
   });

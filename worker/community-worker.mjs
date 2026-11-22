@@ -9,7 +9,7 @@ export class CommunityDirectory extends DurableObject {
   }
 
   fetch(request) {
-    return handleCommunity(request, this.ctx.storage);
+    return handleCommunity(request, this.ctx.storage, { moderatorToken: this.env.MODERATOR_TOKEN });
   }
 }
 

@@ -43,3 +43,5 @@ yarn-error.log*
 /audiveris.deb
 /public/models/basic-pitch/
 /dist-mobile/
+# Rendered from mobile/brand/*.svg by `npm run brand:assets`
+/mobile/brand/assets/

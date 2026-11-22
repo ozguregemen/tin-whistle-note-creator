@@ -8,12 +8,12 @@ Uygulamada isteğe bağlı Topluluk hesabı (yalnızca kullanıcı adı ve şifr
 
 | Gereksinim | Apple | Google | Şu anki durum |
 | --- | --- | --- | --- |
-| Hesap silmeyi uygulama içinden başlatma; silme, düzenlemeleri ve puanları da kapsamalı; yalnızca devre dışı bırakmak yetmez | Zorunlu (5.1.1(v)) | Zorunlu | **Yok** → 3b |
-| Uygulamayı indirmeden hesap silme isteği için web sayfası | — | Zorunlu | **Yok** → 3b (web sürümündeki hesap paneli) |
-| Paylaşmadan önce kullanım şartlarını kabul ettirme ve uygunsuz içeriği tanımlama | Önerilir | Zorunlu | **Yok** → 3b |
-| İçeriği ve kullanıcıyı uygulama içinden bildirme | Zorunlu (1.2) | Zorunlu | **Yok** → 3b |
-| Kullanıcı engelleme | Zorunlu (1.2) | Zorunlu | **Yok** → 3b |
-| Uygunsuz içeriği filtreleme ve bildirimlere zamanında yanıt (moderasyon) | Zorunlu (1.2) | Zorunlu | **Yok** → 3b (moderasyon aracı ve süreç) |
+| Hesap silmeyi uygulama içinden başlatma; silme, düzenlemeleri ve puanları da kapsamalı; yalnızca devre dışı bırakmak yetmez | Zorunlu (5.1.1(v)) | Zorunlu | ✓ 3b (staging) |
+| Uygulamayı indirmeden hesap silme isteği için web sayfası | — | Zorunlu | ✓ 3b: `#delete-account` (Pages yeniden derlenince) |
+| Paylaşmadan önce kullanım şartlarını kabul ettirme ve uygunsuz içeriği tanımlama | Önerilir | Zorunlu | ✓ 3b (staging) |
+| İçeriği ve kullanıcıyı uygulama içinden bildirme | Zorunlu (1.2) | Zorunlu | ✓ 3b (staging) |
+| Kullanıcı engelleme | Zorunlu (1.2) | Zorunlu | ✓ 3b (staging) |
+| Uygunsuz içeriği filtreleme ve bildirimlere zamanında yanıt (moderasyon) | Zorunlu (1.2) | Zorunlu | ✓ 3b: filtre, otomatik gizleme, moderasyon aracı ve süreç |
 | Yayınlanmış iletişim bilgisi / destek adresi | Zorunlu (1.5) | Önerilir | **Karar sizde**: destek e-postası veya sayfası |
 | Gizlilik politikası (uygulama içinde ve mağaza kaydında) | Zorunlu | Zorunlu | **Yok** → 3c |
 | İnceleme için demo hesap ve canlı backend | Zorunlu (2.1) | Zorunlu (giriş gerektiren özellikler için) | Gönderimden önce hazırlanacak |
@@ -111,22 +111,46 @@ Mac'te yapılacaklar (bu ortamda yapılamadı):
    - Yaş derecelendirmesi (kullanıcı içeriği var).
    - Demo hesap ve inceleme notlarında özelliklerin açık açıklaması (2.3.1).
 
-## 5. Sıradaki parçalar
+## 5. Aşama 3b — hesap ve içerik güvenliği (23.11.2026)
 
-- **3b, hesap ve içerik güvenliği:**
-  - Hesap silme: uygulama içinden, ayrıca web'den. Hesap, oturumlar, düzenlemeler ve puanlar birlikte silinir. Şarkı silme ayrı bir işlem olarak kalır.
-  - Kayıtta kullanım şartları onayı.
-  - Düzenleme ve kullanıcı bildirme, kullanıcı engelleme.
-  - Basit içerik filtresi.
-  - Moderasyon için bildirim kuyruğu ve kaldırma aracı.
-  - Önce staging'de test, üretim onayınızla.
+Topluluk sunucusuna (`worker/community-api.mjs`) ve arayüze eklenenler:
+
+| Gereksinim | Uygulama |
+| --- | --- |
+| Hesap silme (uygulama içi) | Katkılarım → **Hesabı sil**. Şifreyle onaylanır. Kullanıcı, oturumları, tüm düzenlemeleri, verdiği ve düzenlemelerinin aldığı puanlar, bildirimleri ve engellemeleri tek işlemde silinir. Ardından “Hesabın ve ona ait tüm veriler silindi” onayı gösterilir. Şarkı silme ayrı bir işlem olarak kalır (Katkılarım → Sil). |
+| Hesap silme (web) | Web sürümünde `…/tin-whistle-note-creator/#delete-account` hesap panelini doğrudan açar. Google Play'e verilecek “hesap silme URL'si” bu adres. GitHub Pages yeniden derlenip yayınlanınca geçerli olur. |
+| Kullanım şartları | Kayıtta zorunlu onay kutusu ve kurallar listesi (`shared/community-moderation.mjs`). Sunucu kabul edilen sürümü (`COMMUNITY_TERMS_VERSION`) saklar. Kurallardan önce katılmış üyeler, paylaşmadan veya düzenlemeden önce onay ekranı görür (sunucu `terms_required` döndürür). |
+| Filtre | Başlık, sanatçı ve kullanıcı adlarında Türkçe ve İngilizce küfür ve hakaret listesi. Liste tam kelime eşleşmesiyle çalışır. Gerçek şarkı adlarını engellememek için kısa tutuldu. |
+| Bildirme | Bir topluluk sürümünde **Bildir**. Kullanıcı bu sürümü ya da üyeyi seçer, ardından nedeni (rahatsız edici, taciz, spam, telif/şarkı sözü, diğer) ve isteğe bağlı bir not girer. Aynı kişinin tekrarlanan bildirimi tek sayılır. **3 farklı üye** bir sürümü bildirince sürüm, moderatör inceleyene kadar herkesten gizlenir. Yazar kendi listesinde “Bildirimler incelenirken gizlendi” uyarısını görür. |
+| Engelleme | Bir topluluk sürümünde **Üyeyi engelle**. Engellenen üyenin sürümleri, engelleyen kişinin katalog ve aramasında görünmez. Engel Katkılarım → Engellenen üyeler bölümünden kaldırılabilir. |
+| Moderasyon | `npm run moderate -- <worker-url> reports | hide | restore | delete | resolve | suspend | unsuspend`. Worker sırrı `MODERATOR_TOKEN` gerektirir ve uygulamaya girmez. Askıya alınan hesabın oturumları kapanır ve giriş yapamaz. |
+
+Test:
+- Birim testleri: `tests/community-safety.test.mjs` 6 test. Toplam 278/278.
+- Yerel Worker ve staging'de `npm run smoke:community` 15/15.
+- Tarayıcıda telefon boyutunda yerel Worker'a karşı: kayıt ve kurallar, bildirme, engelleme, engeli listeleme, yanlış ve doğru şifreyle hesap silme, eski üye için onay ekranı. Bildirimin moderasyon kuyruğuna düştüğü ve hesapla birlikte silindiği de kontrol edildi.
+
+Moderasyon süreci (mağaza incelemesi için “zamanında yanıt”):
+1. Bildirimleri en az günde bir kez kontrol edin: `npm run moderate -- https://tin-whistle-community.ozguregemenbusiness.workers.dev reports`
+2. Kurala aykırı sürümü silin (`delete`), uygun olanı geri açın (`restore`, ilgili bildirimler kapanır). Tekrarlayan ihlalde hesabı askıya alın (`suspend`).
+3. Destek iletişim adresine gelen şikâyetleri de aynı araçla işleyin.
+
+**Üretime alma (onayınızdan sonra):**
+1. Uzun ve rastgele bir moderatör anahtarı üretip üretim sırrı olarak ayarlayın: `wrangler secret put MODERATOR_TOKEN --config wrangler.community.jsonc`.
+2. Worker'ı yayınlayın. Staging'de görüldüğü gibi Durable Object yeni sırrı ancak yeniden yayından sonra görür. Bu yüzden sırdan **sonra** yayınlayın.
+3. Mevcut üyeler bir sonraki paylaşımlarında kuralları kabul etmeye yönlendirilir. Eski web sürümü bu onayı bilmediği için GitHub Pages da aynı anda güncellenmeli: `npm run build:pages` → `docs/`.
+4. Veritabanı geçişi (yeni tablolar ve sütunlar) Worker açılışında kendiliğinden ve veri kaybı olmadan yapılır.
+
+## 6. Sıradaki parçalar
+
+- **3b:** Kod hazır ve staging'de çalışıyor (yukarıda). Üretime alma onayınızı bekliyor.
 - **3c, mağaza varlıkları:**
   - Uygulama simgesi ve açılış ekranı (şu an Capacitor varsayılanları).
   - Uygulama içi “Lisanslar ve atıflar” ekranı (GeneralUser GS, CC BY-SA örnekler, Basic Pitch Apache-2.0).
   - Gizlilik politikası ve kullanım şartları metinleri.
   - Mağaza açıklamaları ve ekran görüntüsü planı.
 
-## 6. Sizden gereken kararlar
+## 7. Sizden gereken kararlar
 
 1. Destek iletişim bilgisi: hangi e-posta veya sayfa yayınlanacak?
 2. Gizlilik politikası ve hesap silme sayfası nerede yayınlansın? Öneri: GitHub Pages altında `/privacy` ve `/account-deletion`.
