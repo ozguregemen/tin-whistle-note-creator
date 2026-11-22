@@ -23,7 +23,10 @@ function allowedOrigin(request, env, audioRoute, scoreRoute) {
   const primary = env.ALLOWED_ORIGINS || "https://ozguregemen.github.io";
   const audio = audioRoute ? env.AUDIO_SERVICE_ORIGINS || "" : "";
   const scores = scoreRoute ? env.SCORE_SOURCE_ORIGINS || "" : "";
-  const configured = `${primary},${audio},${scores}`.split(",").map((value) => value.trim()).filter(Boolean);
+  // The installed app (https://localhost on Android, capacitor://localhost on
+  // iOS) uses every route, including server transcription of a chosen clip.
+  const mobile = env.MOBILE_APP_ORIGINS || "";
+  const configured = `${primary},${audio},${scores},${mobile}`.split(",").map((value) => value.trim()).filter(Boolean);
   if (configured.includes(origin)) return origin;
   if (/^http:\/\/localhost:\d+$/.test(origin)) return origin;
   return null;

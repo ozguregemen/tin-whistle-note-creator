@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { durableStorage } from "./durable-storage.mjs";
 import { isUpperWhistleRegister } from "./fingerings.mjs";
 import { describeLiveNote } from "./live-note-display.mjs";
 import { PracticeMicrophone } from "./practice-microphone";
@@ -111,7 +112,7 @@ export function TutorialWorkspace({ language, onUseChange }: {
   const t = copy[language];
   const [lesson, setLesson] = useState<TutorialLesson | null>(null);
   const [completed, setCompleted] = useState<string[]>(() => {
-    try { return completedTutorialLessons(window.localStorage); } catch { return []; }
+    try { return completedTutorialLessons(durableStorage()); } catch { return []; }
   });
   const [saveIssue, setSaveIssue] = useState(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -119,7 +120,7 @@ export function TutorialWorkspace({ language, onUseChange }: {
   useEffect(() => {
     function readProgress(event?: StorageEvent) {
       if (event?.key && !event.key.startsWith(TUTORIAL_PROGRESS_PREFIX)) return;
-      try { setCompleted(completedTutorialLessons(window.localStorage)); } catch { /* Keep progress for this visit. */ }
+      try { setCompleted(completedTutorialLessons(durableStorage())); } catch { /* Keep progress for this visit. */ }
     }
     window.addEventListener("storage", readProgress);
     return () => window.removeEventListener("storage", readProgress);
@@ -136,7 +137,7 @@ export function TutorialWorkspace({ language, onUseChange }: {
 
   function finishLesson(id: string) {
     try {
-      window.localStorage.setItem(TUTORIAL_PROGRESS_PREFIX + id, "1");
+      durableStorage().setItem(TUTORIAL_PROGRESS_PREFIX + id, "1");
       setSaveIssue(false);
     } catch {
       setSaveIssue(true);

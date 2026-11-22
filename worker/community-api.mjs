@@ -21,6 +21,19 @@ const RATING_FIELDS = `
 const SELECT_SONG = `SELECT s.id, s.title, s.artist, s.notes, s.bpm, u.username, ${RATING_FIELDS}
   FROM community_songs s JOIN community_users u ON u.id = s.author_id`;
 
+/**
+ * Browser origins that may call the community API. Requests without an Origin
+ * (server-side tools) keep working; sign-in still requires the user's token.
+ * @param {string | null} origin
+ * @param {{ ALLOWED_ORIGINS?: string, MOBILE_APP_ORIGINS?: string }} env
+ */
+export function communityOriginAllowed(origin, env) {
+  if (!origin) return true;
+  const allowed = `${env.ALLOWED_ORIGINS || ""},${env.MOBILE_APP_ORIGINS || ""}`
+    .split(",").map(value => value.trim()).filter(Boolean);
+  return allowed.includes(origin) || /^http:\/\/(?:localhost|127\.0\.0\.1):\d+$/.test(origin);
+}
+
 export function initializeCommunityStorage(storage) {
   const { sql } = storage;
   storage.transactionSync(() => {

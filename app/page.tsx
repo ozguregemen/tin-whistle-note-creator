@@ -35,6 +35,8 @@ import { YoutubeScoreOptions, youtubeScoreCopy } from "./youtube-score-options";
 import { searchSessionTunes, searchYoutubeScores, type ScoreMatches, type SessionTune, type SourceCandidate, type VideoSong } from "./youtube-score-sources";
 import { buildSourceAttemptOrder, waitForSourceJob } from "./source-jobs.mjs";
 import { base64AudioBuffer, midiForWhistleNote, playbackRateForMidi, sampleZoneForMidi, soundfontLoopForZone, soundfontTriggerMidiForAudibleMidi, soundfontZoneForMidi, WHISTLE_SAMPLE_ZONES, WHISTLE_SOUNDFONT } from "./whistle-sampler.mjs";
+import { durableStorage } from "./durable-storage.mjs";
+import { runtimeConfig } from "./runtime-config.mjs";
 
 type Language = "en" | "tr";
 type StatusKey = "catalogPrepared" | "catalogFound" | "notFound" | "converted" | "invalidNotes" | "catalogUpdated" | "searching" | "sourceFound" | "discoveryFound" | "queueing" | "processing" | "sourceRetrying" | "needsReview" | "liveFound" | "sourceUnavailable" | "audioFetching" | "audioReady" | "audioPreparing" | "audioImportFailed" | "audioTranscribing" | "audioConverted" | "audioUnavailable" | "scoreImported" | "scoreUnavailable";
@@ -555,12 +557,21 @@ function parsePhrases(source: string, estimateRegisters = false): ParsedNote[][]
 function restoreStoredCorrection(song: Song) {
   if (typeof window === "undefined") return song;
   try {
-    const notes = window.localStorage.getItem(`twnc-note-correction:${song.id}`);
+    const notes = durableStorage().getItem(`twnc-note-correction:${song.id}`);
     if (!notes || parsePhrases(notes).flat().length !== parsePhrases(song.notes).flat().length) return song;
     return { ...song, notes, userEdited: true };
   } catch {
     return song;
   }
+}
+
+// The installed app ships the full generated catalog so it opens offline.
+// The web build keeps its small fallback and loads the live catalog.
+function initialCatalog(): Song[] {
+  const bundled = runtimeConfig().bundledSongs as Song[];
+  if (!bundled.length) return FALLBACK_SONGS;
+  return withBundledCatalogSongs(bundled, WHISTLE_TUNES)
+    .map((item) => restoreStoredCorrection(applyCuratedTempo(item) as Song));
 }
 
 function Fingering({ note, index, globalIndex, active, language, editing, correctionLabel, onCorrection }: {
@@ -601,7 +612,7 @@ function Fingering({ note, index, globalIndex, active, language, editing, correc
 export default function Home() {
   const [language, setLanguage] = useState<Language>("en");
   const [mode, setMode] = useState<InputMode>("search");
-  const [catalog, setCatalog] = useState<Song[]>(FALLBACK_SONGS);
+  const [catalog, setCatalog] = useState<Song[]>(initialCatalog);
   const [communityRevision, setCommunityRevision] = useState(0);
   const communityAccount = useCommunityAccount();
   const [communityPanel, setCommunityPanel] = useState<CommunityPanel>(null);
@@ -635,7 +646,8 @@ export default function Home() {
   const [preparedAudio, setPreparedAudio] = useState<(Awaited<ReturnType<typeof prepareAudioInput>> & { url: string }) | null>(null);
   const audioImportRef = useRef<AbortController | null>(null);
   const audioUsesServer = audioCapabilities?.provider === MUSCRIPTOR_LARGE;
-  const audioYoutubeEnabled = audioCapabilities?.youtubeMp3 === true;
+  // YouTube MP3 download stays off in the installed app until source rights and store rules are confirmed.
+  const audioYoutubeEnabled = audioCapabilities?.youtubeMp3 === true && runtimeConfig().youtubeAudio;
   const sourceIsBusy = status === "queueing" || status === "processing" || status === "sourceRetrying";
   const audioDisabled = audioBusy || sourceIsBusy || !audioCapabilities;
   const [isPlaying, setIsPlaying] = useState(false);
@@ -699,8 +711,26 @@ export default function Home() {
     activeSongId.current = song?.id;
   }, [song?.id]);
 
+  // In the installed app, leaving the screen pauses the player (it keeps its place).
+  const pauseForBackgroundRef = useRef<() => void>(() => {});
   useEffect(() => {
-    const saved = window.localStorage.getItem("twnc-language");
+    pauseForBackgroundRef.current = () => { if (isPlayingRef.current) void togglePlayback(); };
+  });
+  useEffect(() => {
+    if (!runtimeConfig().pauseWhenHidden) return;
+    const pauseWhenHidden = () => { if (document.visibilityState === "hidden") pauseForBackgroundRef.current(); };
+    const pauseOnPageHide = () => pauseForBackgroundRef.current();
+    document.addEventListener("visibilitychange", pauseWhenHidden);
+    window.addEventListener("pagehide", pauseOnPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", pauseWhenHidden);
+      window.removeEventListener("pagehide", pauseOnPageHide);
+    };
+  }, []);
+
+  useEffect(() => {
+    let saved: string | null = null;
+    try { saved = durableStorage().getItem("twnc-language"); } catch { /* Storage may be disabled. */ }
     // The saved preference only exists in the browser; applying it after hydration is intentional.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (saved === "tr" || saved === "en") setLanguage(saved);
@@ -742,7 +772,7 @@ export default function Home() {
 
   useEffect(() => {
     const api = sourceApiUrl();
-    const requestId = window.localStorage.getItem("twnc-pending-source-job");
+    const requestId = durableStorage().getItem("twnc-pending-source-job");
     if (!api || !requestId) return;
     let active = true;
     // Resuming a user-started background conversion after reload is intentional.
@@ -763,7 +793,7 @@ export default function Home() {
         setSourceError(job.reason || "");
         setStatus("sourceUnavailable");
       }
-      window.localStorage.removeItem("twnc-pending-source-job");
+      durableStorage().removeItem("twnc-pending-source-job");
     }).catch((error: unknown) => {
       if (active) {
         setSourceError(error instanceof Error ? error.message : "");
@@ -1308,7 +1338,7 @@ export default function Home() {
   function toggleLanguage() {
     const next = language === "en" ? "tr" : "en";
     setLanguage(next);
-    window.localStorage.setItem("twnc-language", next);
+    try { durableStorage().setItem("twnc-language", next); } catch { /* Keep the choice for this visit. */ }
   }
 
   async function findSong(event?: FormEvent) {
@@ -1428,7 +1458,7 @@ export default function Home() {
           setSourceCandidates([]);
           setStatus("liveFound");
           showPracticeResult(origin);
-          window.localStorage.removeItem("twnc-pending-source-job");
+          durableStorage().removeItem("twnc-pending-source-job");
           return;
         }
         if (queued.status === "needs-review" || queued.status === "failed" || queued.status === "timeout") {
@@ -1438,11 +1468,11 @@ export default function Home() {
         }
         if (!queued.requestId) throw new Error("Source job did not return a request ID");
         setStatus("processing");
-        window.localStorage.setItem("twnc-pending-source-job", queued.requestId);
+        durableStorage().setItem("twnc-pending-source-job", queued.requestId);
 
         const timeoutMs = attempt.processingMode === "omr" ? 300_000 : 180_000;
         const job = await waitForSourceJob(api, queued.requestId, { timeoutMs }) as SourceJob;
-        window.localStorage.removeItem("twnc-pending-source-job");
+        durableStorage().removeItem("twnc-pending-source-job");
         if (job.status === "completed" && job.song) {
           setSong(restoreStoredCorrection(applyCuratedTempo(job.song) as Song));
           setSourceCandidates([]);
@@ -1454,7 +1484,7 @@ export default function Home() {
         lastFailureReason = job.reason || `Source processing ended with status: ${job.status}`;
       } catch (error: unknown) {
         lastFailureReason = error instanceof Error ? error.message : "The selected source failed";
-        window.localStorage.removeItem("twnc-pending-source-job");
+        durableStorage().removeItem("twnc-pending-source-job");
       }
     }
     setSourceError(lastFailureReason);
@@ -1687,7 +1717,7 @@ export default function Home() {
     const notes = serializeNotePhrases(corrected);
     setSong((current) => {
       if (!current) return current;
-      try { window.localStorage.setItem(`twnc-note-correction:${current.id}`, notes); } catch { /* Browser storage may be disabled. */ }
+      try { durableStorage().setItem(`twnc-note-correction:${current.id}`, notes); } catch { /* Browser storage may be disabled. */ }
       return { ...current, notes, userEdited: true };
     });
   }

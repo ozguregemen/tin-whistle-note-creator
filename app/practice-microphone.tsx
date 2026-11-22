@@ -150,6 +150,9 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
   const follow = songFollowCopy[language];
   const captureRef = useRef<Capture | null>(null);
   const previewRef = useRef<Preview | null>(null);
+  // Parents may pass a new callback on every render. Keep the latest one in a
+  // ref so a re-render never runs the cleanup that releases an open microphone.
+  const onUseChangeRef = useRef(onUseChange);
   const guideEnabledRef = useRef(false);
   const [state, setState] = useState<State>("idle");
   const [note, setNote] = useState<Pitch | null>(null);
@@ -173,6 +176,10 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
   }, []);
 
   useEffect(() => {
+    onUseChangeRef.current = onUseChange;
+  }, [onUseChange]);
+
+  useEffect(() => {
     if (!visible) {
       // Keep the score position while releasing the microphone in the listening view.
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -188,7 +195,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
       if (!capture) return;
       captureRef.current = null;
       release(capture);
-      onUseChange(false);
+      onUseChangeRef.current(false);
     }
     function pageHidden() {
       releaseCapture();
@@ -202,7 +209,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
       window.removeEventListener("pagehide", pageHidden);
       releaseCapture();
     };
-  }, [onUseChange, stopPreview, visible]);
+  }, [stopPreview, visible]);
 
   function stop(nextState: State = "idle") {
     stopPreview();
@@ -211,7 +218,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
     if (capture) {
       captureRef.current = null;
       release(capture);
-      onUseChange(false);
+      onUseChangeRef.current(false);
     }
     setState(nextState);
     setNote(null);
@@ -347,7 +354,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
     const follower = following ? createSongFollower(steps, initialProgress) : null;
     if (follower) capture.step = steps[initialProgress.matched];
     if (finished) setProgress(initialProgress);
-    onUseChange(true);
+    onUseChangeRef.current(true);
     setState("requesting");
     try {
       const device = navigator.mediaDevices.getUserMedia({

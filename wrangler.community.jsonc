@@ -14,6 +14,28 @@
     { "name": "AUTH_LIMIT", "namespace_id": "2026112101", "simple": { "limit": 8, "period": 60 } }
   ],
   "vars": {
-    "ALLOWED_ORIGINS": "https://ozguregemen.github.io,https://nefes-tin-whistle.ozguregemenbusiness.chatgpt.site"
+    "ALLOWED_ORIGINS": "https://ozguregemen.github.io,https://nefes-tin-whistle.ozguregemenbusiness.chatgpt.site",
+    "MOBILE_APP_ORIGINS": "https://localhost,capacitor://localhost"
+  },
+  "env": {
+    // Mobile app test copy: npx wrangler deploy --config wrangler.community.jsonc --env staging
+    // A separate Worker name gives it its own, empty Durable Object database, so test
+    // accounts, songs and ratings never touch production data.
+    "staging": {
+      "name": "tin-whistle-community-staging",
+      "workers_dev": true,
+      "preview_urls": false,
+      "durable_objects": {
+        "bindings": [{ "name": "COMMUNITY", "class_name": "CommunityDirectory" }]
+      },
+      "migrations": [{ "tag": "community-v1", "new_sqlite_classes": ["CommunityDirectory"] }],
+      "ratelimits": [
+        { "name": "AUTH_LIMIT", "namespace_id": "2026112202", "simple": { "limit": 8, "period": 60 } }
+      ],
+      "vars": {
+        "ALLOWED_ORIGINS": "https://ozguregemen.github.io",
+        "MOBILE_APP_ORIGINS": "https://localhost,capacitor://localhost"
+      }
+    }
   }
 }

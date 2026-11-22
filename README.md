@@ -86,6 +86,10 @@ npm run preview:pages
 
 `npm run build:pages` komutu yayınlanacak statik dosyaları `docs` klasöründe günceller.
 
+### Android uygulaması (Capacitor, prototip)
+
+`npm run android:apk` mobil paketi ayrı `dist-mobile` klasörüne derler, Android projesine aktarır ve test APK'sını üretir. GitHub Pages çıktısına dokunmaz. Gereksinimler, kararlar ve cihaz test listesi: [engineering/mobile-android.md](engineering/mobile-android.md)
+
 ## Canlı kaynak API'si
 
 GitHub Pages yalnızca arayüzü sunar. `worker/source-api.mjs` içindeki Cloudflare Worker canlı kaynak aramasını, özel GitHub kataloğuna erişimi ve Actions iş tetiklemesini yürütür. Otomatik içe aktarma destekleyen adaptörler Notalar.net, Gitaregitim.net, Songsterr Guitar Pro düzenlemeleri ve küratörlü akademik nota PDF'leridir.
