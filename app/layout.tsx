@@ -15,6 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Tin Whistle Note Creator",
   description: "Search, adapt, and practise songs and melodies with clear D tin whistle fingerings.",
+  icons: { icon: { url: "/favicon.svg", type: "image/svg+xml" } },
 };
 
 export default function RootLayout({

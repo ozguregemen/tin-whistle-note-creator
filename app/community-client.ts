@@ -16,9 +16,12 @@ export type CommunitySong = {
   rating: CommunityRating;
   sourceStatus: "live";
   sources: [];
+  /** Present on the author's own list while reports are reviewed. */
+  hidden?: true;
 };
 
-export type CommunitySession = { username: string; token: string; expiresAt: number };
+export type CommunitySession = { username: string; token: string; expiresAt: number; termsAccepted?: boolean };
+export type CommunityReportReason = "offensive" | "harassment" | "spam" | "copyright" | "other";
 export type CommunityPage = { songs: CommunitySong[]; nextOffset: number | null };
 const SESSION_STORAGE_KEY = "twnc-community-session";
 const COMMUNITY_API_URL = "https://tin-whistle-community.ozguregemenbusiness.workers.dev";
@@ -94,5 +97,32 @@ export async function communityRequest<T>(path: string, { method = "GET", body, 
 
 export function listCommunitySongs(query: string, offset = 0, signal?: AbortSignal) {
   const params = new URLSearchParams({ q: query, offset: String(offset) });
-  return communityRequest<CommunityPage>(`songs?${params}`, { signal });
+  // Signed-in members do not see versions by people they blocked.
+  return communityRequest<CommunityPage>(`songs?${params}`, { signal, token: readCommunitySession()?.token });
+}
+
+export function acceptCommunityTerms(token: string, version: string) {
+  return communityRequest<{ termsAccepted: true }>("terms", { method: "POST", token, body: { version } });
+}
+
+export function reportCommunity(token: string, report:
+  | { target: "song"; songId: string; reason: CommunityReportReason; note?: string }
+  | { target: "user"; username: string; reason: CommunityReportReason; note?: string }) {
+  return communityRequest<{ received: true }>("reports", { method: "POST", token, body: report });
+}
+
+export function blockCommunityUser(token: string, username: string) {
+  return communityRequest<{ blocked: string }>("blocks", { method: "POST", token, body: { username } });
+}
+
+export function unblockCommunityUser(token: string, username: string) {
+  return communityRequest<void>(`blocks/${encodeURIComponent(username)}`, { method: "DELETE", token });
+}
+
+export function listBlockedUsers(token: string, signal?: AbortSignal) {
+  return communityRequest<{ users: string[] }>("blocks", { token, signal });
+}
+
+export function deleteCommunityAccount(token: string, password: string) {
+  return communityRequest<void>("account", { method: "DELETE", token, body: { password } });
 }

@@ -1,5 +1,16 @@
 apply plugin: 'com.android.application'
 
+// One version for Android and iOS: mobile/app-version.json (versionCode must grow with every store upload).
+def appVersion = new groovy.json.JsonSlurper().parse(rootProject.file('../mobile/app-version.json'))
+
+// The upload key never lives in the repository. Point TWNC_ANDROID_SIGNING at a
+// properties file (storeFile, storePassword, keyAlias, keyPassword); by default
+// it is %USERPROFILE%\.tin-whistle\android-upload.properties. Without it,
+// release builds are produced unsigned so the build itself can still be checked.
+def signingFile = file(System.getenv('TWNC_ANDROID_SIGNING') ?: "${System.getProperty('user.home')}/.tin-whistle/android-upload.properties")
+def uploadSigning = new Properties()
+if (signingFile.exists()) signingFile.withInputStream { uploadSigning.load(it) }
+
 android {
     namespace = "io.github.ozguregemen.tinwhistle"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +18,8 @@ android {
         applicationId "io.github.ozguregemen.tinwhistle"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode appVersion.versionCode as int
+        versionName appVersion.versionName as String
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +27,19 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (uploadSigning.getProperty('storeFile')) {
+            upload {
+                storeFile file(uploadSigning.getProperty('storeFile'))
+                storePassword uploadSigning.getProperty('storePassword')
+                keyAlias uploadSigning.getProperty('keyAlias')
+                keyPassword uploadSigning.getProperty('keyPassword')
+            }
+        }
+    }
     buildTypes {
         release {
+            if (uploadSigning.getProperty('storeFile')) signingConfig signingConfigs.upload
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

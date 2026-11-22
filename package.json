@@ -18,6 +18,10 @@
     "worker:staging:deploy": "wrangler deploy --config wrangler.source-api.jsonc --env staging",
     "community:staging:deploy": "wrangler deploy --config wrangler.community.jsonc --env staging",
     "smoke:community": "node scripts/community-smoke.mjs",
+    "moderate": "node scripts/community-moderate.mjs",
+    "brand:assets": "node scripts/brand-assets.mjs",
+    "android:aab": "npm run mobile:sync && node scripts/android-gradle.mjs bundleRelease",
+    "ios:sync": "npm run build:mobile && node scripts/set-ios-version.mjs && cap sync ios",
     "preview:mobile": "vite preview --config vite.mobile.config.ts",
     "sync:sources": "node scripts/sync-note-sources.mjs",
     "audit:catalog": "node scripts/audit-catalog.mjs",
@@ -37,6 +41,7 @@
     "@capacitor/android": "8.6.2",
     "@capacitor/app": "8.1.2",
     "@capacitor/core": "8.6.2",
+    "@capacitor/ios": "8.6.2",
     "@capacitor/preferences": "8.0.1",
     "@coderline/alphatab": "^1.8.4",
     "@spotify/basic-pitch": "1.0.1",
@@ -46,6 +51,7 @@
     "react-dom": "19.2.6"
   },
   "devDependencies": {
+    "@capacitor/assets": "4.0.0",
     "@capacitor/cli": "8.6.2",
     "@cloudflare/vite-plugin": "1.37.1",
     "@eslint/js": "9.39.4",

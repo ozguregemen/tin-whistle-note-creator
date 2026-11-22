@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { noteChoicesForPattern, noteForPattern } from "../app/note-notation.mjs";
+import { COMMUNITY_TERMS_VERSION as TERMS } from "../shared/community-auth.mjs";
 import { parseCommunityNotation } from "../shared/community-song.mjs";
 import { handleCommunity, initializeCommunityStorage } from "../worker/community-api.mjs";
 
@@ -18,7 +19,7 @@ test("editor notation checks every note and the hole chart distinguishes registe
   assert.equal(noteForPattern("010101", 1), null);
 });
 
-function communityRequests(context) {
+function communityRequests(context, options = {}) {
   const database = new DatabaseSync(":memory:");
   context.after(() => database.close());
   const storage = {
@@ -45,12 +46,12 @@ function communityRequests(context) {
     },
   };
   initializeCommunityStorage(storage);
-  const request = async (path, { method = "GET", body, token } = {}) => {
+  const request = async (path, { method = "GET", body, token, headers = {} } = {}) => {
     const response = await handleCommunity(new Request(`https://community.test/api/community/${path}`, {
       method,
-      headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers },
       body: body ? JSON.stringify(body) : undefined,
-    }), storage);
+    }), storage, options);
     return { status: response.status, data: response.status === 204 ? null : await response.json() };
   };
   return { request, database, storage };
@@ -64,10 +65,10 @@ test("community requires an account, attributes each version, and restricts edit
   const tooShort = await request("register", { method: "POST", body: { username: "Alice", password: password.slice(1) } });
   assert.equal(tooShort.status, 400);
   assert.equal(tooShort.data.error, "invalid_password");
-  const alice = await request("register", { method: "POST", body: { username: "Alice", password } });
+  const alice = await request("register", { method: "POST", body: { username: "Alice", password, acceptTerms: TERMS } });
   assert.equal(alice.status, 201);
   assert.equal((await request("register", { method: "POST", body: { username: "alice", password } })).status, 409);
-  const bob = await request("register", { method: "POST", body: { username: "Bob", password: "a dedicated fixture password" } });
+  const bob = await request("register", { method: "POST", body: { username: "Bob", password: "a dedicated fixture password", acceptTerms: TERMS } });
   assert.equal(bob.status, 201);
   assert.equal((await request("login", { method: "POST", body: { username: "Alice", password: password + " wrong" } })).status, 401);
   const login = await request("login", { method: "POST", body: { username: "ALICE", password } });
@@ -90,7 +91,7 @@ test("community requires an account, attributes each version, and restricts edit
 test("only the author can delete a version and its ratings are removed with it", async context => {
   const { request, database } = communityRequests(context);
   const [alice, bob] = await Promise.all(["Alice", "Bob"].map(username =>
-    request("register", { method: "POST", body: { username, password: "Bee%5R7u" } })));
+    request("register", { method: "POST", body: { username, password: "Bee%5R7u", acceptTerms: TERMS } })));
   const aliceToken = alice.data.token;
   const bobToken = bob.data.token;
   const draft = { title: "Two contributions", bpm: 96, notes: "D4 E4" };
@@ -114,7 +115,7 @@ test("only the author can delete a version and its ratings are removed with it",
 test("community ratings are per version, update one vote per member, and rank by average then count", async context => {
   const { request } = communityRequests(context);
   const [alice, bob] = await Promise.all(["Alice", "Bob"].map(username =>
-    request("register", { method: "POST", body: { username, password: "Bee%5R7u" } })));
+    request("register", { method: "POST", body: { username, password: "Bee%5R7u", acceptTerms: TERMS } })));
   const draft = { title: "Two versions", artist: "Traditional", bpm: 96, notes: "D4 E4" };
   const aliceToken = alice.data.token;
   const bobToken = bob.data.token;
@@ -152,7 +153,7 @@ test("community ratings are per version, update one vote per member, and rank by
 
 test("half-star storage migrates existing votes and keeps them across restarts", async context => {
   const { request, database, storage } = communityRequests(context);
-  const member = await request("register", { method: "POST", body: { username: "Alice", password: "Bee%5R7u" } });
+  const member = await request("register", { method: "POST", body: { username: "Alice", password: "Bee%5R7u", acceptTerms: TERMS } });
   const token = member.data.token;
   const song = await request("songs", {
     method: "POST", token, body: { title: "Legacy tune", artist: "Traditional", bpm: 96, notes: "D4 E4" },

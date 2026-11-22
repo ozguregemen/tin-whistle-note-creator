@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { MAX_COMMUNITY_PASSWORD_LENGTH, MIN_COMMUNITY_PASSWORD_LENGTH } from "../shared/community-auth.mjs";
+import { COMMUNITY_TERMS_VERSION, MAX_COMMUNITY_PASSWORD_LENGTH, MIN_COMMUNITY_PASSWORD_LENGTH } from "../shared/community-auth.mjs";
+import { COMMUNITY_TERMS } from "../shared/community-moderation.mjs";
 import {
-  communityIssue, communityRequest, readCommunitySession, storeCommunitySession,
+  acceptCommunityTerms, communityIssue, communityRequest, deleteCommunityAccount, listBlockedUsers, readCommunitySession,
+  storeCommunitySession, unblockCommunityUser,
   type CommunityPage, type CommunitySession, type CommunitySong,
 } from "./community-client";
 import { SongEditor, type EditorSource } from "./song-editor";
@@ -30,7 +32,20 @@ const copy = {
     deleted: (title: string) => `“${title}” was deleted from the catalog.`,
     deleteFailed: "The song could not be deleted. Try again.",
     empty: "Your published arrangements will appear here.", loading: "Loading your contributions…", more: "Show more", retry: "Try again",
+    hiddenForReview: "Hidden while reports are reviewed",
+    termsTitle: "Community rules", acceptTerms: "I have read and accept the community rules.",
+    termsGateTitle: "Accept the community rules to share", termsGateHelp: "Before you post or edit a version, read and accept these rules.",
+    termsAccept: "Accept and continue", termsAccepting: "Saving…",
+    blockedTitle: "Blocked members", blockedEmpty: "You have not blocked anyone.", unblock: "Unblock",
+    unblockLabel: (username: string) => `Unblock @${username}`,
+    deleteAccount: "Delete account", deleteAccountTitle: "Delete your account?",
+    deleteAccountHelp: "This permanently deletes your account, all of your arrangements, the ratings you gave and received, your reports and your block list. It cannot be undone.",
+    deleteAccountPassword: "Enter your password to confirm", deleteAccountConfirm: "Delete my account", deletingAccount: "Deleting account…",
+    accountDeleted: "Your account and all of its data were deleted.",
     errors: {
+      content_not_allowed: "This text is not allowed in the community. Choose different wording.",
+      account_suspended: "This account is suspended because of reports. Contact support if you think this is a mistake.",
+      terms_required: "Accept the community rules before posting.",
       invalid_username: "Enter a username of 3–24 characters using letters, numbers, dots, hyphens or underscores.",
       invalid_password: `Enter a password with ${passwordLengthRange} characters.`,
       username_taken: "This username is taken. Choose another one or sign in.",
@@ -58,7 +73,20 @@ const copy = {
     deleted: (title: string) => `“${title}” katalogdan silindi.`,
     deleteFailed: "Şarkı silinemedi. Tekrar dene.",
     empty: "Yayımladığın düzenlemeler burada görünecek.", loading: "Katkıların yükleniyor…", more: "Daha fazla göster", retry: "Tekrar dene",
+    hiddenForReview: "Bildirimler incelenirken gizlendi",
+    termsTitle: "Topluluk kuralları", acceptTerms: "Topluluk kurallarını okudum ve kabul ediyorum.",
+    termsGateTitle: "Paylaşmak için topluluk kurallarını kabul et", termsGateHelp: "Bir sürüm paylaşmadan veya düzenlemeden önce bu kuralları oku ve kabul et.",
+    termsAccept: "Kabul et ve devam et", termsAccepting: "Kaydediliyor…",
+    blockedTitle: "Engellenen üyeler", blockedEmpty: "Kimseyi engellemedin.", unblock: "Engeli kaldır",
+    unblockLabel: (username: string) => `@${username} için engeli kaldır`,
+    deleteAccount: "Hesabı sil", deleteAccountTitle: "Hesabın silinsin mi?",
+    deleteAccountHelp: "Bu işlem hesabını, tüm düzenlemelerini, verdiğin ve aldığın puanları, bildirimlerini ve engelleme listeni kalıcı olarak siler. Geri alınamaz.",
+    deleteAccountPassword: "Onaylamak için şifreni gir", deleteAccountConfirm: "Hesabımı sil", deletingAccount: "Hesap siliniyor…",
+    accountDeleted: "Hesabın ve ona ait tüm veriler silindi.",
     errors: {
+      content_not_allowed: "Bu ifade toplulukta kullanılamaz. Farklı bir ifade seç.",
+      account_suspended: "Bu hesap bildirimler nedeniyle askıya alındı. Bir hata olduğunu düşünüyorsan destekle iletişime geç.",
+      terms_required: "Paylaşmadan önce topluluk kurallarını kabul et.",
       invalid_username: "3–24 karakterlik bir kullanıcı adı gir. Harf, rakam, nokta, tire veya alt çizgi kullan.",
       invalid_password: `${passwordLengthRange} karakterlik bir şifre gir.`,
       username_taken: "Bu kullanıcı adı kullanılıyor. Başka bir ad seç veya giriş yap.",
@@ -87,8 +115,8 @@ export function useCommunityAccount() {
     const stored = readCommunitySession();
     if (!stored) { updateSession(null); return; }
     const controller = new AbortController();
-    void communityRequest<{ username: string }>("session", { token: stored.token, signal: controller.signal })
-      .then(({ username }) => updateSession({ ...stored, username }))
+    void communityRequest<{ username: string; termsAccepted?: boolean }>("session", { token: stored.token, signal: controller.signal })
+      .then(({ username, termsAccepted }) => updateSession({ ...stored, username, termsAccepted }))
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         updateSession(communityIssue(error).error === "sign_in_required" ? null : stored);
@@ -104,6 +132,156 @@ export function useCommunityAccount() {
   }, [expiresAt, expireSession]);
 
   return { ...account, updateSession, expireSession };
+}
+
+function CommunityRules({ language, open = false }: { language: Language; open?: boolean }) {
+  const t = copy[language];
+  return (
+    <details className="community-rules" open={open}>
+      <summary>{t.termsTitle}</summary>
+      <ul>{COMMUNITY_TERMS[language].map(rule => <li key={rule}>{rule}</li>)}</ul>
+    </details>
+  );
+}
+
+/** Shown before posting to members who joined before the rules existed or changed. */
+function TermsGate({ language, session, onAccepted, onExpired }: {
+  language: Language;
+  session: CommunitySession;
+  onAccepted: () => void;
+  onExpired: () => void;
+}) {
+  const t = copy[language];
+  const [busy, setBusy] = useState(false);
+  const [issue, setIssue] = useState(false);
+
+  async function accept() {
+    setBusy(true);
+    setIssue(false);
+    try {
+      await acceptCommunityTerms(session.token, COMMUNITY_TERMS_VERSION);
+      onAccepted();
+    } catch (error) {
+      if (communityIssue(error).error === "sign_in_required") onExpired();
+      else setIssue(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="community-body community-terms-gate">
+      <h3>{t.termsGateTitle}</h3>
+      <p>{t.termsGateHelp}</p>
+      <CommunityRules language={language} open />
+      {issue && <p className="community-error" role="alert">{t.errors.community_unavailable}</p>}
+      <button className="community-primary" type="button" disabled={busy} onClick={() => void accept()}>
+        {busy ? t.termsAccepting : t.termsAccept}
+      </button>
+    </div>
+  );
+}
+
+function BlockedMembers({ language, session, onExpired }: { language: Language; session: CommunitySession; onExpired: () => void }) {
+  const t = copy[language];
+  const [users, setUsers] = useState<string[] | null>(null);
+  const [issue, setIssue] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void listBlockedUsers(session.token, controller.signal)
+      .then(result => setUsers(result.users))
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        if (communityIssue(error).error === "sign_in_required") onExpired();
+        else setIssue(true);
+      });
+    return () => controller.abort();
+  }, [onExpired, session.token]);
+
+  async function unblock(username: string) {
+    try {
+      await unblockCommunityUser(session.token, username);
+      setUsers(current => current?.filter(user => user !== username) ?? null);
+    } catch (error) {
+      if (communityIssue(error).error === "sign_in_required") onExpired();
+      else setIssue(true);
+    }
+  }
+
+  return (
+    <section className="community-blocked" aria-labelledby="community-blocked-title">
+      <h3 id="community-blocked-title">{t.blockedTitle}</h3>
+      {issue && <p className="community-error" role="alert">{t.errors.community_unavailable}</p>}
+      {users?.length === 0 && <p>{t.blockedEmpty}</p>}
+      {!!users?.length && <ul>
+        {users.map(username => (
+          <li key={username}>
+            <span>@{username}</span>
+            <button type="button" className="secondary-action" aria-label={t.unblockLabel(username)} onClick={() => void unblock(username)}>{t.unblock}</button>
+          </li>
+        ))}
+      </ul>}
+    </section>
+  );
+}
+
+function DeleteAccount({ language, session, onDeleted, onExpired }: {
+  language: Language;
+  session: CommunitySession;
+  onDeleted: () => void;
+  onExpired: () => void;
+}) {
+  const t = copy[language];
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [issue, setIssue] = useState<string | null>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (confirming) passwordRef.current?.focus({ preventScroll: true });
+  }, [confirming]);
+
+  async function remove(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const password = passwordRef.current?.value ?? "";
+    setBusy(true);
+    setIssue(null);
+    try {
+      await deleteCommunityAccount(session.token, password);
+      onDeleted();
+    } catch (error) {
+      const code = communityIssue(error).error;
+      if (code === "sign_in_required") onExpired();
+      else setIssue(code);
+      if (passwordRef.current && code === "incorrect_credentials") passwordRef.current.value = "";
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="community-danger" aria-labelledby="community-delete-account-title">
+      {!confirming ? (
+        <button type="button" className="secondary-action community-delete-action" onClick={() => setConfirming(true)}>{t.deleteAccount}</button>
+      ) : (
+        <form onSubmit={remove}>
+          <h3 id="community-delete-account-title">{t.deleteAccountTitle}</h3>
+          <p id="community-delete-account-help">{t.deleteAccountHelp}</p>
+          <div className="community-field">
+            <label htmlFor="community-delete-password">{t.deleteAccountPassword}</label>
+            <input id="community-delete-password" ref={passwordRef} name="password" type="password" required
+              autoComplete="current-password" autoCapitalize="none" spellCheck={false} aria-describedby="community-delete-account-help" />
+          </div>
+          {issue && <p className="community-error" role="alert">{t.errors[issue as keyof typeof t.errors] ?? t.errors.community_unavailable}</p>}
+          <div className="community-row-actions">
+            <button type="button" className="secondary-action" disabled={busy} onClick={() => { setConfirming(false); setIssue(null); }}>{t.cancelDelete}</button>
+            <button type="submit" className="community-primary community-delete-submit" disabled={busy}>{busy ? t.deletingAccount : t.deleteAccountConfirm}</button>
+          </div>
+        </form>
+      )}
+    </section>
+  );
 }
 
 function AccountForm({ language, mode, context, onMode, onAuthenticated }: {
@@ -138,7 +316,8 @@ function AccountForm({ language, mode, context, onMode, onAuthenticated }: {
     setIssue(null);
     setBusy(true);
     try {
-      const account = await communityRequest<CommunitySession>(mode, { method: "POST", body: { username, password }, signal: request.signal });
+      const body = registering ? { username, password, acceptTerms: COMMUNITY_TERMS_VERSION } : { username, password };
+      const account = await communityRequest<CommunitySession>(mode, { method: "POST", body, signal: request.signal });
       if (!request.signal.aborted) onAuthenticated(account);
     } catch (error) {
       if (request.signal.aborted) return;
@@ -190,6 +369,13 @@ function AccountForm({ language, mode, context, onMode, onAuthenticated }: {
             </div>
             {registering && <small id="community-password-hint">{t.passwordHint}</small>}
           </div>
+          {registering && <div className="community-field community-terms">
+            <CommunityRules language={language} />
+            <label className="community-check">
+              <input type="checkbox" name="acceptTerms" required />
+              <span>{t.acceptTerms}</span>
+            </label>
+          </div>}
           {errorText && <p id="community-auth-error" className="community-error" role="alert">{errorText}</p>}
           <button type="submit" className="community-primary">
             {registering ? (busy ? t.registering : t.signUp) : (busy ? t.signingIn : t.signIn)}
@@ -204,7 +390,7 @@ function AccountForm({ language, mode, context, onMode, onAuthenticated }: {
   );
 }
 
-function MyContributions({ language, session, onAdd, onEdit, onListen, onDeleted, onSignOut, onExpired }: {
+function MyContributions({ language, session, onAdd, onEdit, onListen, onDeleted, onSignOut, onExpired, onAccountDeleted }: {
   language: Language;
   session: CommunitySession;
   onAdd: () => void;
@@ -213,6 +399,7 @@ function MyContributions({ language, session, onAdd, onEdit, onListen, onDeleted
   onDeleted: (songId: string) => void;
   onSignOut: () => void;
   onExpired: () => void;
+  onAccountDeleted: () => void;
 }) {
   const t = copy[language];
   const [page, setPage] = useState<CommunityPage | null>(null);
@@ -333,7 +520,8 @@ function MyContributions({ language, session, onAdd, onEdit, onListen, onDeleted
         {!!page?.songs.length && <ul>
           {page.songs.map(song => (
             <li key={song.id}>
-              <div><strong>{song.title}</strong>{song.artist && <small>{song.artist}</small>}</div>
+              <div><strong>{song.title}</strong>{song.artist && <small>{song.artist}</small>}
+                {song.hidden && <small className="community-hidden-note">⚠ {t.hiddenForReview}</small>}</div>
               <div className="community-row-actions" hidden={deleteTarget?.id === song.id}>
                 <button type="button" className="secondary-action" aria-label={`${t.listen} · ${song.title}`}
                   disabled={confirmingDelete} onClick={() => onListen(song)}>{t.listen}</button>
@@ -367,11 +555,13 @@ function MyContributions({ language, session, onAdd, onEdit, onListen, onDeleted
           onClick={loadMore}>{busy ? t.loading : t.more}</button>}
       </div>
       <button className="community-primary" type="button" ref={addButton} disabled={confirmingDelete} onClick={onAdd}>{t.add}</button>
+      <BlockedMembers language={language} session={session} onExpired={onExpired} />
+      <DeleteAccount language={language} session={session} onDeleted={onAccountDeleted} onExpired={onExpired} />
     </div>
   );
 }
 
-export function CommunityWorkspace({ language, account, panel, source, editorRevision, onClose, onAdd, onEdit, onSaved, onListen, onDeleted }: {
+export function CommunityWorkspace({ language, account, panel, source, editorRevision, onClose, onAdd, onEdit, onSaved, onListen, onDeleted, onAccountDeleted }: {
   language: Language;
   account: ReturnType<typeof useCommunityAccount>;
   panel: CommunityPanel;
@@ -383,12 +573,15 @@ export function CommunityWorkspace({ language, account, panel, source, editorRev
   onSaved: () => void;
   onListen: (song: CommunitySong) => void;
   onDeleted: (songId: string) => void;
+  onAccountDeleted: () => void;
 }) {
   const t = copy[language];
   const { session, draftOwner, updateSession, expireSession } = account;
   const dialogRef = useRef<HTMLDialogElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [authChoice, setAuthChoice] = useState<{ panel: CommunityPanel; mode: AuthMode } | null>(null);
+  const [accountDeleted, setAccountDeleted] = useState(false);
+  const needsTerms = !!session && session.termsAccepted === false;
   const pane = panel && (session === undefined ? "checking" : session === null ? "auth" : panel === "rating" ? null : panel);
   const defaultMode = panel === "editor" && !draftOwner ? "register" : "login";
   const authMode = authChoice?.panel === panel ? authChoice.mode : defaultMode;
@@ -416,12 +609,14 @@ export function CommunityWorkspace({ language, account, panel, source, editorRev
       aria-labelledby="community-dialog-title" onClose={event => {
         if (event.currentTarget.open) return;
         setAuthChoice(null);
+        setAccountDeleted(false);
         onClose();
       }}>
       <header className="editor-dialog-heading">
         <h2 ref={headingRef} id="community-dialog-title" tabIndex={-1}>{heading}</h2>
         <button className="secondary-action" type="button" onClick={() => dialogRef.current?.close()}>{t.close}</button>
       </header>
+      {accountDeleted && <p className="community-delete-status" role="status">✓ {t.accountDeleted}</p>}
       {pane === "auth" && <AccountForm language={language} mode={authMode}
         context={panel === "rating" ? t.ratingHelp : panel === "editor" ? (draftOwner ? t.expired : source ? t.editHelp(source.title) : t.addHelp) : undefined}
         onMode={mode => setAuthChoice({ panel, mode })} onAuthenticated={session => {
@@ -430,9 +625,12 @@ export function CommunityWorkspace({ language, account, panel, source, editorRev
           if (panel === "rating") onClose();
         }} />}
       {pane === "account" && session && <MyContributions language={language} session={session} onAdd={onAdd} onEdit={onEdit}
-        onListen={listen} onDeleted={onDeleted} onSignOut={() => { updateSession(null); onClose(); }} onExpired={expireSession} />}
+        onListen={listen} onDeleted={onDeleted} onSignOut={() => { updateSession(null); onClose(); }} onExpired={expireSession}
+        onAccountDeleted={() => { setAccountDeleted(true); updateSession(null); onAccountDeleted(); }} />}
+      {pane === "editor" && session && needsTerms && <TermsGate language={language} session={session} onExpired={expireSession}
+        onAccepted={() => updateSession({ ...session, termsAccepted: true })} />}
       {draftOwner && source !== undefined && <SongEditor key={`${draftOwner}:${editorRevision}`} language={language}
-        visible={pane === "editor"} source={source} author={draftOwner} session={session ?? null}
+        visible={pane === "editor" && !needsTerms} source={source} author={draftOwner} session={session ?? null}
         onExpired={expireSession} onSaved={onSaved} onListen={listen} />}
     </dialog>
   );

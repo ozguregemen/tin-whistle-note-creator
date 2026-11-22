@@ -6,6 +6,7 @@ import { AudioClipPicker, type AudioClipRange } from "./audio-clip-picker";
 import { CatalogBrowser, CommunitySearchResults } from "./catalog-browser";
 import { listCommunitySongs, type CommunityRating, type CommunitySong } from "./community-client";
 import { SongRating } from "./community-rating";
+import { CommunitySafetyActions } from "./community-safety";
 import { CommunityWorkspace, useCommunityAccount, type CommunityPanel } from "./community-workspace";
 import type { EditorSource } from "./song-editor";
 import { NOTE_NAMES, normalizeNote, WHISTLE_NOTES } from "./note-notation.mjs";
@@ -710,6 +711,14 @@ export default function Home() {
   useEffect(() => {
     activeSongId.current = song?.id;
   }, [song?.id]);
+
+  // `#delete-account` opens the account panel directly. Store listings link here as the
+  // web path for deleting an account without installing the app.
+  useEffect(() => {
+    // Reading the link once after hydration is intentional.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (window.location.hash === "#delete-account") setCommunityPanel("account");
+  }, []);
 
   // In the installed app, leaving the screen pauses the player (it keeps its place).
   const pauseForBackgroundRef = useRef<() => void>(() => {});
@@ -1808,6 +1817,19 @@ export default function Home() {
     setCommunityRevision(revision => revision + 1);
   }
 
+  function hideBlockedMember(username: string) {
+    setCommunitySearch(current => current && {
+      ...current,
+      songs: current.songs.filter(version => version.contributor !== username),
+    });
+    setCommunityRevision(revision => revision + 1);
+  }
+
+  function refreshAfterAccountDeletion() {
+    setCommunitySearch(null);
+    setCommunityRevision(revision => revision + 1);
+  }
+
   function removeCommunitySong(songId: string) {
     deletedCommunitySongIds.current.add(songId);
     if (activeSongId.current === songId && areaRef.current === "listen") navigateWorkspace("catalog");
@@ -1848,7 +1870,7 @@ export default function Home() {
           onSaved={() => {
             savedEditor.current = songEditor?.revision;
             setCommunityRevision(revision => revision + 1);
-          }} onListen={openCatalogSong} onDeleted={removeCommunitySong} />
+          }} onListen={openCatalogSong} onDeleted={removeCommunitySong} onAccountDeleted={refreshAfterAccountDeletion} />
 
         <section id="input-workspace" hidden={area !== "convert"} aria-labelledby="convert-title">
           <div className="screen-heading">
@@ -1974,6 +1996,9 @@ export default function Home() {
             {viewingPlayback && song.contributor && <SongRating key={`${song.id}:${communityAccount.session?.username ?? ""}`}
               language={language} songId={song.id} rating={song.rating} session={communityAccount.session}
               onSignIn={() => openCommunityAccount("rating")} onSessionExpired={communityAccount.expireSession} onSaved={updateCatalogRating} />}
+            {viewingPlayback && song.contributor && <CommunitySafetyActions key={`${song.id}:safety:${communityAccount.session?.username ?? ""}`}
+              language={language} songId={song.id} contributor={song.contributor} session={communityAccount.session}
+              onSignIn={() => openCommunityAccount("rating")} onSessionExpired={communityAccount.expireSession} onBlocked={hideBlockedMember} />}
             {viewingPlayback && <section className={`practice-panel${isPlaying ? " playing" : ""}`} aria-label={ui.playback}>
               <div className="practice-main">
                 <div className="practice-title"><span className="section-kicker">{ui.playback}</span><strong>{song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</strong></div>

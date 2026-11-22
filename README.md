@@ -88,7 +88,7 @@ npm run preview:pages
 
 ### Android uygulaması (Capacitor, prototip)
 
-`npm run android:apk` mobil paketi ayrı `dist-mobile` klasörüne derler, Android projesine aktarır ve test APK'sını üretir. GitHub Pages çıktısına dokunmaz. Gereksinimler, kararlar ve cihaz test listesi: [engineering/mobile-android.md](engineering/mobile-android.md)
+`npm run android:apk` mobil paketi ayrı `dist-mobile` klasörüne derler, Android projesine aktarır ve test APK'sını üretir. GitHub Pages çıktısına dokunmaz. Gereksinimler, kararlar ve cihaz test listesi: [engineering/mobile-android.md](engineering/mobile-android.md). iOS projesi, Android AAB ve mağaza kuralları: [engineering/store-readiness.md](engineering/store-readiness.md)
 
 ## Canlı kaynak API'si
 
