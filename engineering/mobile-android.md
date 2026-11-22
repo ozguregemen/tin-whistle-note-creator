@@ -105,6 +105,57 @@ Web etkisi: `page.tsx`, `tutorial-workspace.tsx` ve `practice-microphone.tsx` de
 7. Geri tuşu: Ana ekranda uygulamayı küçültmeli. Cihaz testi ekranında uygulamaya dönmeli.
 8. Büyük yazı tipiyle alt sekme etiketlerinin taşmadığını kontrol edin.
 
+## Aşama 2b — canlı servisler, staging ve kalıcı oturum
+
+Kararlar (22.11.2026): önce yerel test, sonra staging. Mobil uygulama sunucu transkripsiyonunu kullanabilir. Topluluk girişi Keystore ile kalıcı.
+
+- **Origin izni:** İki Worker da yeni `MOBILE_APP_ORIGINS` değişkenini okuyor (`https://localhost,capacitor://localhost`). Kaynak API'de bu liste ses dahil tüm rotalara uygulanıyor. Topluluk kontrolü test edilebilsin diye `communityOriginAllowed` olarak `worker/community-api.mjs` içine taşındı. Değişken şimdilik **yalnızca staging ortamında tanımlı**. Üretim yapılandırması değişmedi, üretime geçiş onayınızla yapılacak.
+- **Staging Worker'ları** (`--env staging`):
+  - `tin-whistle-note-source-api-staging`: `GITHUB_TOKEN` yok, bu yüzden `main`'e commit atan bir iş kuyruğa alamaz. `/api/catalog` hata verir ve uygulama paketli kataloğu kullanır. `BPM_DB` yok, üretimdeki tempo önbelleğine yazmaz. GetSongBPM anahtarı yoksa tempo için 90 BPM varsayılanı gösterilir. MuScriptor için ayrıca `AUDIO_SERVICE_TOKEN` sırrı gerekir.
+  - `tin-whistle-community-staging`: Ayrı Worker adı ayrı ve boş bir Durable Object veritabanı demek. Test hesapları, şarkılar ve puanlar üretime dokunmaz.
+- **Mobil derleme modu:** `npm run android:apk:staging` uygulamayı staging Worker'larına bağlar ve alt bilgide “Test sunucuları (staging)” yazar. `npm run android:apk` üretim adreslerini kullanır.
+- **Kalıcı oturum:** `@aparajita/capacitor-secure-storage` 8.0.1 (MIT, Android Keystore / iOS Keychain). Yalnızca oturum (kullanıcı adı, token, bitiş zamanı) saklanıyor, şifre saklanmıyor. Yedekten geri yüklenen ve çözülemeyen bir oturum silinir, kullanıcı yeniden giriş yapar. Web'de oturum eskisi gibi sekmeye özel `sessionStorage`'da.
+- **Yerel doğrulama:** `wrangler dev --env staging --local` ile Topluluk Worker'ı `https://localhost` ve `capacitor://localhost` origin'leriyle uçtan uca geçti: listeleme, bilinmeyen origin'in 403 alması, iki test hesabı, şarkı ekleme, 3,5 yıldız, ortalama 4,3 ve 2 oy, sahibi olmayanın silememesi (404), sahibinin silmesi (204). Aynı akış `npm run smoke:community -- <staging-url>` ile staging'de tekrarlanabilir. Betik üretim Worker'ına karşı çalışmayı reddediyor.
+
+### Staging durumu (22.11.2026)
+
+Onayınızla iki staging Worker'ı yüklendi. Üretim Worker'ları değişmedi:
+
+- `https://tin-whistle-community-staging.ozguregemenbusiness.workers.dev`
+- `https://tin-whistle-note-source-api-staging.ozguregemenbusiness.workers.dev`
+
+Sonuçlar:
+- `npm run smoke:community`: 9/9 geçti (iki mobil origin, bilinmeyen origin 403, kayıt, şarkı, 3,5 yıldız, ortalama 4,3 / 2 oy, sahibi olmayan silemedi, sahibi sildi).
+- Kaynak API `/health`: iki mobil origin için 200, bilinmeyen origin için 403. `/api/search?q=bu aksam` `https://localhost` origin'iyle 200 döndü (8 sonuç).
+- Üretim Worker'ları `https://localhost` için hâlâ 403 döndürüyor.
+
+### Staging'e yeniden yükleme
+
+```powershell
+npx wrangler login
+npm run community:staging:deploy
+npm run worker:staging:deploy
+npm run smoke:community -- https://tin-whistle-community-staging.ozguregemenbusiness.workers.dev
+```
+
+İsteğe bağlı, yalnızca staging'de MuScriptor denemek için: `npx wrangler secret put AUDIO_SERVICE_TOKEN --config wrangler.source-api.jsonc --env staging`
+
+### Üretime geçiş (22.11.2026, onayınızla)
+
+Staging'de telefonla test edildikten sonra iki üretim Worker'ının üst düzey `vars` bölümüne `MOBILE_APP_ORIGINS` eklendi ve bu daldan yayınlandı. Yayından önce canlı sürümlerin bağlantıları yapılandırma dosyalarıyla karşılaştırıldı. Panelden eklenmiş fazladan bir değişken yoktu, sırlar korundu.
+
+| Worker | Önceki sürüm (geri dönüş için) | Yeni sürüm |
+| --- | --- | --- |
+| `tin-whistle-note-source-api` | `d78c89e6-4b91-43cc-b704-4b1555ca98b2` | `22629d58-07aa-440f-b693-82236d6ab1a7` |
+| `tin-whistle-community` | `d212bd9d-74d0-4ea3-bab5-31d166869412` | `75807b85-6da2-4c56-9e07-d905d0968090` |
+
+Geri dönüş: `npx wrangler rollback <önceki-sürüm> --name <worker>`
+
+Yayından sonra yalnızca salt-okunur isteklerle kontrol edildi, üretimde test hesabı açılmadı:
+- GitHub Pages ve ChatGPT Sites origin'leri eskisi gibi çalışıyor. Sites'ın kaynak API `/health` için 403 alması öncekiyle aynı, çünkü o origin yalnızca ses ve nota rotalarına izinli.
+- `https://localhost` ve `capacitor://localhost` 200 alıyor, bilinmeyen origin 403.
+- `/health`: BPM önbelleği ve sağlayıcısı etkin. `/api/catalog` 41 şarkı döndürüyor (GitHub token'ı çalışıyor). Tempo araması 149 BPM döndürdü. Ses rotası preflight'ı mobil origin için 204.
+
 ## Lisans ve atıflar
 
 - Tin whistle sesleri: GeneralUser GS (yeniden paketlemeye izinli) ve CC BY-SA 4.0 WAV örnekleri. Ayrıntılar `public/audio/tin-whistle/ATTRIBUTION.md`, paket içinde de yer alıyor.

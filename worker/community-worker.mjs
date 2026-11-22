@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { COMMUNITY_PATH } from "../shared/community-song.mjs";
-import { handleCommunity, initializeCommunityStorage } from "./community-api.mjs";
+import { communityOriginAllowed, handleCommunity, initializeCommunityStorage } from "./community-api.mjs";
 
 export class CommunityDirectory extends DurableObject {
   constructor(ctx, env) {
@@ -19,10 +19,7 @@ export default {
     if (!url.pathname.startsWith(`${COMMUNITY_PATH}/`)) return new Response(null, { status: 404 });
 
     const origin = request.headers.get("Origin");
-    const allowed = env.ALLOWED_ORIGINS.split(",").map(value => value.trim());
-    if (origin && !allowed.includes(origin) && !/^http:\/\/(?:localhost|127\.0\.0\.1):\d+$/.test(origin)) {
-      return new Response(null, { status: 403 });
-    }
+    if (!communityOriginAllowed(origin, env)) return new Response(null, { status: 403 });
     const headers = {
       "Access-Control-Allow-Origin": origin ?? "*",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",

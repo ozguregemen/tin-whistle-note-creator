@@ -68,6 +68,12 @@
   padding: 8px 16px 24px;
   text-align: center;
 }
+.mobile-staging-note {
+  margin: 0 0 4px;
+  color: var(--warning);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
 .mobile-device-link a,
 .mobile-back-link {
   display: inline-block;

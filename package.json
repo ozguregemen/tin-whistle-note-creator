@@ -13,6 +13,11 @@
     "build:mobile": "npm run prepare:audio-model && vite build --config vite.mobile.config.ts",
     "mobile:sync": "npm run build:mobile && cap sync android",
     "android:apk": "npm run mobile:sync && node scripts/android-gradle.mjs assembleDebug",
+    "build:mobile:staging": "npm run prepare:audio-model && vite build --config vite.mobile.config.ts --mode staging",
+    "android:apk:staging": "npm run build:mobile:staging && cap sync android && node scripts/android-gradle.mjs assembleDebug",
+    "worker:staging:deploy": "wrangler deploy --config wrangler.source-api.jsonc --env staging",
+    "community:staging:deploy": "wrangler deploy --config wrangler.community.jsonc --env staging",
+    "smoke:community": "node scripts/community-smoke.mjs",
     "preview:mobile": "vite preview --config vite.mobile.config.ts",
     "sync:sources": "node scripts/sync-note-sources.mjs",
     "audit:catalog": "node scripts/audit-catalog.mjs",
@@ -28,6 +33,7 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@aparajita/capacitor-secure-storage": "8.0.1",
     "@capacitor/android": "8.6.2",
     "@capacitor/app": "8.1.2",
     "@capacitor/core": "8.6.2",

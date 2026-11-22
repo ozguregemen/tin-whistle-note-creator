@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { App as CapacitorApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { Preferences } from "@capacitor/preferences";
@@ -11,8 +12,33 @@ import "../app/globals.css";
 import "./prototype.css";
 import "./app-shell.css";
 import { MobilePrototype } from "./prototype";
+import { keepCommunitySessionInKeystore } from "./secure-session";
 
 const DEVICE_CHECK_HASH = "#device-check";
+
+// `vite build --mode staging` points the app at the test Workers, whose
+// community database is separate from production.
+const STAGING = import.meta.env.MODE === "staging";
+const SERVICE_URLS = STAGING
+  ? {
+    source: "https://tin-whistle-note-source-api-staging.ozguregemenbusiness.workers.dev",
+    community: "https://tin-whistle-community-staging.ozguregemenbusiness.workers.dev",
+  }
+  : {
+    source: "https://tin-whistle-note-source-api.ozguregemenbusiness.workers.dev",
+    community: "https://tin-whistle-community.ozguregemenbusiness.workers.dev",
+  };
+
+function configureServices() {
+  const config = window as Window & {
+    __TWNC_SOURCE_API_URL__?: string;
+    __TWNC_AUDIO_API_URL__?: string;
+    __TWNC_COMMUNITY_API_URL__?: string;
+  };
+  config.__TWNC_SOURCE_API_URL__ = SERVICE_URLS.source;
+  config.__TWNC_AUDIO_API_URL__ = SERVICE_URLS.source;
+  config.__TWNC_COMMUNITY_API_URL__ = SERVICE_URLS.community;
+}
 
 function currentView() {
   return window.location.hash === DEVICE_CHECK_HASH ? "check" : "app";
@@ -38,6 +64,7 @@ function MobileApp() {
     <>
       <Home />
       <footer className="mobile-device-link">
+        {STAGING && <p className="mobile-staging-note">Test sunucuları (staging) · Test servers</p>}
         <a href={DEVICE_CHECK_HASH}>Cihaz testi · Device check</a>
       </footer>
     </>
@@ -46,6 +73,12 @@ function MobileApp() {
 
 async function prepareStorage() {
   if (!Capacitor.isNativePlatform()) return;
+  try {
+    await keepCommunitySessionInKeystore();
+  } catch (error) {
+    // Sign-in still works; it lasts until the app is closed.
+    console.warn("Secure storage is unavailable", error);
+  }
   try {
     let fallback: Storage | null = null;
     try { fallback = window.localStorage; } catch { /* WebView storage may be unavailable. */ }
@@ -82,6 +115,7 @@ async function boot() {
     pauseWhenHidden: true,
   });
   document.documentElement.classList.add("twnc-app");
+  configureServices();
   await prepareStorage();
   listenToAppLifecycle();
 

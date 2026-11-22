@@ -35,9 +35,27 @@ export function communityIssue(error: unknown): CommunityIssue {
     : { error: "community_unavailable" };
 }
 
+/** Where the signed-in session is kept: the browser tab on the web, the device keystore in the app. */
+export type CommunitySessionStore = { read(): string | null; write(value: string | null): void };
+
+const tabSessionStore: CommunitySessionStore = {
+  read: () => window.sessionStorage.getItem(SESSION_STORAGE_KEY),
+  write: value => {
+    if (value) window.sessionStorage.setItem(SESSION_STORAGE_KEY, value);
+    else window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  },
+};
+let sessionStore = tabSessionStore;
+
+export function setCommunitySessionStore(store: CommunitySessionStore | null) {
+  sessionStore = store ?? tabSessionStore;
+}
+
+export const COMMUNITY_SESSION_KEY = SESSION_STORAGE_KEY;
+
 export function readCommunitySession(): CommunitySession | null {
   try {
-    const session = JSON.parse(window.sessionStorage.getItem(SESSION_STORAGE_KEY) ?? "null") as CommunitySession | null;
+    const session = JSON.parse(sessionStore.read() ?? "null") as CommunitySession | null;
     if (session && session.expiresAt > Date.now() && /^[a-f0-9]{64}$/.test(session.token)) return session;
   } catch { /* Storage may be unavailable. */ }
   return null;
@@ -45,8 +63,7 @@ export function readCommunitySession(): CommunitySession | null {
 
 export function storeCommunitySession(session: CommunitySession | null) {
   try {
-    if (session) window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
-    else window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    sessionStore.write(session ? JSON.stringify(session) : null);
   } catch { /* The in-memory session still works. */ }
 }
 

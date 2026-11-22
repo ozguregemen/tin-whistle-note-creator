@@ -12,8 +12,13 @@ type LogEntry = { at: string; text: string };
 type Check = { label: string; status: "pending" | "ok" | "fail"; detail: string };
 type MicMode = "free" | "lesson";
 
-const SOURCE_API_URL = "https://tin-whistle-note-source-api.ozguregemenbusiness.workers.dev";
-const COMMUNITY_API_URL = "https://tin-whistle-community.ozguregemenbusiness.workers.dev";
+function serviceUrls() {
+  const config = window as Window & { __TWNC_SOURCE_API_URL__?: string; __TWNC_COMMUNITY_API_URL__?: string };
+  return {
+    source: config.__TWNC_SOURCE_API_URL__ || "https://tin-whistle-note-source-api.ozguregemenbusiness.workers.dev",
+    community: config.__TWNC_COMMUNITY_API_URL__ || "https://tin-whistle-community.ozguregemenbusiness.workers.dev",
+  };
+}
 const LANGUAGE_KEY = "twnc-language";
 const SOLFEGE: Record<string, string> = { C: "Do", D: "Re", E: "Mi", F: "Fa", G: "Sol", A: "La", B: "Si" };
 const WRITTEN_NOTES = [
@@ -274,9 +279,10 @@ export function MobilePrototype() {
       }
     }
 
+    const urls = serviceUrls();
     const services = [
-      { label: "Source API GET /health", url: `${SOURCE_API_URL}/health` },
-      { label: "Community API GET /songs", url: `${COMMUNITY_API_URL}/api/community/songs?q=&offset=0` },
+      { label: `Source API GET /health · ${new URL(urls.source).hostname}`, url: `${urls.source}/health` },
+      { label: `Community API GET /songs · ${new URL(urls.community).hostname}`, url: `${urls.community}/api/community/songs?q=&offset=0` },
     ];
     for (const service of services) {
       try {
