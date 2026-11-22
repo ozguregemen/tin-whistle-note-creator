@@ -10,6 +10,10 @@
     "prepare:audio-model": "node scripts/copy-basic-pitch-model.mjs",
     "build": "npm run prepare:audio-model && vinext build",
     "build:pages": "npm run prepare:audio-model && vite build --config vite.pages.config.ts",
+    "build:mobile": "npm run prepare:audio-model && vite build --config vite.mobile.config.ts",
+    "mobile:sync": "npm run build:mobile && cap sync android",
+    "android:apk": "npm run mobile:sync && node scripts/android-gradle.mjs assembleDebug",
+    "preview:mobile": "vite preview --config vite.mobile.config.ts",
     "sync:sources": "node scripts/sync-note-sources.mjs",
     "audit:catalog": "node scripts/audit-catalog.mjs",
     "eval:melody": "node scripts/evaluate-melody.mjs",
@@ -24,6 +28,9 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@capacitor/android": "8.6.2",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.6.2",
     "@coderline/alphatab": "^1.8.4",
     "@spotify/basic-pitch": "1.0.1",
     "@tensorflow/tfjs": "3.21.0",
@@ -32,6 +39,7 @@
     "react-dom": "19.2.6"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.6.2",
     "@cloudflare/vite-plugin": "1.37.1",
     "@eslint/js": "9.39.4",
     "@next/eslint-plugin-next": "16.2.6",

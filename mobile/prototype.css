@@ -1,0 +1,87 @@
+/* Stage 1 Android prototype shell. Shared practice styles come from app/globals.css. */
+:root {
+  --mobile-safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --mobile-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  --mobile-safe-left: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
+  --mobile-safe-right: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
+}
+
+html, body { overscroll-behavior-y: none; -webkit-text-size-adjust: 100%; }
+body { min-height: 100dvh; -webkit-tap-highlight-color: transparent; }
+
+.mobile-shell {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: calc(var(--mobile-safe-top) + 14px) calc(var(--mobile-safe-right) + 14px) calc(var(--mobile-safe-bottom) + 24px) calc(var(--mobile-safe-left) + 14px);
+}
+
+.mobile-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.mobile-header h1 { max-width: none; margin: 0; font: 700 1.35rem/1.15 Georgia, serif; letter-spacing: -0.02em; }
+.mobile-header p { margin: 4px 0 0; color: var(--muted); font-size: 0.85rem; }
+
+.mobile-card { display: grid; gap: 12px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+.mobile-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.mobile-card h2 { margin: 0; font: 700 1.1rem/1.2 Georgia, serif; }
+.mobile-card h3 { margin: 0; font-size: 0.95rem; }
+.mobile-hint { margin: 0; color: var(--muted); font-size: 0.9rem; line-height: 1.45; }
+
+.mobile-chip, .mobile-primary, .mobile-segmented button {
+  min-height: 48px;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 700;
+  touch-action: manipulation;
+}
+.mobile-chip { border: 1px solid var(--line); background: var(--card); color: var(--ink); font-size: 0.9rem; }
+.mobile-primary { width: 100%; border: 0; background: var(--green); color: #fff; font-size: 1rem; }
+
+.mobile-voice { margin: 0; padding: 4px 10px; border-radius: 999px; background: var(--mist-soft); font-size: 0.8rem; font-weight: 700; }
+.mobile-voice-soundfont, .mobile-voice-samples { background: var(--green-soft); color: var(--green-dark); }
+.mobile-voice-oscillator { background: var(--warning-soft); color: var(--warning); }
+
+.mobile-note-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px; }
+.mobile-note {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  min-height: 96px;
+  padding: 8px 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8faf6;
+  color: var(--ink);
+  touch-action: manipulation;
+}
+.mobile-note strong { font-size: 1rem; }
+.mobile-note span { color: var(--muted); font-size: 0.78rem; }
+.mobile-note.is-active { border-color: var(--green); background: var(--green-soft); box-shadow: 0 0 0 2px var(--green) inset; }
+.mobile-note-holes { display: grid; gap: 3px; }
+.mobile-note-holes .hole { width: 11px; height: 11px; flex-basis: 11px; }
+
+.mobile-network { font-size: 0.8rem; font-weight: 700; }
+.mobile-network.is-online { color: var(--green-dark); }
+.mobile-network.is-offline { color: var(--warning); }
+
+.mobile-segmented { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: var(--mist-soft); }
+.mobile-segmented button { border: 0; background: transparent; color: var(--muted); }
+.mobile-segmented button.is-selected { background: var(--card); color: var(--ink); box-shadow: 0 2px 9px rgba(36, 53, 47, 0.08); }
+
+/* The shared practice panel is laid out for desktop first; keep it readable on a phone. */
+.mobile-mic .practice-microphone { margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.mobile-mic .practice-microphone-header { flex-direction: column; align-items: stretch; }
+.mobile-mic .practice-microphone-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.mobile-mic .practice-microphone-actions button { min-height: 48px; }
+
+.mobile-checks, .mobile-log { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.mobile-checks li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 8px; border-radius: 10px; background: #f8faf6; }
+.mobile-checks li > span { font-weight: 800; }
+.mobile-checks li.is-ok > span { color: var(--green-dark); }
+.mobile-checks li.is-fail { background: var(--warning-soft); }
+.mobile-checks li.is-fail > span { color: var(--warning); }
+.mobile-checks strong { display: block; overflow-wrap: anywhere; font-size: 0.85rem; }
+.mobile-checks small { display: block; overflow-wrap: anywhere; color: var(--muted); font-size: 0.78rem; }
+.mobile-log { max-height: 240px; overflow-y: auto; font: 0.75rem/1.4 ui-monospace, Consolas, monospace; }
+.mobile-log time { color: var(--muted); }
