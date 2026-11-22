@@ -3,6 +3,7 @@
 @import "./song-editor.css";
 @import "./community-rating.css";
 @import "./tutorial.css";
+@import "./mascot.css";
 
 :root { --ink:#24352f; --muted:#65726d; --paper:#f3f5f0; --card:#fbfcf8; --green:#416a59; --green-dark:#315445; --green-soft:#e5eee8; --mist:#829da2; --mist-soft:#e8eff0; --accent:#9c623a; --accent-soft:#efe2d5; --line:#d8ddd8; --focus:#527867; --warning:#7d5035; --warning-soft:#f7ede3; }
 * { box-sizing: border-box; }

@@ -6,6 +6,7 @@ import { createPitchDetector, createPitchTracker, PITCH_WINDOW_SIZE } from "./li
 import { connectFollowInput, playReferenceNote, playReferenceSequence } from "./practice-reference.mjs";
 import { createSongFollower, createWhistleReleaseDetector, emptyFollowProgress, FOLLOW_MIN_FREQUENCY, type FollowStep } from "./song-follow.mjs";
 import { SongFollowPanel, songFollowCopy, type GuidePhase } from "./song-follow-panel";
+import { Mascot, useMascotReaction } from "./mascot";
 
 const COPY = {
   en: {
@@ -166,6 +167,8 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
   const following = mode === "song" && steps.length > 0;
   const finished = following && progress.matched === steps.length;
   const nextStep = following ? steps[progress.matched] : undefined;
+  const reaction = useMascotReaction(state === "listening" ? "focus" : "welcome");
+  const mascotMood = finished ? "celebrate" : reaction.mood;
 
   const stopPreview = useCallback(() => {
     const preview = previewRef.current;
@@ -412,6 +415,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
             const updated = follower.hear(detected?.midi ?? null, timeMs);
             if (updated) {
               setProgress(updated);
+              if (updated.feedback) reaction.react(updated.feedback.correct ? "correct" : "oops");
               if (updated.matched === steps.length) {
                 stop();
                 lesson?.onComplete();
@@ -450,11 +454,14 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
   return (
     <section className="practice-microphone" aria-labelledby="practice-microphone-title">
       <div className="practice-microphone-header">
-        <div className="practice-microphone-copy">
-          <h2 id="practice-microphone-title">{lesson ? copy.lessonTitle : following ? follow.title : copy.title}</h2>
-          <p className={state === "listening" ? "microphone-live" : undefined} role="status">{description}</p>
-          {lesson && example === "unavailable" && <p role="status">{copy.exampleError}</p>}
-          {onChooseSong && !steps.length && <p>{follow.unavailable}</p>}
+        <div className="practice-microphone-identity">
+          <Mascot mood={mascotMood} size={72} />
+          <div className="practice-microphone-copy">
+            <h2 id="practice-microphone-title">{lesson ? copy.lessonTitle : following ? follow.title : copy.title}</h2>
+            <p className={state === "listening" ? "microphone-live" : undefined} role="status">{description}</p>
+            {lesson && example === "unavailable" && <p role="status">{copy.exampleError}</p>}
+            {onChooseSong && !steps.length && <p>{follow.unavailable}</p>}
+          </div>
         </div>
         <div className="practice-microphone-actions">
           {onChooseSong && <button type="button" className="secondary-action" onClick={() => { stop(); onChooseSong(); }}>{follow.choose}</button>}

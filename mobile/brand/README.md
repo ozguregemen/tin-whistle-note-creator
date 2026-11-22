@@ -34,4 +34,16 @@ Bu komut sırasıyla şunları yapar:
 - Renk körlüğü: Birch 2012, *JOSA A* 29(3), Avrupalı erkeklerin yaklaşık %8'i. Teberik ve Altıaylık Özer 2015, *Kocatepe Tıp Dergisi* 16(1), genç Türk erkeklerinin %7'si.
 - Öğretici karakterler: Lester ve ark. 1997, CHI '97 (persona etkisi). Schroeder ve ark. 2013, *Journal of Educational Computing Research* 49(1) (meta-analiz, K-12'de daha büyük etki). Brom ve ark. 2018, *Educational Research Review* 25 (yüz ve hoş renkler, d ≈ 0,3–0,4). Baylor ve Kim 2005, *IJAIED* 15(1) (motive edici rol).
 
-Sonraki ifadeler için öneri: Karşılama ekranında kullanıcıya bakan, derste notaya bakan, doğru notada mest, ders bitince göz kırpan bir eşek.
+## Uygulama içi ifadeler
+
+`scripts/mascot-moods.mjs` aynı çizimden beş ifade üretir: `public/mascot/{welcome,focus,correct,oops,celebrate}.svg`. Bileşen: `app/mascot.tsx`.
+
+| İfade | Nerede |
+| --- | --- |
+| `welcome`: kullanıcıya bakar | Eğitim ana ekranı, boş Prova ekranı, dinleme başlamadan önce |
+| `focus`: düdüğe bakar | Mikrofon dinlerken |
+| `correct`: gözleri kapalı, mest | Doğru nota (1,2 saniye) |
+| `oops`: faltaşı gözler, falso çizgisi | Yanlış nota (1,2 saniye) |
+| `celebrate`: göz kırpar, yıldızlar | Ders veya şarkı bitince |
+
+Maskot süs öğesidir (`alt=""`, `aria-hidden`). Her durum zaten metinle de verildiği için ekran okuyucuya bilgi tekrarlanmaz. İfade değişince kısa bir hareket oynar. `prefers-reduced-motion` açıkken bu hareket kapanır.

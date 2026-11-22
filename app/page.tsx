@@ -7,6 +7,7 @@ import { CatalogBrowser, CommunitySearchResults } from "./catalog-browser";
 import { listCommunitySongs, type CommunityRating, type CommunitySong } from "./community-client";
 import { SongRating } from "./community-rating";
 import { CommunitySafetyActions } from "./community-safety";
+import { Mascot } from "./mascot";
 import { CommunityWorkspace, useCommunityAccount, type CommunityPanel } from "./community-workspace";
 import type { EditorSource } from "./song-editor";
 import { NOTE_NAMES, normalizeNote, WHISTLE_NOTES } from "./note-notation.mjs";
@@ -2111,6 +2112,7 @@ export default function Home() {
             <footer className="score-footer"><span>{allNotes.length} {t.notes} · {phrases.length} {t.phrases}</span><span>D tin whistle · {song.rhythm?.source === "score" ? t.scoreRhythm : song.rhythm?.source === "text" ? t.textRhythm : song.rhythm?.source === "transcribed" ? t.transcribedRhythm : t.estimatedRhythm}</span></footer>
           </section> : (
             <div className="workspace practice-empty">
+              <Mascot mood="welcome" size={96} />
               <h1 id="preview-title" tabIndex={-1}>{ui.practiceEmpty}</h1>
               <p>{ui.practiceEmptyHint}</p>
               <div className="practice-empty-actions">
