@@ -132,6 +132,8 @@ export function MobilePrototype() {
     setLog(entries => [{ at, text }, ...entries].slice(0, 60));
   }, []);
 
+  const microphoneUse = useCallback((active: boolean) => addLog(`microphone: ${active ? "on" : "off"}`), [addLog]);
+
   useEffect(() => {
     document.documentElement.lang = language;
     try { window.localStorage.setItem(LANGUAGE_KEY, language); } catch { /* Keep it for this visit. */ }
@@ -360,7 +362,7 @@ export function MobilePrototype() {
         <PracticeMicrophone key={`${micMode}:${micRun}`} language={language} visible={visible}
           steps={micMode === "lesson" ? FIRST_LESSON_STEPS : []}
           lesson={micMode === "lesson" ? { onComplete: () => addLog(`lesson ${FIRST_LESSON.id}: completed`) } : undefined}
-          onUseChange={active => addLog(`microphone: ${active ? "on" : "off"}`)} />
+          onUseChange={microphoneUse} />
       </section>
 
       <section className="mobile-card" aria-labelledby="mobile-diagnostics-title">

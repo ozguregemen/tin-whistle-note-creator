@@ -31,6 +31,7 @@
     "@capacitor/android": "8.6.2",
     "@capacitor/app": "8.1.2",
     "@capacitor/core": "8.6.2",
+    "@capacitor/preferences": "8.0.1",
     "@coderline/alphatab": "^1.8.4",
     "@spotify/basic-pitch": "1.0.1",
     "@tensorflow/tfjs": "3.21.0",

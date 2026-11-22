@@ -74,6 +74,37 @@ Her test için sonucu ve uygulamadaki “Olay kaydı”nı (“Kaydı kopyala”
 10. **Canlı servisler**: Wi-Fi açıkken “Kontrolleri çalıştır”. İki servis için şu an ✗ “CORS/Origin” sonucu bekleniyor.
 11. **Ekran**: Büyük yazı tipi ayarıyla (Ayarlar → Ekran → Yazı tipi boyutu) düğmelerin taşmadığını, durum ve gezinme çubuklarının içeriği örtmediğini kontrol edin.
 
+## Aşama 1 cihaz sonucu ve düzeltme (22.11.2026)
+
+Redmi Note 10S, Android WebView Chrome 157 üzerinde ölçüldü:
+
+- Paketli varlıkların hepsi yüklendi. Soundfont sesi 48 kHz'de, 5 ms temel gecikmeyle çaldı.
+- Mikrofon “izin bekleniyor”da takılı kaldı. Olay kaydında her denemede aynı saniyede `microphone: on` ve `microphone: off` vardı. Neden: Prototip, `PracticeMicrophone` bileşenine her çizimde yeni bir `onUseChange` fonksiyonu veriyordu. Bileşenin temizleme effect'i buna bağlı olduğu için açılmakta olan mikrofon hemen bırakılıyordu. Düzeltme: Bileşen artık son geri çağırmayı bir ref'te tutuyor ve yeniden çizim mikrofonu kapatmıyor. Prototip de sabit bir geri çağırma kullanıyor.
+- Sahte mikrofonla tarayıcıda doğrulandı: 988 Hz → Si / B5 (yazılı B4). 1. derste tek uzun Si 1/3, iki ayrı üfleyiş daha 3/3 yaptı.
+- İki Worker kurulu uygulamadan `Failed to fetch` döndü (403, beklenen).
+
+## Aşama 2a — tam uygulama, çevrimdışı katalog, kalıcı ilerleme
+
+- `mobile/main.tsx` artık web'deki uygulamanın tamamını (`app/page.tsx`) açıyor. Katalog, Notaya çevir, Prova ve Eğitim alt sekme çubuğunda. Topluluk ve hesap üst çubukta. Klavye açıkken sekme çubuğu gizleniyor. Sistem çubukları için Capacitor 8'in `--safe-area-inset-*` değişkenleri kullanılıyor.
+- `app/runtime-config.mjs`: Mobil giriş, ilk çizimden önce paketli kataloğu (41 şarkı), YouTube MP3'ün kapalı olduğunu ve arka planda duraklatmayı bildiriyor. Web girişleri bunu hiç çağırmıyor, web davranışı aynı kalıyor.
+- `app/durable-storage.mjs`: Ders ilerlemesi, dil, not düzeltmeleri ve bekleyen kaynak işi web'de localStorage'da, kurulu uygulamada `@capacitor/preferences` (Android SharedPreferences) ile saklanıyor. Aşama 1 sürümünde WebView'a kaydedilmiş ilerleme bir kez yerel depoya kopyalanıyor. Web'deki ilerleme telefona taşınmıyor.
+- Uygulama arka plana geçince (`appStateChange`) mikrofon bırakılıyor ve katalog oynatıcısı yerini koruyarak duruyor. Android geri tuşu cihaz testinden uygulamaya dönüyor, ana ekranda uygulamayı küçültüyor.
+- Cihaz testi ekranı sayfanın en altındaki “Cihaz testi · Device check” bağlantısında.
+- Kapsam dışında kalan: Worker origin izinleri (onayınızla, önce staging), Topluluk oturumunun güvenli depoda tutulması, ses dosyası seçici ve puanlama dokunmatik testleri (Aşama 2b).
+
+Web etkisi: `page.tsx`, `tutorial-workspace.tsx` ve `practice-microphone.tsx` değişti. Web'de davranış aynı ve testler 268/268 geçiyor. `docs/` bu dalda yeniden üretilmedi. Dal `main`'e birleştirildiğinde GitHub Pages çıktısının olağan akışla yeniden derlenmesi gerekecek.
+
+### Aşama 2a cihaz testleri
+
+1. Uçak modunda açın: Katalogda “Tüm şarkılar 38” görünmeli (41 düzenleme). Bir şarkıyı açıp Çal'a basın, tin whistle sesi ve aktif nota vurgusu ilerlemeli.
+2. Çalarken ana ekrana dönüp geri gelin: Oynatıcı durmuş ve yerini korumuş olmalı.
+3. “Bu şarkıyı prova et” → Takibi başlat: Doğru notada sağdaki kartta parmak şeması ve nota adı kalıcı görünmeli. Yanlış notada sıra ilerlememeli.
+4. Eğitim → İlk derse başla: Üç ayrı Si ile dersi bitirin. Uygulamayı son uygulamalardan tamamen kapatıp yeniden açın, ilerleme %4 (1/24) olarak kalmalı.
+5. Dili English yapın, uygulamayı kapatıp açın: Dil korunmalı.
+6. Notaya çevir → MIDI / MusicXML ve Ses kaydı: Dosya seçici açılmalı. Bir dosya seçince sonuç gelmeli. YouTube MP3 indirme bağlantısı görünmemeli.
+7. Geri tuşu: Ana ekranda uygulamayı küçültmeli. Cihaz testi ekranında uygulamaya dönmeli.
+8. Büyük yazı tipiyle alt sekme etiketlerinin taşmadığını kontrol edin.
+
 ## Lisans ve atıflar
 
 - Tin whistle sesleri: GeneralUser GS (yeniden paketlemeye izinli) ve CC BY-SA 4.0 WAV örnekleri. Ayrıntılar `public/audio/tin-whistle/ATTRIBUTION.md`, paket içinde de yer alıyor.

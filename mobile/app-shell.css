@@ -1,0 +1,83 @@
+/* Phone layout for the installed app. Scoped to .twnc-app so the web build is unaffected. */
+.twnc-app {
+  --mobile-tabbar-height: 64px;
+}
+
+.twnc-app body {
+  padding-bottom: calc(var(--mobile-tabbar-height) + var(--mobile-safe-bottom));
+}
+
+/* Status bar: keep the header content below it while its color fills the bar. */
+.twnc-app .app-header {
+  padding-top: var(--mobile-safe-top);
+  padding-left: var(--mobile-safe-left);
+  padding-right: var(--mobile-safe-right);
+}
+.twnc-app .app-bar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 56px;
+  padding-block: 6px;
+}
+
+/* The four sections move to a thumb-reachable tab bar. */
+.twnc-app .app-nav {
+  position: fixed;
+  z-index: 60;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 6px calc(8px + var(--mobile-safe-right)) calc(6px + var(--mobile-safe-bottom)) calc(8px + var(--mobile-safe-left));
+  border: 0;
+  border-top: 1px solid #547266;
+  border-radius: 0;
+  background: #142e26;
+}
+.twnc-app .app-nav button {
+  min-width: 0;
+  min-height: 52px;
+  padding: 4px 2px;
+  font-size: 0.85rem;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+/* With the keyboard open the tab bar would cover the field being typed in. */
+.twnc-app body:has(input:focus, textarea:focus, select:focus) .app-nav {
+  display: none;
+}
+
+.twnc-app .app-content {
+  min-height: auto;
+  padding-inline: max(14px, var(--mobile-safe-left)) max(14px, var(--mobile-safe-right));
+}
+
+/* The sticky practice controls must clear the status bar. */
+.twnc-app .practice-panel.playing {
+  top: calc(var(--mobile-safe-top) + 8px);
+}
+
+/* Large text settings: let rows wrap instead of overflowing. */
+.twnc-app .app-header-actions button {
+  white-space: normal;
+}
+
+.mobile-device-link {
+  padding: 8px 16px 24px;
+  text-align: center;
+}
+.mobile-device-link a,
+.mobile-back-link {
+  display: inline-block;
+  min-height: 44px;
+  padding: 12px 8px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.mobile-back-link {
+  margin: calc(var(--mobile-safe-top) + 8px) 0 0 calc(var(--mobile-safe-left) + 8px);
+  color: var(--green-dark);
+  font-weight: 700;
+}
