@@ -20,6 +20,7 @@
     "smoke:community": "node scripts/community-smoke.mjs",
     "moderate": "node scripts/community-moderate.mjs",
     "brand:assets": "node scripts/brand-assets.mjs",
+    "store:graphics": "node scripts/store-graphics.mjs",
     "android:aab": "npm run mobile:sync && node scripts/android-gradle.mjs bundleRelease",
     "ios:sync": "npm run build:mobile && node scripts/set-ios-version.mjs && cap sync ios",
     "preview:mobile": "vite preview --config vite.mobile.config.ts",

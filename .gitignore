@@ -45,3 +45,6 @@ yarn-error.log*
 /dist-mobile/
 # Rendered from mobile/brand/*.svg by `npm run brand:assets`
 /mobile/brand/assets/
+
+# Raw phone screenshots can show personal notifications; only framed ones are committed.
+/store/google-play/screenshots/raw/

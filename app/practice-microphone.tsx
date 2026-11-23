@@ -139,13 +139,15 @@ export function LiveNoteReadout({ note, language }: { note: Pitch | null; langua
   );
 }
 
-export function PracticeMicrophone({ language, visible, onUseChange, steps, onChooseSong, lesson }: {
+export function PracticeMicrophone({ language, visible, onUseChange, steps, onChooseSong, lesson, onBeforeFollow }: {
   language: "en" | "tr";
   visible: boolean;
   onUseChange: (active: boolean) => void;
   steps: FollowStep[];
   onChooseSong?: () => void;
   lesson?: { onComplete: () => void };
+  /** Called before a song is followed from the start; false keeps the microphone off (free daily limit). */
+  onBeforeFollow?: () => boolean;
 }) {
   const copy = COPY[language];
   const follow = songFollowCopy[language];
@@ -338,6 +340,7 @@ export function PracticeMicrophone({ language, visible, onUseChange, steps, onCh
 
   async function start() {
     if (captureRef.current) return;
+    if (following && !lesson && (finished || !progress.matched) && onBeforeFollow && !onBeforeFollow()) return;
     if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) {
       setState("unsupported");
       return;

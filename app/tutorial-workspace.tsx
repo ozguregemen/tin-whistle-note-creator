@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { durableStorage } from "./durable-storage.mjs";
 import { Mascot } from "./mascot";
+import { openPaywall, usePremium } from "./premium";
 import { isUpperWhistleRegister } from "./fingerings.mjs";
 import { describeLiveNote } from "./live-note-display.mjs";
 import { PracticeMicrophone } from "./practice-microphone";
@@ -127,7 +128,16 @@ export function TutorialWorkspace({ language, onUseChange }: {
     return () => window.removeEventListener("storage", readProgress);
   }, []);
 
+  const premium = usePremium();
+  function access(item: TutorialLesson) {
+    return premium ? premium.lessonAccess(TUTORIAL_LESSONS.indexOf(item), item.id) : "free";
+  }
+
   function openLesson(selected: TutorialLesson | null) {
+    if (selected && access(selected) === "locked") {
+      openPaywall({ kind: "lesson", lessonId: selected.id, onUnlocked: () => openLesson(selected) });
+      return;
+    }
     setLesson(selected);
     window.requestAnimationFrame(() => {
       if (!titleRef.current) return;
@@ -179,8 +189,9 @@ export function TutorialWorkspace({ language, onUseChange }: {
               <p>{formattedCount}</p>
               {saveIssue && <p role="status">{t.saveIssue}</p>}
             </div>
-            {nextLesson ? <button type="button" className="tutorial-primary" onClick={() => openLesson(nextLesson)}>
-              {t.nextLesson} <span aria-hidden="true">→</span>
+            {nextLesson ? <button type="button" className="tutorial-primary" aria-haspopup={access(nextLesson) === "locked" ? "dialog" : undefined}
+              onClick={() => openLesson(nextLesson)}>
+              {t.nextLesson} {access(nextLesson) === "locked" ? <span className="tutorial-lock"><span aria-hidden="true">🔒 </span>Premium</span> : <span aria-hidden="true">→</span>}
             </button> : <button type="button" className="secondary-action" onClick={() => openLesson(null)}>{t.back}</button>}
           </div>
         )}
@@ -225,11 +236,14 @@ export function TutorialWorkspace({ language, onUseChange }: {
               <ol className="tutorial-lessons">
                 {unit.lessons.map(item => {
                   const done = completed.includes(item.id);
+                  const locked = access(item) === "locked";
                   return (
                     <li key={item.id}>
-                      <button type="button" className="tutorial-lesson-link" data-next={item === remaining} onClick={() => openLesson(item)}>
+                      <button type="button" className="tutorial-lesson-link" data-next={item === remaining} aria-haspopup={locked ? "dialog" : undefined}
+                        onClick={() => openLesson(item)}>
                         <span><small>{t[item.kind]}</small><strong>{item.title[language]}</strong></span>
                         {done ? <span className="tutorial-done"><span aria-hidden="true">✓</span><span className="sr-only">{t.completed}</span></span>
+                          : locked ? <span className="tutorial-lock"><span aria-hidden="true">🔒 </span>Premium</span>
                           : item === remaining ? <span className="tutorial-next">{t.next}</span>
                             : <span className="tutorial-chevron" aria-hidden="true">›</span>}
                       </button>
