@@ -14,6 +14,7 @@ import { NOTE_NAMES, normalizeNote, WHISTLE_NOTES } from "./note-notation.mjs";
 import { withBundledCatalogSongs } from "./catalog-browse.mjs";
 import whistleTunes from "../catalog/whistle-tunes.json";
 import { PracticeMicrophone } from "./practice-microphone";
+import { allowSongFollow, allowTranscription, openPaywall, PremiumPaywall, recordTranscription, syncPremium, usePremium } from "./premium";
 import { PracticeSongPicker } from "./practice-song-picker";
 import { buildFollowSteps } from "./song-follow.mjs";
 import { songFollowCopy } from "./song-follow-panel";
@@ -720,6 +721,16 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (window.location.hash === "#delete-account") setCommunityPanel("account");
   }, []);
+
+  // Premium is sold only in the installed app; usePremium() is null on the web.
+  const premium = usePremium();
+  useEffect(() => {
+    if (!premium) return;
+    void syncPremium();
+    const syncWhenVisible = () => { if (document.visibilityState === "visible") void syncPremium(); };
+    document.addEventListener("visibilitychange", syncWhenVisible);
+    return () => document.removeEventListener("visibilitychange", syncWhenVisible);
+  }, [premium]);
 
   // In the installed app, leaving the screen pauses the player (it keeps its place).
   const pauseForBackgroundRef = useRef<() => void>(() => {});
@@ -1640,6 +1651,7 @@ export default function Home() {
 
   async function transcribeSelection(range: AudioClipRange) {
     if (!preparedAudio || !audioCapabilities) return;
+    if (!allowTranscription()) return;
     const { blob, name, origin, youtube, youtubeSong } = preparedAudio;
     const model = audioCapabilities.provider;
     await runAudioAction(async ({ signal, isCurrent, onStage, onProgress }) => {
@@ -1672,6 +1684,7 @@ export default function Home() {
         sourceStatus: "manual",
         sources: [],
       });
+      recordTranscription();
       changeTempo(result.rhythm.bpm);
       setStatus("audioConverted");
       showPracticeResult("audio");
@@ -1847,7 +1860,7 @@ export default function Home() {
   const practiceMicrophone = (area === "practice" && (song || !pickingPracticeSong)) || (viewingPlayback && song)
     ? <PracticeMicrophone key={`${song?.id ?? ""}:${song?.notes ?? ""}`} language={language}
       visible={area === "practice"} onUseChange={setMicrophoneActive} steps={followSteps}
-      onChooseSong={song ? choosePracticeSong : undefined} />
+      onChooseSong={song ? choosePracticeSong : undefined} onBeforeFollow={song ? () => allowSongFollow(song.id) : undefined} />
     : null;
   const pickerSongs = song && !catalog.some(item => item.id === song.id) ? [song, ...catalog] : catalog;
 
@@ -1855,7 +1868,9 @@ export default function Home() {
     <div lang={language}>
       <WorkspaceNavigation language={language} area={area} languageLabel={t.languageLabel} languageAction={t.languageAction}
         onLanguage={toggleLanguage} onNavigate={navigateWorkspace}
-        signedIn={Boolean(communityAccount.session)} onAccount={() => openCommunityAccount("account")} />
+        signedIn={Boolean(communityAccount.session)} onAccount={() => openCommunityAccount("account")}
+        premium={premium ? { active: premium.isPremium(), onOpen: () => openPaywall({ kind: "settings" }) } : undefined} />
+      <PremiumPaywall language={language} />
       <main className="app-content shell">
         {area === "tutorial" && <TutorialWorkspace language={language} onUseChange={setMicrophoneActive} />}
         <div id="catalog-workspace" hidden={area !== "catalog"}>

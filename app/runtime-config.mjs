@@ -8,7 +8,11 @@
  *   bundledSongs: readonly any[],
  *   youtubeAudio: boolean,
  *   pauseWhenHidden: boolean,
+ *   monetization: any,
  * }} RuntimeConfig
+ *
+ * `monetization` is a MonetizationProvider (app/premium.tsx). It is null on the
+ * web, so the web keeps every feature open with no purchases or ads.
  */
 
 /** @type {RuntimeConfig} */
@@ -18,6 +22,7 @@ const DEFAULTS = Object.freeze({
   // YouTube MP3 download stays available on the web when the audio service allows it.
   youtubeAudio: true,
   pauseWhenHidden: false,
+  monetization: null,
 });
 
 /** @type {RuntimeConfig} */

@@ -61,7 +61,7 @@ export const workspaceCopy = {
   },
 };
 
-export function WorkspaceNavigation({ language, area, languageLabel, languageAction, signedIn, onLanguage, onNavigate, onAccount }: {
+export function WorkspaceNavigation({ language, area, languageLabel, languageAction, signedIn, onLanguage, onNavigate, onAccount, premium }: {
   language: keyof typeof workspaceCopy;
   area: WorkArea;
   languageLabel: string;
@@ -70,6 +70,8 @@ export function WorkspaceNavigation({ language, area, languageLabel, languageAct
   onLanguage: () => void;
   onNavigate: (area: WorkArea) => void;
   onAccount: () => void;
+  /** Only the installed app sells Premium; the web leaves this out. */
+  premium?: { active: boolean; onOpen: () => void };
 }) {
   const t = workspaceCopy[language];
   const activeArea = area === "listen" ? "catalog" : area;
@@ -88,6 +90,9 @@ export function WorkspaceNavigation({ language, area, languageLabel, languageAct
           ))}
         </nav>
         <div className="app-header-actions">
+          {premium && <button className="app-premium" type="button" aria-haspopup="dialog" data-active={premium.active} onClick={premium.onOpen}>
+            {premium.active ? "Premium ✓" : "★ Premium"}
+          </button>}
           <button className="app-account" type="button" aria-haspopup="dialog" onClick={onAccount}>
             {signedIn ? t.contributions : t.account}
           </button>

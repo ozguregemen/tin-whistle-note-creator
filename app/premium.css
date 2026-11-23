@@ -1,0 +1,81 @@
+/* Paywall and premium locks. Only the installed app renders these (app/premium.tsx). */
+.premium-dialog { width: min(32rem, calc(100% - 2rem)); }
+.premium-body { display: grid; gap: 0.9rem; }
+.premium-hero { display: flex; align-items: center; gap: 0.85rem; }
+.premium-hero p { margin: 0; line-height: 1.45; }
+.premium-reason { color: var(--ink); font-size: 1rem; font-weight: 650; }
+.premium-test {
+  display: inline-block;
+  margin-bottom: 0.3rem !important;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 0.75rem;
+  font-weight: 750;
+}
+.premium-benefits { display: grid; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }
+.premium-benefits li { display: flex; gap: 0.5rem; line-height: 1.4; }
+.premium-benefits span { color: var(--green); font-weight: 800; }
+.premium-plans { display: grid; gap: 0.5rem; min-width: 0; margin: 0; padding: 0; border: 0; }
+.premium-plans legend { margin-bottom: 0.45rem; padding: 0; font-weight: 750; }
+.premium-plan {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.15rem 0.65rem;
+  min-height: 56px;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  cursor: pointer;
+}
+.premium-plan.selected { border: 2px solid var(--green-dark); padding: calc(0.6rem - 1px) calc(0.8rem - 1px); background: var(--green-soft); }
+.premium-plan input { grid-row: span 2; width: 1.15rem; height: 1.15rem; margin: 0; accent-color: var(--green-dark); }
+.premium-plan-name { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.premium-plan-price { color: var(--muted); font-size: 0.9rem; }
+.premium-plan-price small { font-size: 0.8rem; }
+.premium-badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--green-dark);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+.premium-badge.trial { background: var(--accent-soft); color: #6f4223; }
+.premium-buy { width: 100%; min-height: 50px; font-size: 1rem; }
+.premium-terms, .premium-muted { margin: 0; color: var(--muted); font-size: 0.8rem; line-height: 1.45; }
+.premium-reward { display: grid; justify-items: center; gap: 0.45rem; }
+.premium-reward > span { color: var(--muted); font-size: 0.8rem; }
+.premium-reward button { width: 100%; }
+.premium-status { margin: 0; padding: 0.6rem 0.75rem; border-radius: 8px; background: var(--mist-soft); line-height: 1.4; }
+.premium-status.success { background: var(--green-soft); color: var(--green-dark); font-weight: 700; }
+.premium-links { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; }
+.premium-body .legal-links { margin: 0; }
+.text-action {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--green-dark);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Tutorial lessons behind Premium. */
+.tutorial-lock {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: #6f4223;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+/* Header entry next to Account: the brand's gold on the dark green bar. */
+.app-header-actions .app-premium { border-color: #b8944f; color: #f3d99a; }
+.app-header-actions .app-premium[data-active="true"] { border-color: #547266; color: #e6f3ea; }

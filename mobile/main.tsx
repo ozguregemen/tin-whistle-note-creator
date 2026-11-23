@@ -14,6 +14,7 @@ import "./prototype.css";
 import "./app-shell.css";
 import { MobilePrototype } from "./prototype";
 import { keepCommunitySessionInKeystore } from "./secure-session";
+import { createTestMonetization } from "./test-monetization";
 
 const DEVICE_CHECK_HASH = "#device-check";
 
@@ -128,6 +129,9 @@ async function boot() {
     bundledSongs: bundledCatalog.songs,
     youtubeAudio: false,
     pauseWhenHidden: true,
+    // M1: free limits and the paywall run on staging with simulated purchases.
+    // Production builds keep everything open until Play Billing is wired (M2).
+    monetization: STAGING ? createTestMonetization() : null,
   });
   document.documentElement.classList.add("twnc-app");
   configureServices();
