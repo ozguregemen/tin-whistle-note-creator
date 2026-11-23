@@ -1,5 +1,7 @@
 "use client";
 
+import { LegalLinks } from "./legal-links";
+
 type Language = "en" | "tr";
 type Credit = { name: string; detail: { en: string; tr: string }; license: string; url: string };
 
@@ -67,6 +69,7 @@ export function LicensesAndCredits({ language }: { language: Language }) {
   return (
     <section className="licenses" aria-labelledby="licenses-title">
       <h1 id="licenses-title">{t.title}</h1>
+      <LegalLinks language={language} pages={["privacy", "terms", "deletion"]} />
       <p>{t.intro}</p>
       <ul>
         {CREDITS.map(credit => (

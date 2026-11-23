@@ -8,6 +8,7 @@ import {
   storeCommunitySession, unblockCommunityUser,
   type CommunityPage, type CommunitySession, type CommunitySong,
 } from "./community-client";
+import { LegalLinks } from "./legal-links";
 import { SongEditor, type EditorSource } from "./song-editor";
 
 const passwordLengthRange = `${MIN_COMMUNITY_PASSWORD_LENGTH}–${MAX_COMMUNITY_PASSWORD_LENGTH}`;
@@ -371,6 +372,7 @@ function AccountForm({ language, mode, context, onMode, onAuthenticated }: {
           </div>
           {registering && <div className="community-field community-terms">
             <CommunityRules language={language} />
+            <LegalLinks language={language} />
             <label className="community-check">
               <input type="checkbox" name="acceptTerms" required />
               <span>{t.acceptTerms}</span>

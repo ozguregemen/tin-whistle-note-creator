@@ -78,6 +78,7 @@ function MobileApp() {
       <Home />
       <footer className="mobile-device-link">
         {STAGING && <p className="mobile-staging-note">Test sunucuları (staging) · Test servers</p>}
+        <a href="legal/privacy.html">Gizlilik · Privacy</a>
         <a href={LICENSES_HASH}>Lisanslar · Licenses</a>
         <a href={DEVICE_CHECK_HASH}>Cihaz testi · Device check</a>
       </footer>

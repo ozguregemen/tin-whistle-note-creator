@@ -14,8 +14,8 @@ Uygulamada isteğe bağlı Topluluk hesabı (yalnızca kullanıcı adı ve şifr
 | İçeriği ve kullanıcıyı uygulama içinden bildirme | Zorunlu (1.2) | Zorunlu | ✓ 3b (staging) |
 | Kullanıcı engelleme | Zorunlu (1.2) | Zorunlu | ✓ 3b (staging) |
 | Uygunsuz içeriği filtreleme ve bildirimlere zamanında yanıt (moderasyon) | Zorunlu (1.2) | Zorunlu | ✓ 3b: filtre, otomatik gizleme, moderasyon aracı ve süreç |
-| Yayınlanmış iletişim bilgisi / destek adresi | Zorunlu (1.5) | Önerilir | **Karar sizde**: destek e-postası veya sayfası |
-| Gizlilik politikası (uygulama içinde ve mağaza kaydında) | Zorunlu | Zorunlu | **Yok** → 3c |
+| Yayınlanmış iletişim bilgisi / destek adresi | Zorunlu (1.5) | Önerilir | ✓ `ozguregemen1@gmail.com`, yasal sayfalarda |
+| Gizlilik politikası (uygulama içinde ve mağaza kaydında) | Zorunlu | Zorunlu | ✓ `legal/privacy.html` (aşağıdaki URL'ler) |
 | İnceleme için demo hesap ve canlı backend | Zorunlu (2.1) | Zorunlu (giriş gerektiren özellikler için) | Gönderimden önce hazırlanacak |
 | Hesap olmadan da kullanılabilme | Önerilir (5.1.1) | — | ✓ Katalog, Prova ve Eğitim hesapsız çalışıyor |
 | Üçüncü taraf/sosyal giriş varsa Apple ile giriş vb. | 4.8, yalnızca sosyal giriş varsa | — | ✓ Gerekmiyor, yalnızca kendi hesap sistemi var |
@@ -141,20 +141,27 @@ Moderasyon süreci (mağaza incelemesi için “zamanında yanıt”):
 3. Mevcut üyeler bir sonraki paylaşımlarında kuralları kabul etmeye yönlendirilir. Eski web sürümü bu onayı bilmediği için GitHub Pages da aynı anda güncellenmeli: `npm run build:pages` → `docs/`.
 4. Veritabanı geçişi (yeni tablolar ve sütunlar) Worker açılışında kendiliğinden ve veri kaybı olmadan yapılır.
 
-## 6. Sıradaki parçalar
+## 6. Durum ve sıradaki parçalar
 
-- **3b:** Kod hazır ve staging'de çalışıyor (yukarıda). Üretime alma onayınızı bekliyor.
-- **3c, mağaza varlıkları:**
-  - Uygulama simgesi ve açılış ekranı (şu an Capacitor varsayılanları).
-  - Uygulama içi “Lisanslar ve atıflar” ekranı (GeneralUser GS, CC BY-SA örnekler, Basic Pitch Apache-2.0).
-  - Gizlilik politikası ve kullanım şartları metinleri.
-  - Mağaza açıklamaları ve ekran görüntüsü planı.
+- **3b:** Üretimde (23.11.2026, Topluluk Worker'ı `5524d03f`).
+- **Simge, açılış ekranı, maskot ifadeleri, lisanslar ekranı:** `main`'de (PR #34, #35).
+- **Yasal sayfalar** (`public/legal/`, TR ve EN). GitHub Pages'te ve uygulamanın içinde:
+
+  | Mağaza alanı | URL |
+  | --- | --- |
+  | Gizlilik politikası | https://ozguregemen.github.io/tin-whistle-note-creator/legal/privacy.html |
+  | Kullanım şartları / EULA | https://ozguregemen.github.io/tin-whistle-note-creator/legal/terms.html |
+  | Hesap silme (Google Play “web resource”) | https://ozguregemen.github.io/tin-whistle-note-creator/legal/account-deletion.html |
+  | Destek URL'si / e-posta | `ozguregemen1@gmail.com` |
+
+  Bağlantılar kayıt formunda (kuralların altında), Lisanslar ekranında, uygulamanın alt bilgisinde ve web sitesinin alt bilgisinde.
+- **E-postayla silme talepleri** (örneğin şifresini unutanlar): `npm run moderate -- <worker-url> delete-user <kullanıcı-adı>`. Hesap silmeyle aynı işlemi şifresiz yapar. Talebin hesap sahibinden geldiğini önce doğrulayın.
+- **Kalan:** Mağaza açıklamaları ve ekran görüntüsü planı.
 
 ## 7. Sizden gereken kararlar
 
-1. Destek iletişim bilgisi: hangi e-posta veya sayfa yayınlanacak?
-2. Gizlilik politikası ve hesap silme sayfası nerede yayınlansın? Öneri: GitHub Pages altında `/privacy` ve `/account-deletion`.
-3. Google Play geliştirici hesabınız kişisel mi, kurumsal mı ve ne zaman açıldı? Bu, 12 kişilik 14 günlük test şartını belirler.
-4. Apple Developer Program üyeliği ve Mac erişimi var mı?
-5. Uygulama kimliği `io.github.ozguregemen.tinwhistle` ve mağaza adı “Tin Whistle Note Creator” kesin mi?
-6. Ses transkripsiyon sunucusu yüklenen bölümü saklıyor mu? Bu, veri beyanını belirler.
+1. Google Play geliştirici hesabınız kişisel mi, kurumsal mı ve ne zaman açıldı? Bu, 12 kişilik 14 günlük test şartını belirler.
+2. Apple Developer Program üyeliği ve Mac erişimi var mı?
+3. Uygulama kimliği `io.github.ozguregemen.tinwhistle` ve mağaza adı “Tin Whistle Note Creator” kesin mi?
+4. Ses transkripsiyon sunucusu: Bizim kodumuz (`services/audio/server.py`) YouTube dönüşümünü geçici bir klasörde yapıp siliyor. Transkripsiyon MuScriptor kütüphanesinin sunucusunda yapılıyor. Gizlilik politikası "saklamayız" diyor, bu yüzden sunucuda istek gövdesini kaydeden bir günlük olmadığını doğrulayın.
+5. Gizlilik politikasında veri sorumlusu "uygulamanın geliştiricisi" olarak geçiyor. KVKK ve mağaza kayıtları için adınızın veya şirket adınızın yazılması gerekebilir.
