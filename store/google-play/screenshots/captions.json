@@ -1,0 +1,20 @@
+{
+  "tr-TR": {
+    "01": "Şarkıyı seç,\nparmak şemasını gör",
+    "02": "Tin whistle sesiyle\ndinle ve takip et",
+    "03": "Mikrofonla çal,\ndoğru notada ilerle",
+    "04": "Çaldığın notayı\nanında gör",
+    "05": "24 derste adım adım\ntin whistle öğren",
+    "06": "MIDI, MusicXML ve\nsesten nota çıkar",
+    "07": "Kendi düzenlemeni\npaylaş ve puanla"
+  },
+  "en-US": {
+    "01": "Pick a song,\nsee every fingering",
+    "02": "Listen with a tin\nwhistle sound",
+    "03": "Play with your mic,\nmove on when it's right",
+    "04": "See the note\nyou play, instantly",
+    "05": "Learn step by step\nin 24 lessons",
+    "06": "Notes from MIDI,\nMusicXML and audio",
+    "07": "Share and rate\narrangements"
+  }
+}

@@ -1,0 +1,36 @@
+Tin Whistle Note Creator is made for people who play the D tin whistle (high D) and for those just starting out. Pick a song, see its six-hole fingering chart, hear it played with the app's own tin whistle sound and play along with your microphone.
+
+CATALOG
+• Approved and community arrangements, search by song or artist
+• Fingering charts showing covered, half-covered and open holes for every note
+• Tin whistle player: play, pause, BPM, metronome and active-note tracking
+• Bundled songs that open without an internet connection
+
+PRACTICE
+• Free play: shows the note your microphone hears, its Do/Re/Mi name, octave and fingering
+• Song follow: a correct note reveals its fingering and name; a wrong note keeps you on the same step
+• Optional guide that plays the next note for you
+
+TUTORIAL
+• A 24-step path from your first sound to short tunes
+• Note highlighting that moves with the example as you listen
+• Finish lessons with your microphone; progress is kept on your device
+
+CONVERT TO NOTES
+• Type notes: Do Re Mi or C D E
+• Import MIDI and MusicXML files
+• Turn a selected part of an audio file into notes
+• Search the web for scores and see their source and tempo
+
+COMMUNITY (optional)
+• Share your own arrangement, built by typing note names or tapping the holes
+• Rate versions with half stars
+• Report inappropriate content, block members and delete your account at any time
+
+OUR MASCOT
+A goofy but determined donkey plays along: blissful on a right note, baffled on a wrong one, and winking when a lesson is done.
+
+PRIVACY
+Microphone audio is processed only on your device; it is never recorded or sent anywhere. No ads, no tracking. Catalog, Practice and Tutorial need no account.
+
+Available in English and Turkish. Written notes are for the high D whistle: written E4 sounds as E5.

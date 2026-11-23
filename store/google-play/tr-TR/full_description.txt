@@ -1,0 +1,36 @@
+Tin Whistle Note Creator, D tin whistle (yüksek Re) çalanlar ve çalmayı yeni öğrenenler için hazırlandı. Bir şarkıyı seç, altı delikli parmak şemasını gör, uygulamanın kendi tin whistle sesiyle dinle ve mikrofonla birlikte çal.
+
+KATALOG
+• Onaylı ve topluluk düzenlemeleri, şarkı ve sanatçı araması
+• Her nota için tam, yarım ve açık delikleri gösteren parmak şemaları
+• Tin whistle sesiyle oynatıcı: çal, duraklat, BPM ayarı, metronom ve aktif nota takibi
+• İnternet olmadan da açılan paketli şarkılar
+
+PROVA
+• Serbest çalma: mikrofonun duyduğu notayı, Do/Re/Mi adını, oktavı ve parmak şemasını anında gösterir
+• Şarkı takibi: doğru notada parmak şeması ve nota adı görünür, yanlış notada sıra aynı adımda bekler
+• İsteğe bağlı rehber, sıradaki notayı senin için çalar
+
+EĞİTİM
+• İlk sesten kısa ezgilere 24 adımlık ders yolu
+• Örneği dinlerken sesle birlikte ilerleyen nota vurgusu
+• Dersi mikrofonla tamamla, ilerlemen cihazında saklansın
+
+NOTAYA ÇEVİR
+• Elle nota yaz: Do Re Mi veya C D E
+• MIDI ve MusicXML dosyası içe aktar
+• Ses dosyasından seçtiğin bölümü notaya çevir
+• İnternette nota ara, kaynağını ve temposunu gör
+
+TOPLULUK (isteğe bağlı)
+• Kendi düzenlemeni paylaş, nota adı yazarak veya deliklere dokunarak oluştur
+• Sürümlere yarım yıldızlı puan ver
+• Uygunsuz içeriği bildir, üyeleri engelle, hesabını istediğin an sil
+
+MASKOTUMUZ
+Avanak ama azimli bir eşek seninle birlikte çalıyor: doğru notada mest oluyor, yanlış notada şaşırıyor, ders bitince göz kırpıyor.
+
+GİZLİLİK
+Mikrofon sesi yalnızca cihazında işlenir; kaydedilmez ve hiçbir yere gönderilmez. Reklam ve izleme yok. Katalog, Prova ve Eğitim için hesap gerekmez.
+
+Uygulama Türkçe ve İngilizce kullanılabilir. Yazılı notalar yüksek Re tin whistle içindir: yazılı E4, E5 olarak duyulur.
