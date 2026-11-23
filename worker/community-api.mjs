@@ -231,14 +231,20 @@ async function deleteAccount(storage, request) {
   const session = requireAccount(sql, request);
   const [user] = sql.exec("SELECT id, username, password_salt, password_hash FROM community_users WHERE id = ?", session.id).toArray();
   if (!(await verifyPassword(user, password))) throw new CommunityError(401, "incorrect_credentials");
+  removeMember(storage, user.id);
+}
+
+/** One transaction that leaves nothing tied to the member behind. */
+function removeMember(storage, userId) {
+  const { sql } = storage;
   storage.transactionSync(() => {
     const ownSongs = "SELECT id FROM community_songs WHERE author_id = ?";
-    sql.exec(`DELETE FROM community_song_ratings WHERE user_id = ? OR song_id IN (${ownSongs})`, user.id, user.id);
-    sql.exec(`DELETE FROM community_reports WHERE reporter_id = ? OR reported_user_id = ? OR song_id IN (${ownSongs})`, user.id, user.id, user.id);
-    sql.exec("DELETE FROM community_blocks WHERE blocker_id = ? OR blocked_id = ?", user.id, user.id);
-    sql.exec("DELETE FROM community_songs WHERE author_id = ?", user.id);
-    sql.exec("DELETE FROM community_sessions WHERE user_id = ?", user.id);
-    sql.exec("DELETE FROM community_users WHERE id = ?", user.id);
+    sql.exec(`DELETE FROM community_song_ratings WHERE user_id = ? OR song_id IN (${ownSongs})`, userId, userId);
+    sql.exec(`DELETE FROM community_reports WHERE reporter_id = ? OR reported_user_id = ? OR song_id IN (${ownSongs})`, userId, userId, userId);
+    sql.exec("DELETE FROM community_blocks WHERE blocker_id = ? OR blocked_id = ?", userId, userId);
+    sql.exec("DELETE FROM community_songs WHERE author_id = ?", userId);
+    sql.exec("DELETE FROM community_sessions WHERE user_id = ?", userId);
+    sql.exec("DELETE FROM community_users WHERE id = ?", userId);
   });
 }
 
@@ -422,7 +428,8 @@ function moderatorAllowed(request, moderatorToken) {
  * Moderator tools for the operator's command line (scripts/community-moderate.mjs).
  * They need the MODERATOR_TOKEN Worker secret and are never part of the app.
  */
-function moderate(sql, request, method, path) {
+function moderate(storage, request, method, path) {
+  const { sql } = storage;
   const parts = path.split("/").slice(1);
   if (method === "GET" && parts[0] === "reports") {
     const status = new URL(request.url).searchParams.get("status") === "resolved" ? "resolved" : "open";
@@ -457,6 +464,12 @@ function moderate(sql, request, method, path) {
       return new Response(null, { status: 204 });
     }
   }
+  // Deletion requests sent by email (for example from members who forgot their password).
+  if (method === "DELETE" && parts[0] === "users" && parts.length === 2) {
+    const user = findUser(sql, decodeURIComponent(parts[1] ?? ""));
+    removeMember(storage, user.id);
+    return new Response(null, { status: 204 });
+  }
   if (method === "POST" && parts[0] === "users" && (parts[2] === "suspend" || parts[2] === "unsuspend")) {
     const user = findUser(sql, decodeURIComponent(parts[1] ?? ""));
     sql.exec("UPDATE community_users SET suspended_at = ? WHERE id = ?", parts[2] === "suspend" ? Date.now() : null, user.id);
@@ -475,7 +488,7 @@ export async function handleCommunity(request, storage, options = {}) {
   try {
     if (path.startsWith("moderation/")) {
       if (!moderatorAllowed(request, options.moderatorToken)) return Response.json({ error: "not_found" }, { status: 404 });
-      return moderate(sql, request, method, path);
+      return moderate(storage, request, method, path);
     }
     if (method === "GET" && path === "songs") {
       return Response.json(listSongs(sql, url, { viewerId: optionalAccount(sql, request)?.id }));

@@ -311,3 +311,6 @@ h2 { margin:7px 0 5px; font:600 clamp(30px,4vw,44px)/1.1 Georgia,serif; letter-s
   .fingering small { margin-top:1px; font-size:7px; }
   .score-footer { margin-top:7px; padding-top:7px; font-size:8px; }
 }
+
+.legal-links { margin: 6px 0; font-size: 13px; color: var(--muted); }
+.legal-links a { color: var(--green-dark); }

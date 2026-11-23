@@ -202,3 +202,24 @@ test("moderator tools need the server token and can restore, remove and suspend"
   assert.equal((await request(`moderation/songs/${song.id}`, { method: "DELETE", ...asModerator })).status, 204);
   assert.deepEqual((await request("songs?q=")).data.songs, []);
 });
+
+test("a moderator can fully delete a member who asked by email", async context => {
+  const { request, member, count } = community(context, { moderatorToken: "moderator-secret" });
+  const asModerator = { headers: { "X-Moderator-Token": "moderator-secret" } };
+  const leaving = await member("Forgetful");
+  const other = await member("Other");
+  const song = (await request("songs", { method: "POST", token: leaving.token, body: DRAFT })).data;
+  const otherSong = (await request("songs", { method: "POST", token: other.token, body: { ...DRAFT, title: "Other tune" } })).data;
+  await request(`songs/${otherSong.id}/rating`, { method: "PUT", token: leaving.token, body: { score: 4 } });
+  await request(`songs/${song.id}/rating`, { method: "PUT", token: other.token, body: { score: 2.5 } });
+  await request("blocks", { method: "POST", token: other.token, body: { username: "Forgetful" } });
+
+  assert.equal((await request("moderation/users/Forgetful", { method: "DELETE" })).status, 404);
+  assert.equal((await request("moderation/users/nobody", { method: "DELETE", ...asModerator })).status, 404);
+  assert.equal((await request("moderation/users/forgetful", { method: "DELETE", ...asModerator })).status, 204);
+  assert.equal(count("SELECT COUNT(*) AS count FROM community_users WHERE username = 'Forgetful'"), 0);
+  assert.equal(count("SELECT COUNT(*) AS count FROM community_songs"), 1);
+  assert.equal(count("SELECT COUNT(*) AS count FROM community_song_ratings"), 0);
+  assert.equal(count("SELECT COUNT(*) AS count FROM community_blocks"), 0);
+  assert.equal((await request("session", { token: leaving.token })).status, 401);
+});

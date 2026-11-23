@@ -6,6 +6,7 @@
 //   npm run moderate -- <worker-url> hide|restore|delete <song-id>
 //   npm run moderate -- <worker-url> resolve <report-id>
 //   npm run moderate -- <worker-url> suspend|unsuspend <username>
+//   npm run moderate -- <worker-url> delete-user <username>   (permanent, for email deletion requests)
 const [base = "", command = "", argument = ""] = process.argv.slice(2);
 const token = process.env.TWNC_MODERATOR_TOKEN;
 if (!/^https?:\/\//.test(base) || !command || !token) {
@@ -20,6 +21,8 @@ const routes = {
   delete: () => ["DELETE", `moderation/songs/${argument}`],
   resolve: () => ["POST", `moderation/reports/${argument}/resolve`],
   suspend: () => ["POST", `moderation/users/${encodeURIComponent(argument)}/suspend`],
+  // Permanently deletes the member and everything tied to them (email deletion requests).
+  "delete-user": () => ["DELETE", `moderation/users/${encodeURIComponent(argument)}`],
   unsuspend: () => ["POST", `moderation/users/${encodeURIComponent(argument)}/unsuspend`],
 };
 if (!routes[command] || (command !== "reports" && !argument)) {
